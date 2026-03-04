@@ -1,5 +1,7 @@
 """Constants for GPU bandwidth, quantization, and estimation parameters."""
 
+_GiB = 1024**3
+
 # GPU memory bandwidth in GB/s (theoretical peak)
 # Key: substring matched against GPU name (case-insensitive)
 GPU_BANDWIDTH: dict[str, float] = {
