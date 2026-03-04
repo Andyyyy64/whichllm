@@ -8,6 +8,7 @@ dependencies = [
     "rich>=13.0",
     "httpx>=0.27",
     "psutil>=5.9",
+    "dbgpu[fuzz]>=1.0",
 ]
 
 [project.optional-dependencies]
