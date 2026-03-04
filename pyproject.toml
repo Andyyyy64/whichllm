@@ -1,8 +1,9 @@
 [project]
 name = "whichllm"
-version = "0.1.1"
+version = "0.1.2"
 description = "Find the best LLM that runs on your hardware"
 requires-python = ">=3.11"
+license = "MIT"
 dependencies = [
     "typer>=0.9",
     "rich>=13.0",
