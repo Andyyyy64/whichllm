@@ -43,11 +43,41 @@ def detect_cpu_name() -> str:
     return "Unknown CPU"
 
 
+def _count_physical_cores_linux() -> int | None:
+    """Count unique physical cores from /proc/cpuinfo (handles WSL2)."""
+    try:
+        physical_ids: set[tuple[str, str]] = set()
+        current_physical = ""
+        current_core = ""
+        with open("/proc/cpuinfo") as f:
+            for line in f:
+                if line.startswith("physical id"):
+                    current_physical = line.split(":", 1)[1].strip()
+                elif line.startswith("core id"):
+                    current_core = line.split(":", 1)[1].strip()
+                    physical_ids.add((current_physical, current_core))
+        if physical_ids:
+            return len(physical_ids)
+    except Exception:
+        pass
+    return None
+
+
 def detect_cpu_cores() -> int:
     """Get number of physical CPU cores."""
     import psutil
 
-    return psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True) or 1
+    cores = psutil.cpu_count(logical=False)
+    if cores:
+        return cores
+
+    # Fallback for WSL2 where psutil may return None for physical cores
+    if platform.system() == "Linux":
+        linux_cores = _count_physical_cores_linux()
+        if linux_cores:
+            return linux_cores
+
+    return psutil.cpu_count(logical=True) or 1
 
 
 def _detect_avx_linux() -> tuple[bool, bool]:

@@ -124,12 +124,12 @@ QUANT_QUALITY_PENALTY: dict[str, float] = {
     "Q4_K_S": 0.055,
     "Q4_0": 0.06,
     "Q3_K_M": 0.08,
-    "Q3_K_S": 0.09,
+    "Q3_K_S": 0.12,
     "Q3_K_L": 0.075,
-    "Q2_K": 0.15,
+    "Q2_K": 0.25,
     "IQ4_XS": 0.05,
-    "IQ3_XXS": 0.10,
-    "IQ2_XXS": 0.18,
+    "IQ3_XXS": 0.18,
+    "IQ2_XXS": 0.30,
 }
 
 # Preferred quantization types ordered from best to acceptable
@@ -146,11 +146,11 @@ QUANT_PREFERENCE_ORDER = [
     "Q4_0",
     "Q5_0",
     "Q3_K_S",
-    "IQ3_XXS",
-    "Q2_K",
-    "IQ2_XXS",
     "F16",
     "BF16",
+    "Q2_K",
+    "IQ3_XXS",
+    "IQ2_XXS",
 ]
 
 # Framework overhead in bytes (~500MB)

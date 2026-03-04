@@ -8,8 +8,11 @@ from local_llm_checker.models.types import ModelFamily, ModelInfo
 
 
 def _normalize_name(model_id: str) -> str:
-    """Normalize model ID for grouping by removing GGUF/quant/chat suffixes."""
+    """Normalize model ID for grouping by removing org prefix and GGUF/quant/chat suffixes."""
     name = model_id.lower()
+    # Strip org prefix (e.g. "bartowski/Meta-Llama-3.1" -> "meta-llama-3.1")
+    if "/" in name:
+        name = name.split("/", 1)[1]
     # Remove common suffixes
     suffixes = [
         r"-gguf$",

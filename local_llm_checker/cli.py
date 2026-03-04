@@ -99,7 +99,7 @@ def main(
         console.print()
         display_hardware(hardware)
         console.print()
-        display_ranking(results)
+        display_ranking(results, has_gpu=bool(hardware.gpus))
         console.print()
 
 

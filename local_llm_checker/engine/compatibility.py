@@ -46,11 +46,14 @@ def check_compatibility(
     if best_gpu and best_gpu.vendor == "apple" and hardware.os != "darwin":
         warnings.append("Metal requires macOS for Apple Silicon inference")
 
+    # Reserve 20% of RAM for OS and other processes
+    usable_ram = int(hardware.ram_bytes * 0.80)
+
     # Determine fit type
     if vram_available >= vram_required:
         fit_type = "full_gpu"
         can_run = True
-    elif vram_available > 0 and (vram_available + hardware.ram_bytes) >= vram_required:
+    elif vram_available > 0 and (vram_available + usable_ram) >= vram_required:
         fit_type = "partial_offload"
         can_run = True
         offload_pct = (
@@ -59,7 +62,7 @@ def check_compatibility(
             else 0
         )
         warnings.append(f"~{offload_pct:.0f}% of layers will be offloaded to CPU RAM")
-    elif hardware.ram_bytes >= vram_required:
+    elif usable_ram >= vram_required:
         fit_type = "cpu_only"
         can_run = True
         warnings.append("Will run on CPU only (much slower)")

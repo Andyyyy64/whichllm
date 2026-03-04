@@ -30,6 +30,12 @@ def _pick_best_variant(
         filtered = [v for v in candidates if v.quant_type.upper() == quant_filter.upper()]
         if filtered:
             candidates = filtered
+    else:
+        # Exclude extreme quantizations unless explicitly requested
+        _EXTREME_QUANTS = {"Q2_K", "IQ2_XXS", "IQ3_XXS"}
+        filtered = [v for v in candidates if v.quant_type.upper() not in _EXTREME_QUANTS]
+        if filtered:
+            candidates = filtered
 
     # Sort by preference order
     def variant_sort_key(v: GGUFVariant) -> int:
@@ -61,6 +67,24 @@ def _pick_best_variant(
     return smallest, result
 
 
+_OFFICIAL_ORGS = frozenset({
+    "Qwen", "meta-llama", "google", "mistralai", "deepseek-ai",
+    "microsoft", "nvidia", "01-ai", "tiiuae", "apple",
+    "CohereForAI", "bigcode",
+})
+
+# Trusted GGUF converters (no bonus, but no penalty)
+_TRUSTED_CONVERTERS = frozenset({
+    "bartowski", "lmstudio-community", "QuantFactory",
+})
+
+# Known repackagers — typically reupload others' models without added value
+_REPACKAGER_ORGS = frozenset({
+    "MaziyarPanahi", "TheBloke", "SanctumAI", "solidrust",
+    "mradermacher",
+})
+
+
 def _compute_quality_score(
     model: ModelInfo,
     variant: GGUFVariant | None,
@@ -75,6 +99,7 @@ def _compute_quality_score(
     - Fit type penalty (partial offload / CPU-only heavily penalized)
     - Speed bonus (practical usability)
     - Popularity (downloads/likes as tiebreaker)
+    - Official repo bonus
     """
     # Base quality from parameter count (log scale, 7B=50, 70B=80, 405B=95)
     params_b = model.parameter_count / 1e9
@@ -115,7 +140,15 @@ def _compute_quality_score(
     if model.likes > 0:
         pop_score += min(1.5, math.log10(max(model.likes, 1)) / 4 * 1.5)
 
-    return min(100.0, quality_after_quant + speed_bonus + pop_score)
+    # Source trust adjustment: reward official, penalize repackagers
+    source_bonus = 0.0
+    org = model.id.split("/")[0] if "/" in model.id else ""
+    if org in _OFFICIAL_ORGS:
+        source_bonus = 8.0
+    elif org in _REPACKAGER_ORGS:
+        source_bonus = -10.0
+
+    return min(100.0, quality_after_quant + speed_bonus + pop_score + source_bonus)
 
 
 def rank_models(

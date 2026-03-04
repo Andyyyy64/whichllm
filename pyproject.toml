@@ -7,9 +7,11 @@ dependencies = [
     "typer>=0.9",
     "rich>=13.0",
     "httpx>=0.27",
-    "nvidia-ml-py>=12.0",
     "psutil>=5.9",
 ]
+
+[project.optional-dependencies]
+nvidia = ["nvidia-ml-py>=12.0"]
 
 [project.scripts]
 llm-checker = "local_llm_checker.cli:app"
@@ -25,4 +27,4 @@ packages = ["local_llm_checker"]
 testpaths = ["tests"]
 
 [dependency-groups]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "nvidia-ml-py>=12.0"]

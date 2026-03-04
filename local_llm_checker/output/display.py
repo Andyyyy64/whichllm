@@ -76,18 +76,20 @@ def display_hardware(hw: HardwareInfo) -> None:
     console.print(panel)
 
 
-def display_ranking(results: list[CompatibilityResult]) -> None:
+def display_ranking(results: list[CompatibilityResult], *, has_gpu: bool = True) -> None:
     """Display ranked model table."""
     if not results:
         console.print("[yellow]No compatible models found for your hardware.[/]")
         return
+
+    mem_label = "VRAM" if has_gpu else "RAM"
 
     table = Table(title="Recommended Models", show_lines=True)
     table.add_column("#", style="bold", width=3, justify="right")
     table.add_column("Model", style="cyan", min_width=30)
     table.add_column("Params", justify="right", width=8)
     table.add_column("Quant", justify="center", width=8)
-    table.add_column("VRAM", justify="right", width=10)
+    table.add_column(mem_label, justify="right", width=10)
     table.add_column("Speed", justify="right", width=10)
     table.add_column("Score", justify="right", width=7)
     table.add_column("Fit", justify="center", width=10)
