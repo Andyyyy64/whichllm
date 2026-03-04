@@ -65,13 +65,15 @@ def _compute_quality_score(
     model: ModelInfo,
     variant: GGUFVariant | None,
     tok_per_sec: float,
+    fit_type: str,
 ) -> float:
     """Compute a quality score (0-100) for ranking.
 
     Factors:
     - Model size (larger = better quality, up to a point)
     - Quantization penalty
-    - Speed bonus
+    - Fit type penalty (partial offload / CPU-only heavily penalized)
+    - Speed bonus (practical usability)
     - Popularity (downloads/likes as tiebreaker)
     """
     # Base quality from parameter count (log scale, 7B=50, 70B=80, 405B=95)
@@ -94,10 +96,17 @@ def _compute_quality_score(
         quant_penalty = QUANT_QUALITY_PENALTY.get(variant.quant_type.upper(), 0.05)
     quality_after_quant = size_score * (1 - quant_penalty)
 
-    # Speed bonus: prefer models that are reasonably fast (>10 tok/s gets bonus)
+    # Fit type penalty: partial offload and CPU-only are much worse in practice
+    if fit_type == "partial_offload":
+        quality_after_quant *= 0.60  # 40% penalty — offloading kills usability
+    elif fit_type == "cpu_only":
+        quality_after_quant *= 0.35  # 65% penalty — very slow
+
+    # Speed bonus: practical usability matters a lot
+    # 30+ tok/s = great (+10), 15 tok/s = good (+7), 5 tok/s = meh (+2)
     speed_bonus = 0.0
     if tok_per_sec > 0:
-        speed_bonus = min(5.0, tok_per_sec / 10.0 * 2.5)
+        speed_bonus = min(10.0, math.log2(max(tok_per_sec, 1)) * 2.5)
 
     # Popularity tiebreaker (0-3 points)
     pop_score = 0.0
@@ -145,7 +154,7 @@ def rank_models(
             continue
 
         # Compute quality score
-        compat.quality_score = _compute_quality_score(model, variant, tok_per_sec)
+        compat.quality_score = _compute_quality_score(model, variant, tok_per_sec, compat.fit_type)
 
         # Deduplicate by family: keep the one with highest quality score
         family_key = model.family_id
