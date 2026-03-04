@@ -1,0 +1,28 @@
+[project]
+name = "local-llm-checker"
+version = "0.1.0"
+description = "Find the best LLM that runs on your hardware"
+requires-python = ">=3.11"
+dependencies = [
+    "typer>=0.9",
+    "rich>=13.0",
+    "httpx>=0.27",
+    "nvidia-ml-py>=12.0",
+    "psutil>=5.9",
+]
+
+[project.scripts]
+llm-checker = "local_llm_checker.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/local_llm_checker"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
