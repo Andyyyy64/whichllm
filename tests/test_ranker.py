@@ -386,3 +386,91 @@ def test_full_gpu_estimated_ranks_above_partial_direct():
     assert len(results) == 2
     assert results[0].fit_type == "full_gpu"
     assert results[1].fit_type == "partial_offload"
+
+
+def test_evidence_strict_filters_out_estimated_models():
+    direct_model = ModelInfo(
+        id="Qwen/Qwen2.5-7B-Instruct",
+        family_id="qwen2.5-7b",
+        name="Qwen2.5-7B-Instruct",
+        parameter_count=7_000_000_000,
+        downloads=1000,
+        likes=100,
+        gguf_variants=[
+            GGUFVariant(filename="d-Q4_K_M.gguf", quant_type="Q4_K_M", file_size_bytes=4_000_000_000),
+        ],
+    )
+    estimated_model = ModelInfo(
+        id="Qwen/Qwen3-14B-Instruct-GGUF",
+        family_id="qwen3-14b",
+        name="Qwen3-14B-Instruct-GGUF",
+        parameter_count=14_000_000_000,
+        downloads=1000,
+        likes=100,
+        gguf_variants=[
+            GGUFVariant(filename="e-Q4_K_M.gguf", quant_type="Q4_K_M", file_size_bytes=8_000_000_000),
+        ],
+    )
+    hw = _make_hardware(vram_gb=24, bandwidth_gbps=300.0)
+    results = rank_models(
+        [direct_model, estimated_model],
+        hw,
+        top_n=10,
+        benchmark_scores={
+            "Qwen/Qwen2.5-7B-Instruct": 70.0,
+            "Qwen/Qwen3-32B-Instruct": 85.0,  # Qwen3-14B には line 推定が入る
+        },
+        task_profile="any",
+        evidence_filter="strict",
+    )
+    assert len(results) == 1
+    assert results[0].model.id == "Qwen/Qwen2.5-7B-Instruct"
+    assert results[0].benchmark_status == "direct"
+
+
+def test_evidence_base_keeps_base_model_match_and_drops_line_interp():
+    direct_model = ModelInfo(
+        id="Qwen/Qwen2.5-7B-Instruct",
+        family_id="qwen2.5-7b",
+        name="Qwen2.5-7B-Instruct",
+        parameter_count=7_000_000_000,
+        downloads=1000,
+        likes=100,
+    )
+    base_match_model = ModelInfo(
+        id="ISTA-DASLab/gemma-3-27b-it-GPTQ-4b-128g",
+        family_id="gemma-3-27b",
+        name="gemma-3-27b-it-GPTQ-4b-128g",
+        parameter_count=27_000_000_000,
+        downloads=1000,
+        likes=100,
+        base_model="google/gemma-3-27b-it",
+    )
+    line_interp_model = ModelInfo(
+        id="Qwen/Qwen3-14B-Instruct-GGUF",
+        family_id="qwen3-14b",
+        name="Qwen3-14B-Instruct-GGUF",
+        parameter_count=14_000_000_000,
+        downloads=1000,
+        likes=100,
+        gguf_variants=[
+            GGUFVariant(filename="f-Q4_K_M.gguf", quant_type="Q4_K_M", file_size_bytes=8_000_000_000),
+        ],
+    )
+    hw = _make_hardware(vram_gb=24, bandwidth_gbps=300.0)
+    results = rank_models(
+        [direct_model, base_match_model, line_interp_model],
+        hw,
+        top_n=10,
+        benchmark_scores={
+            "Qwen/Qwen2.5-7B-Instruct": 70.0,
+            "google/gemma-3-27b-it": 82.0,
+            "Qwen/Qwen3-32B-Instruct": 85.0,
+        },
+        task_profile="any",
+        evidence_filter="base",
+    )
+    ids = {r.model.id for r in results}
+    assert "Qwen/Qwen2.5-7B-Instruct" in ids
+    assert "ISTA-DASLab/gemma-3-27b-it-GPTQ-4b-128g" in ids
+    assert "Qwen/Qwen3-14B-Instruct-GGUF" not in ids

@@ -127,6 +127,16 @@ def _effective_params_b(model: ModelInfo) -> float:
     return model.parameter_count / 1e9
 
 
+def _passes_evidence_filter(source: str, evidence_filter: str) -> bool:
+    """判定根拠フィルタに合致するかを返す。"""
+    mode = evidence_filter.lower()
+    if mode == "strict":
+        return source == "direct"
+    if mode == "base":
+        return source in {"direct", "variant", "base_model"}
+    return True
+
+
 def _is_gguf_only_backend(hardware: HardwareInfo) -> bool:
     """実行基盤の都合でGGUFのみを許可すべきか判定する。"""
     # Apple Silicon(macOS/Metal)とCPU-onlyは、実運用の安定性を優先してGGUFに限定する。
@@ -268,6 +278,7 @@ def rank_models(
     task_profile: str = "general",
     require_direct_top: bool = True,
     min_params_b: float | None = None,
+    evidence_filter: str = "any",
 ) -> list[CompatibilityResult]:
     """Rank models by quality for the given hardware. Returns top N results."""
     results: list[CompatibilityResult] = []
@@ -322,6 +333,8 @@ def rank_models(
                 line_index=bench_line_index,
                 line_bucket_index=bench_line_buckets,
             )
+        if not _passes_evidence_filter(bench_evidence.source, evidence_filter):
+            continue
 
         # 各variantを評価し、そのモデルで最もスコアが高いものを採用する
         best_for_model: CompatibilityResult | None = None

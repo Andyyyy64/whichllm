@@ -48,6 +48,9 @@ whichllm --cpu-only
 whichllm --top 20
 whichllm --quant Q4_K_M
 whichllm --min-speed 30
+whichllm --evidence base   # allow id/base-model matches
+whichllm --evidence strict # id-exact only (same as --direct)
+whichllm --direct
 
 # JSON output
 whichllm --json

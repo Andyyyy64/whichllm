@@ -48,6 +48,9 @@ whichllm --cpu-only
 whichllm --top 20
 whichllm --quant Q4_K_M
 whichllm --min-speed 30
+whichllm --evidence base   # id一致 + base_model一致まで許可
+whichllm --evidence strict # id完全一致のみ（--direct と同じ）
+whichllm --direct
 
 # JSON 出力
 whichllm --json

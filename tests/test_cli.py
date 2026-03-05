@@ -1,11 +1,16 @@
 """Tests for CLI helper logic."""
 
+import pytest
+from click.exceptions import Exit
+
 from whichllm.cli import (
     _auto_min_params_for_profile,
     _current_version,
     _fill_missing_published_at,
     _include_vision_candidates,
     _merge_model_eval_benchmarks,
+    _resolve_evidence_mode,
+    _validate_evidence,
     app,
 )
 from whichllm.engine.types import CompatibilityResult
@@ -108,3 +113,18 @@ def test_merge_model_eval_benchmarks_injects_only_missing_ids():
     assert injected == 1
     assert merged["meta-llama/Llama-3.1-8B-Instruct"] == 66.4
     assert merged["Qwen/Qwen2.5-7B-Instruct"] == 71.2
+
+
+def test_validate_evidence_accepts_all_modes():
+    assert _validate_evidence("strict") == "strict"
+    assert _validate_evidence("base") == "base"
+    assert _validate_evidence("any") == "any"
+
+
+def test_validate_evidence_rejects_unknown_mode():
+    with pytest.raises(Exit):
+        _validate_evidence("foo")
+
+
+def test_resolve_evidence_mode_direct_alias_wins():
+    assert _resolve_evidence_mode("base", direct=True) == "strict"

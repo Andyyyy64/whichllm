@@ -65,6 +65,25 @@ def _validate_profile(profile: str) -> str:
     return p
 
 
+def _validate_evidence(evidence: str) -> str:
+    """Validate evidence mode option."""
+    valid = {"strict", "base", "any"}
+    mode = evidence.lower()
+    if mode not in valid:
+        console.print("[red]Error:[/] --evidence must be one of: strict, base, any.")
+        raise typer.Exit(code=1)
+    return mode
+
+
+def _resolve_evidence_mode(evidence: str, direct: bool) -> str:
+    """Resolve final evidence mode, keeping --direct as strict alias."""
+    mode = _validate_evidence(evidence)
+    if direct:
+        # 互換性維持のため --direct は strict と同義に固定する。
+        return "strict"
+    return mode
+
+
 def _apply_gpu_overrides(
     hardware: HardwareInfo, cpu_only: bool, gpu: str | None, vram: float | None,
 ) -> HardwareInfo:
@@ -155,6 +174,16 @@ def main(
     context_length: int = typer.Option(4096, "--context-length", "-c", help="Context length for KV cache estimation"),
     quant: Optional[str] = typer.Option(None, "--quant", "-q", help="Filter by quantization type (e.g. Q4_K_M)"),
     min_speed: Optional[float] = typer.Option(None, "--min-speed", help="Minimum tok/s filter"),
+    evidence: str = typer.Option(
+        "any",
+        "--evidence",
+        help="Benchmark evidence filter: strict | base | any",
+    ),
+    direct: bool = typer.Option(
+        False,
+        "--direct",
+        help="Alias of --evidence strict",
+    ),
     status: bool = typer.Option(
         False,
         "--status",
@@ -181,6 +210,7 @@ def main(
 
     _validate_gpu_flags(cpu_only, gpu, vram)
     profile = _validate_profile(profile)
+    evidence_mode = _resolve_evidence_mode(evidence, direct)
 
     from rich.progress import Progress, SpinnerColumn, TextColumn
 
@@ -272,6 +302,7 @@ def main(
             task_profile=profile,
             require_direct_top=True,
             min_params_b=auto_min_params,
+            evidence_filter=evidence_mode,
         )
 
         # 自動しきい値で候補ゼロなら緩和して表示を維持する
@@ -287,6 +318,7 @@ def main(
                 task_profile=profile,
                 require_direct_top=True,
                 min_params_b=None,
+                evidence_filter=evidence_mode,
             )
 
         # 上位候補の公開日時が欠けている場合のみ補完して表示品質を上げる
