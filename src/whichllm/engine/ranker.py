@@ -122,6 +122,19 @@ def _effective_params_b(model: ModelInfo) -> float:
     return model.parameter_count / 1e9
 
 
+def _is_gguf_only_backend(hardware: HardwareInfo) -> bool:
+    """実行基盤の都合でGGUFのみを許可すべきか判定する。"""
+    # Apple Silicon(macOS/Metal)とCPU-onlyは、実運用の安定性を優先してGGUFに限定する。
+    if hardware.os == "darwin":
+        return True
+    if not hardware.gpus:
+        return True
+
+    # Linux + NVIDIA (CUDA) は AWQ/GPTQ 含む非GGUFも許可する。
+    has_linux_nvidia = hardware.os == "linux" and any(g.vendor == "nvidia" for g in hardware.gpus)
+    return not has_linux_nvidia
+
+
 def _compute_quality_score(
     model: ModelInfo,
     variant: GGUFVariant | None,
@@ -253,6 +266,7 @@ def rank_models(
 ) -> list[CompatibilityResult]:
     """Rank models by quality for the given hardware. Returns top N results."""
     results: list[CompatibilityResult] = []
+    gguf_only_backend = _is_gguf_only_backend(hardware)
 
     # Pre-compute max downloads/likes per family so GGUF converters
     # inherit popularity from the official base model
@@ -301,6 +315,8 @@ def rank_models(
         # 各variantを評価し、そのモデルで最もスコアが高いものを採用する
         best_for_model: CompatibilityResult | None = None
         for variant in candidates:
+            if gguf_only_backend and variant is None:
+                continue
             compat = check_compatibility(model, variant, hardware, context_length)
             if not compat.can_run:
                 continue

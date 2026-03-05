@@ -5,23 +5,32 @@ from whichllm.hardware.types import GPUInfo, HardwareInfo
 from whichllm.models.types import GGUFVariant, ModelInfo
 
 
-def _make_hardware(vram_gb: int = 24, bandwidth_gbps: float = 80.0) -> HardwareInfo:
-    return HardwareInfo(
-        gpus=[
+def _make_hardware(
+    vram_gb: int = 24,
+    bandwidth_gbps: float = 80.0,
+    vendor: str = "nvidia",
+    os_name: str = "linux",
+    with_gpu: bool = True,
+) -> HardwareInfo:
+    gpus = []
+    if with_gpu:
+        gpus = [
             GPUInfo(
                 name="Test GPU",
-                vendor="nvidia",
+                vendor=vendor,
                 vram_bytes=vram_gb * 1024**3,
-                compute_capability=(8, 9),
+                compute_capability=(8, 9) if vendor == "nvidia" else None,
                 memory_bandwidth_gbps=bandwidth_gbps,
             ),
-        ],
+        ]
+    return HardwareInfo(
+        gpus=gpus,
         cpu_name="Test CPU",
         cpu_cores=8,
         has_avx2=True,
         ram_bytes=64 * 1024**3,
         disk_free_bytes=500 * 1024**3,
-        os="linux",
+        os=os_name,
     )
 
 
@@ -66,6 +75,58 @@ def test_quant_filter_applies_to_non_gguf_models():
 
     assert len(awq_only) == 1
     assert q4_only == []
+
+
+def test_darwin_backend_filters_out_non_gguf_models():
+    awq_model = ModelInfo(
+        id="Qwen/Qwen3-8B-AWQ",
+        family_id="qwen3-8b-awq",
+        name="Qwen3-8B-AWQ",
+        parameter_count=8_000_000_000,
+        downloads=1000,
+        likes=100,
+    )
+    gguf_model = ModelInfo(
+        id="Qwen/Qwen3-8B-GGUF",
+        family_id="qwen3-8b-gguf",
+        name="Qwen3-8B-GGUF",
+        parameter_count=8_000_000_000,
+        downloads=1000,
+        likes=100,
+        gguf_variants=[
+            GGUFVariant(filename="a-Q4_K_M.gguf", quant_type="Q4_K_M", file_size_bytes=4_000_000_000),
+        ],
+    )
+    hw = _make_hardware(vram_gb=16, bandwidth_gbps=200.0, vendor="apple", os_name="darwin")
+    results = rank_models([awq_model, gguf_model], hw, top_n=10)
+    assert len(results) == 1
+    assert results[0].model.id == "Qwen/Qwen3-8B-GGUF"
+
+
+def test_cpu_only_backend_filters_out_non_gguf_models():
+    awq_model = ModelInfo(
+        id="Qwen/Qwen3-8B-AWQ",
+        family_id="qwen3-8b-awq",
+        name="Qwen3-8B-AWQ",
+        parameter_count=8_000_000_000,
+        downloads=1000,
+        likes=100,
+    )
+    gguf_model = ModelInfo(
+        id="Qwen/Qwen3-8B-GGUF",
+        family_id="qwen3-8b-gguf",
+        name="Qwen3-8B-GGUF",
+        parameter_count=8_000_000_000,
+        downloads=1000,
+        likes=100,
+        gguf_variants=[
+            GGUFVariant(filename="a-Q4_K_M.gguf", quant_type="Q4_K_M", file_size_bytes=4_000_000_000),
+        ],
+    )
+    hw = _make_hardware(with_gpu=False, os_name="linux")
+    results = rank_models([awq_model, gguf_model], hw, top_n=10)
+    assert len(results) == 1
+    assert results[0].model.id == "Qwen/Qwen3-8B-GGUF"
 
 
 def test_popularity_has_no_effect_with_direct_benchmark():
