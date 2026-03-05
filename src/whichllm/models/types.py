@@ -21,6 +21,7 @@ class ModelInfo:
     is_moe: bool = False
     context_length: int | None = None
     license: str | None = None
+    published_at: str | None = None
     downloads: int = 0
     likes: int = 0
     gguf_variants: list[GGUFVariant] = field(default_factory=list)
