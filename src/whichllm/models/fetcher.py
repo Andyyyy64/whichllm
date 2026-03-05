@@ -14,6 +14,7 @@ from whichllm.models.types import GGUFVariant, ModelInfo
 logger = logging.getLogger(__name__)
 
 HF_API_BASE = "https://huggingface.co/api"
+_GGUF_SPLIT_RE = re.compile(r"-(\d{5})-of-(\d{5})\.gguf$", re.IGNORECASE)
 
 
 def _extract_published_at(data: dict) -> str | None:
@@ -193,31 +194,34 @@ def _parse_model(data: dict) -> ModelInfo | None:
             )
 
     # GGUF variants from siblings
-    gguf_variants = []
-    seen_quants: set[str] = set()
+    quant_sizes: dict[str, int] = {}
+    quant_first_filename: dict[str, str] = {}
     siblings = data.get("siblings", []) or []
     for sib in siblings:
         fname = sib.get("rfilename", "")
         if not fname.endswith(".gguf") or fname.startswith("."):
             continue
-        # Skip split files (keep only the first part or non-split)
-        if re.search(r"-\d{5}-of-\d{5}\.gguf$", fname):
-            continue
         quant = _extract_quant_type(fname)
         if quant == "unknown":
             continue
-        # Deduplicate: keep one file per quant type
-        if quant in seen_quants:
-            continue
-        seen_quants.add(quant)
         size = sib.get("size", 0)
-        if not size or size <= 0:
-            size = _estimate_gguf_size(param_count, quant)
+        if not isinstance(size, int) or size < 0:
+            size = 0
+
+        # 分割GGUFは量子化ごとに合算して1候補として扱う。
+        quant_sizes[quant] = quant_sizes.get(quant, 0) + size
+        if quant not in quant_first_filename or _GGUF_SPLIT_RE.search(quant_first_filename[quant]):
+            quant_first_filename[quant] = fname
+
+    gguf_variants = []
+    for quant, total_size in quant_sizes.items():
+        if total_size <= 0:
+            total_size = _estimate_gguf_size(param_count, quant)
         gguf_variants.append(
             GGUFVariant(
-                filename=fname,
+                filename=quant_first_filename[quant],
                 quant_type=quant,
-                file_size_bytes=size,
+                file_size_bytes=total_size,
             )
         )
 
@@ -252,8 +256,8 @@ def _parse_model(data: dict) -> ModelInfo | None:
     )
 
 
-async def fetch_models(limit: int = 300) -> list[ModelInfo]:
-    """Fetch popular text-generation models from HuggingFace Hub."""
+async def fetch_models(limit: int = 300, include_vision: bool = True) -> list[ModelInfo]:
+    """Fetch popular models from HuggingFace Hub."""
     models: list[ModelInfo] = []
 
     async with httpx.AsyncClient(timeout=30.0) as client:
@@ -317,26 +321,27 @@ async def fetch_models(limit: int = 300) -> list[ModelInfo]:
                     models.append(model)
                     seen_ids.add(model.id)
 
-        # Fetch multimodal models (e.g. Qwen3.5 is image-text-to-text)
-        for pipeline_tag in ("image-text-to-text",):
-            mm_params = {
-                "pipeline_tag": pipeline_tag,
-                "sort": "downloads",
-                "direction": "-1",
-                "limit": str(limit),
-                "expand[]": ["config", "safetensors", "gguf", "cardData", "siblings"],
-            }
-            logger.debug(f"Fetching {pipeline_tag} models from HF API")
-            resp = await client.get(f"{HF_API_BASE}/models", params=mm_params)
-            resp.raise_for_status()
-            mm_data_list = resp.json()
+        if include_vision:
+            # 画像入力系は用途が異なるため、明示的に有効化されたときだけ取得する。
+            for pipeline_tag in ("image-text-to-text",):
+                mm_params = {
+                    "pipeline_tag": pipeline_tag,
+                    "sort": "downloads",
+                    "direction": "-1",
+                    "limit": str(limit),
+                    "expand[]": ["config", "safetensors", "gguf", "cardData", "siblings"],
+                }
+                logger.debug(f"Fetching {pipeline_tag} models from HF API")
+                resp = await client.get(f"{HF_API_BASE}/models", params=mm_params)
+                resp.raise_for_status()
+                mm_data_list = resp.json()
 
-            for data in mm_data_list:
-                if data.get("id") not in seen_ids:
-                    model = _parse_model(data)
-                    if model:
-                        models.append(model)
-                        seen_ids.add(model.id)
+                for data in mm_data_list:
+                    if data.get("id") not in seen_ids:
+                        model = _parse_model(data)
+                        if model:
+                            models.append(model)
+                            seen_ids.add(model.id)
 
     logger.debug(f"Fetched {len(models)} models total")
     return models

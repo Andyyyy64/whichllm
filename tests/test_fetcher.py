@@ -3,6 +3,7 @@
 from whichllm.models.fetcher import (
     _extract_published_at,
     _normalize_param_count,
+    _parse_model,
     dicts_to_models,
     models_to_dicts,
 )
@@ -92,3 +93,27 @@ def test_extract_published_at_falls_back_to_last_modified():
         }
     )
     assert value == "2026-01-01T00:00:00.000Z"
+
+
+def test_parse_model_keeps_split_gguf_as_single_variant():
+    parsed = _parse_model(
+        {
+            "id": "org/Test-8B-GGUF",
+            "config": {
+                "architectures": ["LlamaForCausalLM"],
+            },
+            "safetensors": {"total": 8_000_000_000},
+            "siblings": [
+                {"rfilename": "model-Q4_K_M-00001-of-00002.gguf", "size": 2_000_000_000},
+                {"rfilename": "model-Q4_K_M-00002-of-00002.gguf", "size": 2_500_000_000},
+                {"rfilename": "model-Q8_0.gguf", "size": 8_000_000_000},
+            ],
+            "cardData": {},
+        }
+    )
+    assert parsed is not None
+    q4 = [v for v in parsed.gguf_variants if v.quant_type == "Q4_K_M"]
+    q8 = [v for v in parsed.gguf_variants if v.quant_type == "Q8_0"]
+    assert len(q4) == 1
+    assert len(q8) == 1
+    assert q4[0].file_size_bytes == 4_500_000_000

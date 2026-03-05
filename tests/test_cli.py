@@ -1,6 +1,10 @@
 """Tests for CLI helper logic."""
 
-from whichllm.cli import _auto_min_params_for_profile, _fill_missing_published_at
+from whichllm.cli import (
+    _auto_min_params_for_profile,
+    _fill_missing_published_at,
+    _include_vision_candidates,
+)
 from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.types import GPUInfo, HardwareInfo
 from whichllm.models.types import ModelInfo
@@ -32,6 +36,13 @@ def test_auto_min_params_general_by_vram():
 
 def test_auto_min_params_non_general_disabled():
     assert _auto_min_params_for_profile(_hw_with_gpu(24), "coding") is None
+
+
+def test_include_vision_candidates_by_profile():
+    assert _include_vision_candidates("vision") is True
+    assert _include_vision_candidates("any") is True
+    assert _include_vision_candidates("general") is False
+    assert _include_vision_candidates("coding") is False
 
 
 def test_fill_missing_published_at_updates_models():

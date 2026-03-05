@@ -82,6 +82,11 @@ def _auto_min_params_for_profile(hardware: HardwareInfo, profile: str) -> float 
     return 7.0
 
 
+def _include_vision_candidates(profile: str) -> bool:
+    """候補取得時にVLMを含めるべきプロファイルか判定する。"""
+    return profile.lower() in {"vision", "any"}
+
+
 def _fill_missing_published_at(
     all_models: list,
     results: list,
@@ -179,7 +184,7 @@ def main(
         else:
             progress.update(task, description="Fetching models from HuggingFace...")
             try:
-                models = _run_async(fetch_models())
+                models = _run_async(fetch_models(include_vision=_include_vision_candidates(profile)))
                 save_cache(models_to_dicts(models))
                 progress.update(task, description=f"Fetched {len(models)} models")
             except Exception as e:
