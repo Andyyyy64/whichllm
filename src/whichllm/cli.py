@@ -37,6 +37,18 @@ def _validate_gpu_flags(
         raise typer.Exit(code=1)
 
 
+def _validate_profile(profile: str) -> str:
+    """Validate ranking profile option."""
+    valid = {"general", "coding", "vision", "math", "any"}
+    p = profile.lower()
+    if p not in valid:
+        console.print(
+            "[red]Error:[/] --profile must be one of: general, coding, vision, math, any."
+        )
+        raise typer.Exit(code=1)
+    return p
+
+
 def _apply_gpu_overrides(
     hardware: HardwareInfo, cpu_only: bool, gpu: str | None, vram: float | None,
 ) -> HardwareInfo:
@@ -54,6 +66,22 @@ def _apply_gpu_overrides(
     return hardware
 
 
+def _auto_min_params_for_profile(hardware: HardwareInfo, profile: str) -> float | None:
+    """Pick automatic min-params threshold for strongest general ranking."""
+    if profile != "general":
+        return None
+    if not hardware.gpus:
+        return 3.0
+    best_vram_gb = max(g.vram_bytes for g in hardware.gpus) / (1024**3)
+    if best_vram_gb >= 30:
+        return 12.0
+    if best_vram_gb >= 20:
+        return 10.0
+    if best_vram_gb >= 12:
+        return 8.0
+    return 7.0
+
+
 @app.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context,
@@ -62,6 +90,16 @@ def main(
     context_length: int = typer.Option(4096, "--context-length", "-c", help="Context length for KV cache estimation"),
     quant: Optional[str] = typer.Option(None, "--quant", "-q", help="Filter by quantization type (e.g. Q4_K_M)"),
     min_speed: Optional[float] = typer.Option(None, "--min-speed", help="Minimum tok/s filter"),
+    min_params: Optional[float] = typer.Option(
+        None,
+        "--min-params",
+        help="Minimum effective parameter size in billions (e.g. 7)",
+    ),
+    profile: str = typer.Option(
+        "general",
+        "--profile",
+        help="Ranking profile: general | coding | vision | math | any",
+    ),
     json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
     cpu_only: bool = typer.Option(False, "--cpu-only", help="Ignore GPU and run in CPU-only mode"),
     gpu: Optional[str] = typer.Option(None, "--gpu", help="Simulate a GPU (e.g. 'RTX 4090')"),
@@ -72,6 +110,7 @@ def main(
         return
 
     _validate_gpu_flags(cpu_only, gpu, vram)
+    profile = _validate_profile(profile)
 
     from rich.progress import Progress, SpinnerColumn, TextColumn
 
@@ -137,6 +176,13 @@ def main(
             all_models.append(family.base_model)
             all_models.extend(family.variants)
 
+        # general用途はGPUクラスに応じた自動しきい値で小さすぎるモデルを抑制する
+        auto_min_params = (
+            _auto_min_params_for_profile(hardware, profile)
+            if min_params is None
+            else min_params
+        )
+
         results = rank_models(
             all_models,
             hardware,
@@ -145,7 +191,25 @@ def main(
             quant_filter=quant,
             min_speed=min_speed,
             benchmark_scores=bench_scores,
+            task_profile=profile,
+            require_direct_top=True,
+            min_params_b=auto_min_params,
         )
+
+        # 自動しきい値で候補ゼロなら緩和して表示を維持する
+        if not results and auto_min_params is not None and min_params is None:
+            results = rank_models(
+                all_models,
+                hardware,
+                context_length=context_length,
+                top_n=top,
+                quant_filter=quant,
+                min_speed=min_speed,
+                benchmark_scores=bench_scores,
+                task_profile=profile,
+                require_direct_top=True,
+                min_params_b=None,
+            )
 
     # Display results
     if json_output:
