@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import re
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from whichllm.engine.quantization import effective_quant_type, estimate_weight_bytes
 from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.types import HardwareInfo
 
@@ -30,6 +32,55 @@ def _format_params(count: int) -> str:
     elif count >= 1e6:
         return f"{count / 1e6:.0f}M"
     return str(count)
+
+
+def _detect_specializations(model_id: str) -> list[str]:
+    """Detect task-specialized model hints from repository name."""
+    lower = model_id.lower()
+    tags: list[str] = []
+    if re.search(r"(coder|codegen|starcoder|program|coding)", lower):
+        tags.append("coding")
+    if re.search(r"(^|[-_/])(vl|vision|multimodal|llava|image)([-_/]|$)", lower):
+        tags.append("vision")
+    if re.search(r"(^|[-_/])math([-_/]|$)", lower):
+        tags.append("math")
+    return tags
+
+
+def _top_pick_confidence(results: list[CompatibilityResult]) -> tuple[str, str]:
+    """Return confidence level and explanation for top pick."""
+    top = results[0]
+    gap = (top.quality_score - results[1].quality_score) if len(results) > 1 else 999.0
+    fit_note = ""
+    if top.fit_type == "partial_offload":
+        fit_note = ", partial offload"
+    elif top.fit_type == "cpu_only":
+        fit_note = ", CPU-only"
+
+    if top.benchmark_status == "none":
+        return "Low", f"no benchmark data, gap +{gap:.1f}{fit_note}"
+    if top.benchmark_status == "estimated":
+        if gap >= 2.0:
+            return "Medium", f"estimated benchmark, gap +{gap:.1f}{fit_note}"
+        return "Low", f"estimated benchmark, gap +{gap:.1f}{fit_note}"
+    # direct benchmark
+    if gap >= 2.5:
+        confidence = "High"
+        reason = f"direct benchmark, gap +{gap:.1f}{fit_note}"
+    elif gap >= 1.0:
+        confidence = "Medium"
+        reason = f"direct benchmark, gap +{gap:.1f}{fit_note}"
+    else:
+        confidence = "Low"
+        reason = f"direct benchmark but very close (+{gap:.1f}){fit_note}"
+
+    # オフロード/CPU-onlyの1位は実運用で不確実性が高いため信頼度を1段階下げる
+    if top.fit_type != "full_gpu":
+        if confidence == "High":
+            confidence = "Medium"
+        elif confidence == "Medium":
+            confidence = "Low"
+    return confidence, reason
 
 
 def display_hardware(hw: HardwareInfo) -> None:
@@ -84,30 +135,30 @@ def display_ranking(results: list[CompatibilityResult], *, has_gpu: bool = True)
 
     mem_label = "VRAM" if has_gpu else "RAM"
 
-    table = Table(title="Recommended Models", show_lines=True)
+    table = Table(title="Recommended Models", show_lines=True, expand=True)
     table.add_column("#", style="bold", width=3, justify="right")
-    table.add_column("Model", style="cyan", min_width=30)
-    table.add_column("Params", justify="right", width=8)
-    table.add_column("Quant", justify="center", width=8)
-    table.add_column(mem_label, justify="right", width=10)
-    table.add_column("Speed", justify="right", width=10)
-    table.add_column("Score", justify="right", width=7)
-    table.add_column("Fit", justify="center", width=10)
-    table.add_column("License", width=12)
+    table.add_column("Model", style="cyan", min_width=18, overflow="fold")
+    table.add_column("Params", justify="right", width=7)
+    table.add_column("Quant", justify="center", width=7)
+    table.add_column(mem_label, justify="right", width=9)
+    table.add_column("Speed", justify="right", width=9)
+    table.add_column("Score", justify="right", width=6)
+    table.add_column("Fit", justify="center", width=8)
+    table.add_column("License", width=10)
 
     for i, r in enumerate(results, 1):
-        quant = r.gguf_variant.quant_type if r.gguf_variant else "FP16"
+        quant = effective_quant_type(r.model, r.gguf_variant)
         vram_str = _format_bytes(r.vram_required_bytes)
         speed_str = f"{r.estimated_tok_per_sec:.1f} tok/s" if r.estimated_tok_per_sec else "N/A"
 
         # Score with benchmark status indicator
         score_val = f"{r.quality_score:.1f}"
         if r.benchmark_status == "none":
-            score_str = f"{score_val} [yellow]?[/yellow]"
+            score_str = f"[red]{score_val} ?[/red]"
         elif r.benchmark_status == "estimated":
-            score_str = f"{score_val} [yellow]~[/yellow]"
+            score_str = f"[yellow]{score_val} ~[/yellow]"
         else:
-            score_str = score_val
+            score_str = f"[green]{score_val}[/green]"
 
         fit_style = {
             "full_gpu": "[green]Full GPU[/]",
@@ -122,8 +173,13 @@ def display_ranking(results: list[CompatibilityResult], *, has_gpu: bool = True)
 
         license_str = r.model.license or "—"
 
-        hf_url = f"https://huggingface.co/{r.model.id}"
-        model_link = f"[link={hf_url}]{r.model.id}[/link]"
+        model_link = r.model.id
+
+        row_style = ""
+        if r.benchmark_status == "estimated":
+            row_style = "yellow"
+        elif r.benchmark_status == "none":
+            row_style = "red"
 
         table.add_row(
             str(i),
@@ -135,6 +191,7 @@ def display_ranking(results: list[CompatibilityResult], *, has_gpu: bool = True)
             score_str,
             fit_str,
             license_str,
+            style=row_style,
         )
 
     console.print(table)
@@ -145,16 +202,58 @@ def display_ranking(results: list[CompatibilityResult], *, has_gpu: bool = True)
     if has_estimated or has_none:
         parts = []
         if has_estimated:
-            parts.append("[yellow]~[/yellow] = no direct benchmark yet")
+            parts.append("[yellow]Estimated / ~[/yellow] = inferred from model line")
         if has_none:
-            parts.append("[yellow]?[/yellow] = no benchmark data")
+            parts.append("[red]None / ?[/red] = no benchmark data")
         console.print(f"  [dim]Score:[/dim]  {',  '.join(parts)}")
+
+    has_direct = any(r.benchmark_status == "direct" for r in results)
+    if not has_direct:
+        console.print(
+            "  [red]No confirmed winner:[/] direct benchmark data is missing for current candidates."
+        )
+
+    confidence, reason = _top_pick_confidence(results)
+    confidence_style = {
+        "High": "green",
+        "Medium": "yellow",
+        "Low": "red",
+    }[confidence]
+    console.print(
+        f"  Top pick confidence: [{confidence_style}]{confidence}[/{confidence_style}] ({reason})"
+    )
+
+    # 上位が僅差なら「断定しすぎない」ための注意を表示する
+    if len(results) >= 2:
+        gap = results[0].quality_score - results[1].quality_score
+        if gap < 1.5:
+            console.print(
+                f"  [yellow]Note:[/] Top candidates are very close (#{1} vs #{2}: {gap:.1f} pts)."
+            )
+
+    # 上位に根拠が弱い候補がある場合は目立つ注意を出す
+    weak_top = [idx + 1 for idx, r in enumerate(results[:3]) if r.benchmark_status != "direct"]
+    if weak_top:
+        joined = ", ".join(f"#{i}" for i in weak_top)
+        console.print(f"  [yellow]Caution:[/] Weaker benchmark evidence in top ranks: {joined}")
+
+    specialized: list[str] = []
+    for idx, r in enumerate(results[:10], 1):
+        tags = _detect_specializations(r.model.id)
+        if tags:
+            joined_tags = "/".join(tags)
+            specialized.append(f"#{idx} {joined_tags}")
+    if specialized:
+        console.print(
+            "  [yellow]Task hint:[/] Specialized models detected in ranking: "
+            + ", ".join(specialized)
+        )
 
     # Show warnings for top results
     for i, r in enumerate(results[:3], 1):
         if r.warnings:
             for w in r.warnings:
-                console.print(f"  [yellow]⚠ #{i} {r.model.name}:[/] {w}")
+                console.print(f"  [yellow]Warning #{i} {r.model.name}:[/] {w}")
 
 
 def display_json(results: list[CompatibilityResult], hardware: HardwareInfo) -> None:
@@ -180,9 +279,11 @@ def display_json(results: list[CompatibilityResult], hardware: HardwareInfo) -> 
                 "rank": i,
                 "model_id": r.model.id,
                 "parameter_count": r.model.parameter_count,
-                "quant_type": r.gguf_variant.quant_type if r.gguf_variant else "FP16",
+                "quant_type": effective_quant_type(r.model, r.gguf_variant),
                 "file_size_bytes": (
-                    r.gguf_variant.file_size_bytes if r.gguf_variant else None
+                    r.gguf_variant.file_size_bytes
+                    if r.gguf_variant
+                    else estimate_weight_bytes(r.model, None)
                 ),
                 "vram_required_bytes": r.vram_required_bytes,
                 "estimated_tok_per_sec": r.estimated_tok_per_sec,
