@@ -2,12 +2,15 @@
 
 from whichllm.cli import (
     _auto_min_params_for_profile,
+    _current_version,
     _fill_missing_published_at,
     _include_vision_candidates,
+    app,
 )
 from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.types import GPUInfo, HardwareInfo
 from whichllm.models.types import ModelInfo
+from typer.testing import CliRunner
 
 
 def _hw_with_gpu(vram_gb: int) -> HardwareInfo:
@@ -69,3 +72,10 @@ def test_fill_missing_published_at_updates_models():
     updated = _fill_missing_published_at([model], [result], _fake_fetch)
     assert updated is True
     assert model.published_at == "2026-03-05T08:00:00.000Z"
+
+
+def test_version_option_prints_version_and_exits():
+    runner = CliRunner()
+    result = runner.invoke(app, ["--version"])
+    assert result.exit_code == 0
+    assert _current_version() in result.stdout

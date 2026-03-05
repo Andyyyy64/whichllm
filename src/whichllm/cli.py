@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from importlib.metadata import PackageNotFoundError, version
 from typing import Optional
 
 import typer
@@ -23,6 +24,21 @@ console = Console()
 def _run_async(coro):
     """Run async coroutine from sync context."""
     return asyncio.run(coro)
+
+
+def _current_version() -> str:
+    """Return installed package version."""
+    try:
+        return version("whichllm")
+    except PackageNotFoundError:
+        return "unknown"
+
+
+def _print_version(value: bool) -> None:
+    """Print version and exit when --version is requested."""
+    if value:
+        console.print(_current_version())
+        raise typer.Exit()
 
 
 def _validate_gpu_flags(
@@ -112,6 +128,13 @@ def _fill_missing_published_at(
 @app.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context,
+    show_version: bool = typer.Option(
+        False,
+        "--version",
+        help="Show version and exit",
+        callback=_print_version,
+        is_eager=True,
+    ),
     refresh: bool = typer.Option(False, "--refresh", help="Ignore cache and re-fetch models"),
     top: int = typer.Option(10, "--top", "-n", help="Number of top models to show"),
     context_length: int = typer.Option(4096, "--context-length", "-c", help="Context length for KV cache estimation"),
