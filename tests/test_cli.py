@@ -267,14 +267,15 @@ def test_pick_gguf_variant_no_variants():
 # --------------- run/snippet command tests ---------------
 
 
-def test_run_requires_llama_cpp():
-    """run should fail gracefully when llama-cpp-python is not installed."""
+def test_run_exits_gracefully():
+    """run should fail gracefully (uv missing, or no model found)."""
     runner = CliRunner()
     result = runner.invoke(app, ["run", "some-model"])
-    # Either it works (if llama-cpp-python is installed) or shows the install message
-    # In test env without llama-cpp-python, it should suggest installing
     if result.exit_code != 0:
-        assert "llama-cpp-python" in result.stdout or "No model found" in result.stdout
+        assert any(
+            msg in result.stdout
+            for msg in ("uv is required", "No model found", "llama-cpp-python")
+        )
 
 
 def test_snippet_no_model_found():
