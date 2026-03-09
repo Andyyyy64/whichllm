@@ -38,19 +38,57 @@ Auto-detects your GPU/CPU/RAM and ranks the top models from HuggingFace that fit
 - **Hardware planning** — Reverse lookup: `whichllm plan "llama 3 70b"`
 - **JSON output** — Pipe-friendly: `whichllm --json`
 
+## Run & Snippet
+
+**Try any model with a single command.** No manual installs needed — whichllm creates an isolated environment via `uv`, installs dependencies, downloads the model, and starts an interactive chat.
+
+![run demo](assets/demo-run.gif)
+
+```bash
+# Chat with a model (auto-picks the best GGUF variant)
+whichllm run "qwen 2.5 1.5b gguf"
+
+# Auto-pick the best model for your hardware and chat
+whichllm run
+
+# CPU-only mode
+whichllm run "phi 3 mini gguf" --cpu-only
+```
+
+Works with **all model formats**:
+- **GGUF** — via `llama-cpp-python` (lightweight, fast)
+- **AWQ / GPTQ** — via `transformers` + `autoawq` / `auto-gptq`
+- **FP16 / BF16** — via `transformers`
+
+Get a **copy-paste Python snippet** instead:
+
+```bash
+whichllm snippet "qwen 7b"
+```
+
+```python
+from llama_cpp import Llama
+
+llm = Llama.from_pretrained(
+    repo_id="Qwen/Qwen2.5-7B-Instruct-GGUF",
+    filename="qwen2.5-7b-instruct-q4_k_m.gguf",
+    n_ctx=4096,
+    n_gpu_layers=-1,
+    verbose=False,
+)
+
+output = llm.create_chat_completion(
+    messages=[{"role": "user", "content": "Hello!"}],
+)
+print(output["choices"][0]["message"]["content"])
+```
+
 ## Install
 
 ### pipx (recommended)
 
 ```bash
 pipx install whichllm
-```
-
-### Homebrew
-
-```bash
-brew tap Andyyyy64/whichllm
-brew install whichllm
 ```
 
 ### pip
@@ -110,51 +148,6 @@ whichllm run                       # auto-pick best for your hardware
 # Snippet: print ready-to-run Python code
 whichllm snippet "qwen 7b"
 whichllm snippet "llama 3 8b gguf" --quant Q5_K_M
-```
-
-## Run & Snippet
-
-**Try any model with a single command.** No manual installs needed — whichllm creates an isolated environment via `uv`, installs dependencies, downloads the model, and starts an interactive chat.
-
-![run demo](assets/demo-run.gif)
-
-```bash
-# Chat with a model (auto-picks the best GGUF variant)
-whichllm run "qwen 2.5 1.5b gguf"
-
-# Auto-pick the best model for your hardware and chat
-whichllm run
-
-# CPU-only mode
-whichllm run "phi 3 mini gguf" --cpu-only
-```
-
-Works with **all model formats**:
-- **GGUF** — via `llama-cpp-python` (lightweight, fast)
-- **AWQ / GPTQ** — via `transformers` + `autoawq` / `auto-gptq`
-- **FP16 / BF16** — via `transformers`
-
-Get a **copy-paste Python snippet** instead:
-
-```bash
-whichllm snippet "qwen 7b"
-```
-
-```python
-from llama_cpp import Llama
-
-llm = Llama.from_pretrained(
-    repo_id="Qwen/Qwen2.5-7B-Instruct-GGUF",
-    filename="qwen2.5-7b-instruct-q4_k_m.gguf",
-    n_ctx=4096,
-    n_gpu_layers=-1,
-    verbose=False,
-)
-
-output = llm.create_chat_completion(
-    messages=[{"role": "user", "content": "Hello!"}],
-)
-print(output["choices"][0]["message"]["content"])
 ```
 
 ## Integrations
