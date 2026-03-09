@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `whichllm plan` subcommand — reverse lookup to find what GPU you need for a model
+- Homebrew formula for `brew install whichllm`
+- VHS tape file for recording CLI demo GIF
+
 ## [0.3.0] - 2026-03-09
 
 ### Added

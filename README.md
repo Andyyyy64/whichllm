@@ -33,6 +33,7 @@ Auto-detects your GPU/CPU/RAM and ranks the top models from HuggingFace that fit
 - **Benchmark-aware** — Integrates real eval scores with confidence-based dampening
 - **Task profiles** — Filter by general, coding, vision, or math use cases
 - **GPU simulation** — Test with any GPU: `whichllm --gpu "RTX 4090"`
+- **Hardware planning** — Reverse lookup: `whichllm plan "llama 3 70b"`
 - **JSON output** — Pipe-friendly: `whichllm --json`
 
 ## Install
@@ -41,6 +42,13 @@ Auto-detects your GPU/CPU/RAM and ranks the top models from HuggingFace that fit
 
 ```bash
 pipx install whichllm
+```
+
+### Homebrew
+
+```bash
+brew tap Andyyyy64/whichllm
+brew install whichllm
 ```
 
 ### pip
@@ -87,6 +95,11 @@ whichllm --refresh
 
 # Show hardware info only
 whichllm hardware
+
+# Plan: what GPU do I need for a specific model?
+whichllm plan "llama 3 70b"
+whichllm plan "Qwen2.5-72B" --quant Q8_0
+whichllm plan "mistral 7b" --context-length 32768
 ```
 
 ## Scoring
