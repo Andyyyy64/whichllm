@@ -35,7 +35,7 @@ def detect_cpu_name() -> str:
                 timeout=5,
             )
             if result.returncode == 0:
-                lines = [l.strip() for l in result.stdout.strip().split("\n") if l.strip()]
+                lines = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
                 if len(lines) > 1:
                     return lines[1]
     except Exception as e:

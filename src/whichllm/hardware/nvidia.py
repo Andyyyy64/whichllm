@@ -50,7 +50,6 @@ def detect_nvidia_gpus() -> list[GPUInfo]:
             cuda_version = pynvml.nvmlSystemGetCudaDriverVersion_v2()
             cuda_str = f"{cuda_version // 1000}.{(cuda_version % 1000) // 10}"
         except Exception:
-            driver_version = None
             cuda_str = None
 
         for i in range(count):
