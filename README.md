@@ -116,6 +116,8 @@ whichllm snippet "llama 3 8b gguf" --quant Q5_K_M
 
 **Try any model with a single command.** No manual installs needed — whichllm creates an isolated environment via `uv`, installs dependencies, downloads the model, and starts an interactive chat.
 
+![run demo](assets/demo-run.gif)
+
 ```bash
 # Chat with a model (auto-picks the best GGUF variant)
 whichllm run "qwen 2.5 1.5b gguf"
