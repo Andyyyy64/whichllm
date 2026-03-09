@@ -91,6 +91,13 @@ print(output["choices"][0]["message"]["content"])
 pipx install whichllm
 ```
 
+### Homebrew
+
+```bash
+brew tap Andyyyy64/whichllm
+brew install whichllm
+```
+
 ### pip
 
 ```bash
