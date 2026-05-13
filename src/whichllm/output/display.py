@@ -126,6 +126,12 @@ def _top_pick_confidence(results: list[CompatibilityResult]) -> tuple[str, str]:
 
     if top.benchmark_status == "none":
         return "Low", f"no benchmark data, gap +{gap:.1f}{fit_note}"
+    if top.benchmark_status == "self_reported":
+        # Uploader-reported eval — never above Low, regardless of gap.
+        return (
+            "Low",
+            f"uploader-reported benchmark only (unverified), gap +{gap:.1f}{fit_note}",
+        )
     if top.benchmark_status == "estimated":
         if gap >= 2.0:
             return "Medium", f"estimated benchmark, gap +{gap:.1f}{fit_note}"
@@ -249,6 +255,9 @@ def display_ranking(
         score_val = f"{r.quality_score:.1f}"
         if r.benchmark_status == "none":
             score_str = f"[red]{score_val} ?[/red]"
+        elif r.benchmark_status == "self_reported":
+            # Distinct marker so users can spot uploader-claimed numbers.
+            score_str = f"[bright_yellow]{score_val} !sr[/bright_yellow]"
         elif r.benchmark_status == "estimated":
             score_str = f"[yellow]{score_val} ~[/yellow]"
         else:
@@ -298,9 +307,14 @@ def display_ranking(
 
     # Score legend
     has_estimated = any(r.benchmark_status == "estimated" for r in results)
+    has_self = any(r.benchmark_status == "self_reported" for r in results)
     has_none = any(r.benchmark_status == "none" for r in results)
-    if has_estimated or has_none:
+    if has_estimated or has_none or has_self:
         parts = []
+        if has_self:
+            parts.append(
+                "[bright_yellow]!sr[/bright_yellow] = uploader-reported only (unverified)"
+            )
         if has_estimated:
             parts.append("[yellow]Estimated / ~[/yellow] = inferred from model line")
         if has_none:
@@ -664,3 +678,133 @@ def display_json(results: list[CompatibilityResult], hardware: HardwareInfo) -> 
         ],
     }
     console.print_json(json.dumps(output, ensure_ascii=False))
+
+
+def _summarize_row(name: str, hw: HardwareInfo, results: list) -> dict:
+    """Reduce a (hardware, ranking) pair to one row for the upgrade table."""
+    gpu_label = "CPU-only"
+    vram_gb = 0.0
+    if hw.gpus:
+        g = max(hw.gpus, key=lambda x: x.vram_bytes)
+        gpu_label = g.name
+        vram_gb = g.vram_bytes / 1024**3
+    if not results:
+        return {
+            "name": name,
+            "gpu": gpu_label,
+            "vram_gb": vram_gb,
+            "top_model": "—",
+            "top_quality": 0.0,
+            "top_tok_s": 0.0,
+            "top_fit": "—",
+            "top_quant": "—",
+        }
+    r = results[0]
+    return {
+        "name": name,
+        "gpu": gpu_label,
+        "vram_gb": vram_gb,
+        "top_model": r.model.id,
+        "top_quality": float(r.quality_score),
+        "top_tok_s": float(r.estimated_tok_per_sec),
+        "top_fit": r.fit_type,
+        "top_quant": (
+            r.gguf_variant.quant_type if r.gguf_variant else effective_quant_type(r.model, None)
+        ),
+    }
+
+
+def _upgrade_verdict(delta_q: float, delta_speed: float) -> str:
+    """Return a short verdict for an upgrade row."""
+    if delta_q >= 12 and delta_speed >= 10:
+        return "[bold green]worth it[/]"
+    if delta_q >= 8 or delta_speed >= 20:
+        return "[green]meaningful[/]"
+    if delta_q >= 3 or delta_speed >= 5:
+        return "[yellow]marginal[/]"
+    if delta_q <= -3 or delta_speed <= -5:
+        return "[red]downgrade[/]"
+    return "[dim]flat[/]"
+
+
+def display_upgrade(
+    current_hw: HardwareInfo,
+    current_results: list,
+    target_results: list[tuple[str, HardwareInfo, list]],
+) -> None:
+    """Render the GPU-upgrade comparison table."""
+    current_row = _summarize_row("Current", current_hw, current_results)
+    target_rows = [
+        _summarize_row(name, hw, res) for name, hw, res in target_results
+    ]
+
+    table = Table(
+        title="GPU upgrade comparison",
+        show_lines=False,
+        header_style="bold cyan",
+    )
+    table.add_column("Setup", style="bold")
+    table.add_column("GPU", overflow="fold")
+    table.add_column("VRAM", justify="right")
+    table.add_column("Best model", overflow="fold")
+    table.add_column("Quant")
+    table.add_column("Quality", justify="right")
+    table.add_column("tok/s", justify="right")
+    table.add_column("ΔQ", justify="right")
+    table.add_column("Δtok/s", justify="right")
+    table.add_column("Verdict")
+
+    table.add_row(
+        current_row["name"],
+        current_row["gpu"],
+        f"{current_row['vram_gb']:.0f} GB" if current_row["vram_gb"] else "—",
+        current_row["top_model"],
+        current_row["top_quant"],
+        f"{current_row['top_quality']:.1f}",
+        f"{current_row['top_tok_s']:.0f}",
+        "—",
+        "—",
+        "—",
+    )
+    for row in target_rows:
+        dq = row["top_quality"] - current_row["top_quality"]
+        ds = row["top_tok_s"] - current_row["top_tok_s"]
+        table.add_row(
+            row["name"],
+            row["gpu"],
+            f"{row['vram_gb']:.0f} GB" if row["vram_gb"] else "—",
+            row["top_model"],
+            row["top_quant"],
+            f"{row['top_quality']:.1f}",
+            f"{row['top_tok_s']:.0f}",
+            f"{dq:+.1f}",
+            f"{ds:+.0f}",
+            _upgrade_verdict(dq, ds),
+        )
+
+    console.print(table)
+    console.print(
+        "[dim]Verdict: worth it (≥12pt Q & ≥10 tok/s lift) · meaningful (≥8pt Q or "
+        "≥20 tok/s) · marginal · flat (no change) · downgrade.[/]"
+    )
+
+
+def display_upgrade_json(
+    current_hw: HardwareInfo,
+    current_results: list,
+    target_results: list[tuple[str, HardwareInfo, list]],
+) -> None:
+    """Emit the upgrade comparison as JSON for scripting."""
+    current_row = _summarize_row("Current", current_hw, current_results)
+    rows = []
+    for name, hw, res in target_results:
+        row = _summarize_row(name, hw, res)
+        row["delta_quality"] = row["top_quality"] - current_row["top_quality"]
+        row["delta_tok_s"] = row["top_tok_s"] - current_row["top_tok_s"]
+        rows.append(row)
+    console.print_json(
+        json.dumps(
+            {"current": current_row, "targets": rows},
+            ensure_ascii=False,
+        )
+    )
