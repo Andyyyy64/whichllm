@@ -143,6 +143,12 @@ print(output["choices"][0]["message"]["content"])
 ### uv (recommended)
 
 ```bash
+uvx whichllm
+```
+
+To install permanently:
+
+```bash
 uv tool install whichllm
 ```
 
