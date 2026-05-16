@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.4] - 2026-05-17
+
+### Fixed
+
+- Strix Halo / Ryzen AI MAX systems are now modeled as AMD shared-memory APUs
+  instead of tiny-VRAM discrete GPUs. `STRXLGEN`, `Radeon 8050S`,
+  `Radeon 8060S`, and related names get a 256 GB/s bandwidth estimate and use
+  the system shared-memory pool for fit checks, avoiding false CPU-only,
+  99%-offload, and `0 tok/s` recommendations.
+
 ## [0.5.3] - 2026-05-17
 
 ### Added
