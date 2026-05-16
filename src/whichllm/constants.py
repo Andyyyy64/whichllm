@@ -10,6 +10,7 @@ GPU_BANDWIDTH: dict[str, float] = {
     "RTX 5080": 960.0,
     "RTX 5070 Ti": 896.0,
     "RTX 5070": 672.0,
+    "RTX 5060 Ti": 448.0,
     # NVIDIA Consumer - RTX 40 series
     "RTX 4090": 1008.0,
     "RTX 4080 SUPER": 736.0,

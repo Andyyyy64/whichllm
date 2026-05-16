@@ -66,10 +66,14 @@ def _lookup_apple_silicon(
     """Match Apple Silicon chip names. Returns (canonical_name, vendor,
     default_vram_gb, bandwidth_gbps) or None.
 
-    Matches are case-insensitive and accept both "M2 Max" and "m2max" forms.
-    Longest match wins so "M2 Ultra" does not get caught by the "M2" entry.
+    Matches are case-insensitive and accept "M2 Max", "m2max", and
+    display-name forms such as "Apple M2 Max". Longest match wins so
+    "M2 Ultra" does not get caught by the "M2" entry.
     """
     compact = re.sub(r"\s+", "", name).lower()
+    if compact.startswith("apple"):
+        compact = compact.removeprefix("apple")
+
     # Sort keys by length descending so "M2 Ultra" wins over "M2".
     for key in sorted(_APPLE_SILICON_CHIPS, key=len, reverse=True):
         key_compact = re.sub(r"\s+", "", key).lower()

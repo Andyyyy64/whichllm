@@ -54,6 +54,34 @@ class TestKnownGPULookup:
         assert "(simulated)" in gpu.name
 
 
+class TestAppleSiliconAliases:
+    @pytest.mark.parametrize(
+        "chip",
+        [
+            "M1",
+            "M1 Max",
+            "M1 Ultra",
+            "M2",
+            "M2 Max",
+            "M2 Ultra",
+            "M3",
+            "M3 Max",
+            "M3 Ultra",
+            "M4",
+            "M4 Max",
+            "M4 Ultra",
+        ],
+    )
+    def test_apple_prefixed_alias_matches_plain_chip_name(self, chip):
+        plain = create_synthetic_gpu(chip)
+        prefixed = create_synthetic_gpu(f"Apple {chip}")
+
+        assert prefixed.name == plain.name
+        assert prefixed.vendor == "apple"
+        assert prefixed.vram_bytes == plain.vram_bytes
+        assert prefixed.memory_bandwidth_gbps == plain.memory_bandwidth_gbps
+
+
 class TestVRAMOverride:
     def test_override_known_gpu(self):
         gpu = create_synthetic_gpu("RTX 4060 Ti", vram_override_gb=16)
