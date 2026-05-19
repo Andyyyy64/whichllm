@@ -148,17 +148,15 @@ async def fetch_benchmark_scores() -> dict[str, float]:
         fetch_aider_polyglot_scores,
         fetch_arena_scores,
         fetch_leaderboard_with_fallback,
-        fetch_livebench_scores,
         fetch_vision_scores,
         get_aa_curated_fallback,
-        get_livebench_curated_fallback,
+        get_livebench_data,
     )
 
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
         client.headers["User-Agent"] = f"whichllm/{_current_version()}"
         leaderboard_task = asyncio.create_task(fetch_leaderboard_with_fallback(client))
         arena_task = asyncio.create_task(fetch_arena_scores(client))
-        livebench_task = asyncio.create_task(fetch_livebench_scores(client))
         aa_task = asyncio.create_task(fetch_aa_index_scores(client))
         aider_task = asyncio.create_task(fetch_aider_polyglot_scores(client))
         vision_task = asyncio.create_task(fetch_vision_scores(client))
@@ -166,14 +164,12 @@ async def fetch_benchmark_scores() -> dict[str, float]:
         (
             lb_result,
             arena_result,
-            livebench_result,
             aa_result,
             aider_result,
             vision_result,
         ) = await asyncio.gather(
             leaderboard_task,
             arena_task,
-            livebench_task,
             aa_task,
             aider_task,
             vision_task,
@@ -205,11 +201,8 @@ async def fetch_benchmark_scores() -> dict[str, float]:
                 frozen[k] = v
         logger.debug(f"Arena: {len(arena_result)} scores (frozen)")
 
-    # Current tier: LiveBench (monthly-refreshed)
-    if isinstance(livebench_result, BaseException):
-        logger.warning(f"LiveBench fetch failed, will use fallback: {livebench_result}")
-        livebench_result = get_livebench_curated_fallback()
-
+    # Current tier: LiveBench (vendored snapshot)
+    livebench_result = get_livebench_data()
     for k, v in livebench_result.items():
         if current.get(k, 0.0) < v:
             current[k] = v

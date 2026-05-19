@@ -22,7 +22,7 @@ from whichllm.hardware.gpu_simulator import create_synthetic_gpu
 from whichllm.hardware.types import GPUInfo, HardwareInfo
 from whichllm.models.benchmark import _params_compatible
 from whichllm.models.benchmark_sources.aa_index import AA_INDEX_FALLBACK_2026_05_14
-from whichllm.models.benchmark_sources.livebench import LIVEBENCH_FALLBACK_2026_04
+from whichllm.models.benchmark_sources.livebench import LIVEBENCH_RAW_DATA
 from whichllm.models.benchmark_sources.vision import VISION_FALLBACK_2026_05
 from whichllm.models.grouper import group_models
 from whichllm.models.types import GGUFVariant, ModelInfo
@@ -268,7 +268,7 @@ class TestReasoningSurface:
     surface in the ranking."""
 
     def test_qwq32b_has_curated_benchmarks(self):
-        assert "Qwen/QwQ-32B" in LIVEBENCH_FALLBACK_2026_04
+        assert "Qwen/QwQ-32B" in LIVEBENCH_RAW_DATA
         assert "Qwen/QwQ-32B" in AA_INDEX_FALLBACK_2026_05_14
 
     def test_r1_distill_family_has_curated_benchmarks(self):
@@ -277,7 +277,7 @@ class TestReasoningSurface:
             "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
             "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
         ):
-            assert mid in LIVEBENCH_FALLBACK_2026_04, f"{mid} missing in LB"
+            assert mid in LIVEBENCH_RAW_DATA, f"{mid} missing in LB"
             assert mid in AA_INDEX_FALLBACK_2026_05_14, f"{mid} missing in AA"
 
     def test_qwq32b_surfaces_with_curated_score(self):
