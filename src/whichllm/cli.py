@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import sys
 from typing import Optional
 
@@ -77,6 +78,25 @@ def _resolve_evidence_mode(evidence: str, direct: bool) -> str:
         # 互換性維持のため --direct は strict と同義に固定する。
         return "strict"
     return mode
+
+
+def _parse_context_length(value: int | str) -> int:
+    """Parse context length, accepting shorthand like 64k for 65536."""
+    if isinstance(value, int):
+        return value
+
+    text = value.strip().replace("_", "").lower()
+    match = re.fullmatch(r"([1-9]\d*)(k?)", text)
+    if not match:
+        console.print(
+            "[red]Error:[/] context length must be a positive integer or use k shorthand, e.g. 64k."
+        )
+        raise typer.Exit(code=1)
+
+    amount = int(match.group(1))
+    if match.group(2) == "k":
+        return amount * 1024
+    return amount
 
 
 def _apply_gpu_overrides(
@@ -190,8 +210,11 @@ def main(
         False, "--refresh", help="Ignore cache and re-fetch models"
     ),
     top: int = typer.Option(10, "--top", "-n", help="Number of top models to show"),
-    context_length: int = typer.Option(
-        4096, "--context-length", "-c", help="Context length for KV cache estimation"
+    context_length: str = typer.Option(
+        "4096",
+        "--context-length",
+        "-c",
+        help="Context length for KV cache estimation (supports shorthand like 64k)",
     ),
     quant: Optional[str] = typer.Option(
         None, "--quant", "-q", help="Filter by quantization type (e.g. Q4_K_M)"
@@ -242,6 +265,7 @@ def main(
     _validate_gpu_flags(cpu_only, gpu, vram)
     profile = _validate_profile(profile)
     evidence_mode = _resolve_evidence_mode(evidence, direct)
+    context_length_int = _parse_context_length(context_length)
 
     from rich.progress import Progress, SpinnerColumn, TextColumn
 
@@ -329,7 +353,7 @@ def main(
         results = rank_models(
             all_models,
             hardware,
-            context_length=context_length,
+            context_length=context_length_int,
             top_n=top,
             quant_filter=quant,
             min_speed=min_speed,
@@ -345,7 +369,7 @@ def main(
             results = rank_models(
                 all_models,
                 hardware,
-                context_length=context_length,
+                context_length=context_length_int,
                 top_n=top,
                 quant_filter=quant,
                 min_speed=min_speed,
@@ -382,8 +406,11 @@ def main(
 @app.command()
 def plan(
     model_name: str = typer.Argument(..., help="Model name or HuggingFace repo ID"),
-    context_length: int = typer.Option(
-        4096, "--context-length", "-c", help="Context length for KV cache estimation"
+    context_length: str = typer.Option(
+        "4096",
+        "--context-length",
+        "-c",
+        help="Context length for KV cache estimation (supports shorthand like 64k)",
     ),
     quant: Optional[str] = typer.Option(
         None, "--quant", "-q", help="Target quantization (default: Q4_K_M)"
@@ -420,14 +447,15 @@ def plan(
                 sys.exit(1)
 
     model = _search_model(models, model_name)
+    context_length_int = _parse_context_length(context_length)
 
     target_quant = quant.upper() if quant else "Q4_K_M"
 
     if json_output:
-        display_plan_json(model, context_length, target_quant)
+        display_plan_json(model, context_length_int, target_quant)
     else:
         console.print()
-        display_plan(model, context_length, target_quant)
+        display_plan(model, context_length_int, target_quant)
         console.print()
 
 
@@ -437,8 +465,11 @@ def upgrade(
         ...,
         help="GPUs to compare against (e.g. 'RTX 4090' 'RTX 5090' 'H100')",
     ),
-    context_length: int = typer.Option(
-        8192, "--context-length", "-c", help="Context length for ranking"
+    context_length: str = typer.Option(
+        "8192",
+        "--context-length",
+        "-c",
+        help="Context length for ranking (supports shorthand like 64k)",
     ),
     top: int = typer.Option(3, "--top", "-n", help="Best-N models to compare per GPU"),
     profile: str = typer.Option("general", "--profile", help="Ranking profile"),
@@ -473,6 +504,7 @@ def upgrade(
     from whichllm.output.display import display_upgrade, display_upgrade_json
 
     profile = _validate_profile(profile)
+    context_length_int = _parse_context_length(context_length)
 
     with Progress(
         SpinnerColumn(),
@@ -517,7 +549,7 @@ def upgrade(
             results = rank_models(
                 all_models,
                 hw,
-                context_length=context_length,
+                context_length=context_length_int,
                 top_n=top,
                 benchmark_scores=bench_scores,
                 task_profile=profile,
@@ -528,7 +560,7 @@ def upgrade(
                 results = rank_models(
                     all_models,
                     hw,
-                    context_length=context_length,
+                    context_length=context_length_int,
                     top_n=top,
                     benchmark_scores=bench_scores,
                     task_profile=profile,
@@ -847,8 +879,11 @@ def run(
     model_name: Optional[str] = typer.Argument(
         None, help="Model to run (default: auto-pick best)"
     ),
-    context_length: int = typer.Option(
-        4096, "--context-length", "-c", help="Context length"
+    context_length: str = typer.Option(
+        "4096",
+        "--context-length",
+        "-c",
+        help="Context length (supports shorthand like 64k)",
     ),
     quant: Optional[str] = typer.Option(
         None, "--quant", "-q", help="Quantization type"
@@ -882,6 +917,7 @@ def run(
         progress.remove_task(task)
 
     variant = None
+    context_length_int = _parse_context_length(context_length)
     if model_name:
         model = _search_model(models, model_name)
     else:
@@ -903,7 +939,7 @@ def run(
         results = rank_models(
             all_models,
             hardware,
-            context_length=context_length,
+            context_length=context_length_int,
             top_n=5,
             quant_filter=quant,
             benchmark_scores=bench_scores,
@@ -959,7 +995,7 @@ def run(
     if variant is None:
         variant = _pick_gguf_variant(model, quant)
     deps, script_type = _resolve_model_deps(model, variant)
-    script = _generate_chat_script(model, variant, context_length, cpu_only)
+    script = _generate_chat_script(model, variant, context_length_int, cpu_only)
 
     fmt = variant.quant_type if variant else script_type.upper()
     console.print(f"\n[bold green]Running {model.id}[/] [dim]({fmt})[/]")

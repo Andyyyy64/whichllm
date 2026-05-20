@@ -10,6 +10,7 @@ from whichllm.cli import (
     _generate_chat_script,
     _include_vision_candidates,
     _merge_model_eval_benchmarks,
+    _parse_context_length,
     _pick_gguf_variant,
     _resolve_ranked_gguf_for_run,
     _resolve_evidence_mode,
@@ -148,6 +149,20 @@ def test_validate_evidence_rejects_unknown_mode():
 
 def test_resolve_evidence_mode_direct_alias_wins():
     assert _resolve_evidence_mode("base", direct=True) == "strict"
+
+
+def test_parse_context_length_accepts_plain_integer_string():
+    assert _parse_context_length("32768") == 32768
+
+
+def test_parse_context_length_accepts_k_shorthand():
+    assert _parse_context_length("64k") == 64 * 1024
+    assert _parse_context_length("128K") == 128 * 1024
+
+
+def test_parse_context_length_rejects_invalid_shorthand():
+    with pytest.raises(Exit):
+        _parse_context_length("64kb")
 
 
 # --------------- plan command tests ---------------
