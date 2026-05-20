@@ -731,6 +731,8 @@ def display_json(results: list[CompatibilityResult], hardware: HardwareInfo) -> 
                 "speed_notes": r.speed_notes,
                 "quality_score": round(r.quality_score, 2),
                 "benchmark_status": r.benchmark_status,
+                "benchmark_source": r.benchmark_source,
+                "benchmark_confidence": round(r.benchmark_confidence, 2),
                 "fit_type": r.fit_type,
                 "can_run": r.can_run,
                 "warnings": r.warnings,

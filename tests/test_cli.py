@@ -584,3 +584,57 @@ def test_snippet_no_model_found():
     result = runner.invoke(app, ["snippet", "nonexistent_model_xyz_999"])
     assert result.exit_code != 0
     assert "No model found" in result.stdout
+
+
+def test_json_output_includes_benchmark_source_and_confidence():
+    """display_json should include benchmark_source and benchmark_confidence."""
+    import json as json_mod
+    from io import StringIO
+
+    from rich.console import Console
+
+    from whichllm.output.display import display_json
+
+    model = ModelInfo(
+        id="test-org/Test-7B",
+        family_id="test-7b",
+        name="Test-7B",
+        parameter_count=7_000_000_000,
+        downloads=100,
+        likes=10,
+    )
+    result = CompatibilityResult(
+        model=model,
+        gguf_variant=None,
+        can_run=True,
+        vram_required_bytes=8_000_000_000,
+        vram_available_bytes=24_000_000_000,
+        quality_score=55.0,
+        benchmark_status="estimated",
+        benchmark_source="line_interp",
+        benchmark_confidence=0.34,
+    )
+    hw = HardwareInfo(
+        gpus=[],
+        cpu_name="Test CPU",
+        cpu_cores=8,
+        ram_bytes=64 * 1024**3,
+        disk_free_bytes=500 * 1024**3,
+        os="linux",
+    )
+
+    buf = StringIO()
+    import whichllm.output.display as disp_mod
+
+    orig_console = disp_mod.console
+    disp_mod.console = Console(file=buf, force_terminal=False)
+    try:
+        display_json([result], hw)
+    finally:
+        disp_mod.console = orig_console
+
+    data = json_mod.loads(buf.getvalue().strip())
+    entry = data["models"][0]
+    assert entry["benchmark_status"] == "estimated"
+    assert entry["benchmark_source"] == "line_interp"
+    assert entry["benchmark_confidence"] == 0.34

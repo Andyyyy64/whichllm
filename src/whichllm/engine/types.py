@@ -20,3 +20,5 @@ class CompatibilityResult:
     quality_score: float = 0.0  # 0-100 for ranking
     fit_type: str = "full_gpu"  # "full_gpu" | "partial_offload" | "cpu_only"
     benchmark_status: str = "none"  # "direct" | "estimated" | "self_reported" | "none"
+    benchmark_source: str = "none"  # granular: "direct" | "variant" | "base_model" | "line_interp" | "self_reported" | "none"
+    benchmark_confidence: float = 0.0  # 0.0-1.0 from BenchmarkEvidence

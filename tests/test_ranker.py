@@ -551,3 +551,124 @@ def test_evidence_base_keeps_base_model_match_and_drops_line_interp():
     assert "Qwen/Qwen2.5-7B-Instruct" in ids
     assert "ISTA-DASLab/gemma-3-27b-it-GPTQ-4b-128g" in ids
     assert "Qwen/Qwen3-14B-Instruct-GGUF" not in ids
+
+
+def test_benchmark_source_and_confidence_exposed_for_direct():
+    model = ModelInfo(
+        id="Qwen/Qwen2.5-7B-Instruct",
+        family_id="qwen2.5-7b",
+        name="Qwen2.5-7B-Instruct",
+        parameter_count=7_000_000_000,
+        downloads=1000,
+        likes=100,
+        gguf_variants=[
+            GGUFVariant(
+                filename="a-Q4_K_M.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=4_000_000_000,
+            ),
+        ],
+    )
+    hw = _make_hardware()
+    results = rank_models(
+        [model],
+        hw,
+        top_n=1,
+        benchmark_scores={"Qwen/Qwen2.5-7B-Instruct": 75.0},
+        task_profile="any",
+    )
+    assert results
+    assert results[0].benchmark_status == "direct"
+    assert results[0].benchmark_source == "direct"
+    assert results[0].benchmark_confidence == 1.0
+
+
+def test_benchmark_source_and_confidence_exposed_for_estimated():
+    model = ModelInfo(
+        id="Qwen/Qwen3-14B-Instruct-GGUF",
+        family_id="qwen3-14b",
+        name="Qwen3-14B-Instruct-GGUF",
+        parameter_count=14_000_000_000,
+        downloads=1000,
+        likes=100,
+        gguf_variants=[
+            GGUFVariant(
+                filename="e-Q4_K_M.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=8_000_000_000,
+            ),
+        ],
+    )
+    hw = _make_hardware()
+    results = rank_models(
+        [model],
+        hw,
+        top_n=1,
+        benchmark_scores={"Qwen/Qwen3-32B-Instruct": 85.0},
+        task_profile="any",
+    )
+    assert results
+    assert results[0].benchmark_status == "estimated"
+    assert results[0].benchmark_source == "line_interp"
+    assert 0.0 < results[0].benchmark_confidence < 1.0
+
+
+def test_benchmark_source_and_confidence_exposed_for_self_reported():
+    model = ModelInfo(
+        id="someorg/mystery-7B",
+        family_id="mystery-7b",
+        name="mystery-7B",
+        parameter_count=7_000_000_000,
+        downloads=1000,
+        likes=100,
+        benchmark_scores={"hf_eval": 72.0},
+        gguf_variants=[
+            GGUFVariant(
+                filename="m-Q4_K_M.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=4_000_000_000,
+            ),
+        ],
+    )
+    hw = _make_hardware()
+    results = rank_models(
+        [model],
+        hw,
+        top_n=1,
+        benchmark_scores={},
+        task_profile="any",
+    )
+    assert results
+    assert results[0].benchmark_status == "self_reported"
+    assert results[0].benchmark_source == "self_reported"
+    assert results[0].benchmark_confidence > 0.0
+
+
+def test_benchmark_source_and_confidence_exposed_for_none():
+    model = ModelInfo(
+        id="someorg/unknown-7B",
+        family_id="unknown-7b",
+        name="unknown-7B",
+        parameter_count=7_000_000_000,
+        downloads=1000,
+        likes=100,
+        gguf_variants=[
+            GGUFVariant(
+                filename="u-Q4_K_M.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=4_000_000_000,
+            ),
+        ],
+    )
+    hw = _make_hardware()
+    results = rank_models(
+        [model],
+        hw,
+        top_n=1,
+        benchmark_scores={},
+        task_profile="any",
+    )
+    assert results
+    assert results[0].benchmark_status == "none"
+    assert results[0].benchmark_source == "none"
+    assert results[0].benchmark_confidence == 0.0

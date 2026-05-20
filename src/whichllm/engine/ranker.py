@@ -756,6 +756,8 @@ def rank_models(
                 compat.benchmark_status = "self_reported"
             else:
                 compat.benchmark_status = "estimated"
+            compat.benchmark_source = bench_evidence.source
+            compat.benchmark_confidence = bench_evidence.confidence
 
             if (
                 best_for_model is None
