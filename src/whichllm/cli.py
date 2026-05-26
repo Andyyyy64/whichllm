@@ -11,7 +11,7 @@ from rich.console import Console
 
 from whichllm.hardware.types import HardwareInfo
 from whichllm.models.types import GGUFVariant, ModelInfo
-from whichllm.utils import _current_version
+from whichllm.utils import _current_version, CONTEXT_LENGTH
 
 app = typer.Typer(
     name="llm-checker",
@@ -191,7 +191,11 @@ def main(
     ),
     top: int = typer.Option(10, "--top", "-n", help="Number of top models to show"),
     context_length: int = typer.Option(
-        4096, "--context-length", "-c", help="Context length for KV cache estimation"
+        4096,
+        "--context-length",
+        "-c",
+        click_type=CONTEXT_LENGTH,
+        help="Context length for KV cache estimation (e.g. 4096, 64k, 128k)",
     ),
     quant: Optional[str] = typer.Option(
         None, "--quant", "-q", help="Filter by quantization type (e.g. Q4_K_M)"
@@ -383,7 +387,11 @@ def main(
 def plan(
     model_name: str = typer.Argument(..., help="Model name or HuggingFace repo ID"),
     context_length: int = typer.Option(
-        4096, "--context-length", "-c", help="Context length for KV cache estimation"
+        4096,
+        "--context-length",
+        "-c",
+        click_type=CONTEXT_LENGTH,
+        help="Context length for KV cache estimation (e.g. 4096, 64k, 128k)",
     ),
     quant: Optional[str] = typer.Option(
         None, "--quant", "-q", help="Target quantization (default: Q4_K_M)"
@@ -438,7 +446,11 @@ def upgrade(
         help="GPUs to compare against (e.g. 'RTX 4090' 'RTX 5090' 'H100')",
     ),
     context_length: int = typer.Option(
-        8192, "--context-length", "-c", help="Context length for ranking"
+        8192,
+        "--context-length",
+        "-c",
+        click_type=CONTEXT_LENGTH,
+        help="Context length for ranking (e.g. 8192, 64k, 128k)",
     ),
     top: int = typer.Option(3, "--top", "-n", help="Best-N models to compare per GPU"),
     profile: str = typer.Option("general", "--profile", help="Ranking profile"),
@@ -848,7 +860,11 @@ def run(
         None, help="Model to run (default: auto-pick best)"
     ),
     context_length: int = typer.Option(
-        4096, "--context-length", "-c", help="Context length"
+        4096,
+        "--context-length",
+        "-c",
+        click_type=CONTEXT_LENGTH,
+        help="Context length (e.g. 4096, 64k, 128k)",
     ),
     quant: Optional[str] = typer.Option(
         None, "--quant", "-q", help="Quantization type"

@@ -17,7 +17,7 @@ Common options:
 | Option | Meaning |
 | --- | --- |
 | `--top`, `-n` | Number of ranked models to show. Default: `10` |
-| `--context-length`, `-c` | Context length used for KV cache estimation. Default: `4096` |
+| `--context-length`, `-c` | Context length used for KV cache estimation. Accepts integers or `k` shorthand such as `64k`. Default: `4096` |
 | `--quant`, `-q` | Keep only a quantization type such as `Q4_K_M` |
 | `--min-speed` | Keep only models above a tok/s estimate |
 | `--profile` | Ranking profile: `general`, `coding`, `vision`, `math`, `any` |
@@ -39,6 +39,7 @@ whichllm
 whichllm --gpu "RTX 4090"
 whichllm --gpu "RTX 5060 Ti" --vram 16
 whichllm --profile coding --top 5
+whichllm --context-length 64k
 whichllm --evidence strict
 whichllm --status
 whichllm --json | jq '.models[0]'
@@ -82,7 +83,7 @@ Options:
 
 | Option | Meaning |
 | --- | --- |
-| `--context-length`, `-c` | Context length for the memory estimate. Default: `4096` |
+| `--context-length`, `-c` | Context length for the memory estimate. Accepts integers or `k` shorthand such as `128k`. Default: `4096` |
 | `--quant`, `-q` | Target quantization. Default: `Q4_K_M` |
 | `--json` | Print the plan as JSON |
 | `--refresh` | Ignore model cache and fetch again |
@@ -93,6 +94,7 @@ Examples:
 whichllm plan "llama 3 70b"
 whichllm plan "Qwen2.5-72B" --quant Q8_0
 whichllm plan "mistral 7b" --context-length 32768
+whichllm plan "mistral 7b" --context-length 32k
 ```
 
 ## `upgrade`
@@ -108,7 +110,7 @@ Options:
 
 | Option | Meaning |
 | --- | --- |
-| `--context-length`, `-c` | Context length used for ranking. Default: `8192` |
+| `--context-length`, `-c` | Context length used for ranking. Accepts integers or `k` shorthand such as `64k`. Default: `8192` |
 | `--top`, `-n` | Best-N models to compare per GPU. Default: `3` |
 | `--profile` | Ranking profile. Default: `general` |
 | `--cpu-only` | Use CPU-only as the current baseline |
@@ -121,6 +123,7 @@ Examples:
 whichllm upgrade "RTX 4090" "RTX 5090" "H100"
 whichllm upgrade "Apple M4 Max" --top 5
 whichllm upgrade "RX 7900 XTX" --profile coding
+whichllm upgrade "RTX 4090" --context-length 128k
 ```
 
 ## `run`
@@ -140,7 +143,7 @@ Options:
 
 | Option | Meaning |
 | --- | --- |
-| `--context-length`, `-c` | Context length for the generated chat script |
+| `--context-length`, `-c` | Context length for the generated chat script. Accepts integers or `k` shorthand such as `64k` |
 | `--quant`, `-q` | Preferred GGUF quantization |
 | `--refresh` | Ignore model cache and fetch again |
 | `--cpu-only` | Force CPU-only execution in the generated script |
@@ -151,6 +154,7 @@ Examples:
 whichllm run
 whichllm run "qwen 2.5 1.5b gguf"
 whichllm run "phi 3 mini gguf" --cpu-only
+whichllm run "mistral 7b gguf" --context-length 64k
 ```
 
 `run` requires `uv` in `PATH`.
