@@ -73,6 +73,7 @@ def test_display_intel_shared_memory_without_zero_kb(monkeypatch):
                     name="Alder Lake-P GT1 [UHD Graphics]",
                     vendor="intel",
                     vram_bytes=0,
+                    shared_memory=True,
                 )
             ],
             cpu_name="CPU",

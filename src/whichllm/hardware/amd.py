@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import shlex
 import subprocess
 from pathlib import Path
@@ -19,12 +20,31 @@ _DISPLAY_CLASSES = (
     "display controller",
 )
 
+_SORTED_BW_KEYS = sorted(GPU_BANDWIDTH, key=len, reverse=True)
+
 
 def _lookup_bandwidth(name: str) -> float | None:
     name_upper = name.upper()
-    for key in sorted(GPU_BANDWIDTH, key=len, reverse=True):
+    for key in _SORTED_BW_KEYS:
         if key.upper() in name_upper:
             return GPU_BANDWIDTH[key]
+
+    # Handle compound lspci names such as
+    # "Navi 22 [Radeon RX 6700/6700 XT/6750 XT / 6800M/6850M XT]".
+    # The "RX " prefix only appears once before the first variant, so
+    # reconstruct full model names for each slash-separated segment.
+    m = re.search(r"(RX\s+)\d", name_upper)
+    if m:
+        prefix = m.group(1)
+        for segment in name_upper.split("/"):
+            segment = segment.strip().strip("[]").strip()
+            if not segment:
+                continue
+            if re.match(r"\d", segment):
+                segment = prefix + segment
+            for key in _SORTED_BW_KEYS:
+                if key.upper() in segment:
+                    return GPU_BANDWIDTH[key]
     return None
 
 
@@ -156,11 +176,54 @@ def _detect_from_sysfs(drm_path: Path = Path("/sys/class/drm")) -> list[GPUInfo]
     return gpus
 
 
+def _read_sysfs_amd_vram(drm_path: Path = Path("/sys/class/drm")) -> list[int]:
+    """Read VRAM for each AMD GPU from sysfs, in card order."""
+    result: list[int] = []
+    try:
+        cards = sorted(drm_path.glob("card[0-9]*"))
+    except OSError:
+        return []
+    for card in cards:
+        device = card / "device"
+        try:
+            vendor = (device / "vendor").read_text().strip().lower()
+        except OSError:
+            continue
+        if vendor != "0x1002":
+            continue
+        result.append(_read_int(device / "mem_info_vram_total"))
+    return result
+
+
 def _detect_amd_gpus_fallback() -> list[GPUInfo]:
+    # Prefer sysfs: it provides VRAM and sometimes a clean product name.
+    sysfs_gpus = _detect_from_sysfs()
+
+    if sysfs_gpus:
+        # If sysfs names are generic ("AMD Graphics"), enrich with lspci names.
+        has_generic = any(g.name == "AMD Graphics" for g in sysfs_gpus)
+        if has_generic:
+            lspci_names = _detect_from_lspci()
+            if lspci_names and len(lspci_names) == len(sysfs_gpus):
+                return [
+                    _make_gpu(
+                        lspci_names[i] if gpu.name == "AMD Graphics" else gpu.name,
+                        vram_bytes=gpu.vram_bytes,
+                    )
+                    for i, gpu in enumerate(sysfs_gpus)
+                ]
+        return sysfs_gpus
+
+    # sysfs unavailable; fall back to lspci (name only), enriching with
+    # sysfs VRAM when possible.
     names = _detect_from_lspci()
     if names:
-        return [_make_gpu(name) for name in names]
-    return _detect_from_sysfs()
+        vram_list = _read_sysfs_amd_vram()
+        return [
+            _make_gpu(name, vram_bytes=vram_list[i] if i < len(vram_list) else 0)
+            for i, name in enumerate(names)
+        ]
+    return []
 
 
 def detect_amd_gpus() -> list[GPUInfo]:

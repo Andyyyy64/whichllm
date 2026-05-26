@@ -96,6 +96,7 @@ def detect_intel_gpus() -> list[GPUInfo]:
             name=name,
             vendor="intel",
             vram_bytes=0,
+            shared_memory=True,
         )
         for name in names
     ]
