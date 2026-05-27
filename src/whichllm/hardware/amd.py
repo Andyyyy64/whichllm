@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 import shlex
 import subprocess
 from pathlib import Path
@@ -24,27 +23,15 @@ _SORTED_BW_KEYS = sorted(GPU_BANDWIDTH, key=len, reverse=True)
 
 
 def _lookup_bandwidth(name: str) -> float | None:
+    # Compound lspci names like "Navi 22 [Radeon RX 6700/6700 XT/6750 XT / 6800M/6850M XT]"
+    # cover multiple variants. Substring matching would hit "RX 6700" (320 GB/s) even for a
+    # 6750 XT owner. Return None rather than report a confidently wrong value.
+    if "/" in name:
+        return None
     name_upper = name.upper()
     for key in _SORTED_BW_KEYS:
         if key.upper() in name_upper:
             return GPU_BANDWIDTH[key]
-
-    # Handle compound lspci names such as
-    # "Navi 22 [Radeon RX 6700/6700 XT/6750 XT / 6800M/6850M XT]".
-    # The "RX " prefix only appears once before the first variant, so
-    # reconstruct full model names for each slash-separated segment.
-    m = re.search(r"(RX\s+)\d", name_upper)
-    if m:
-        prefix = m.group(1)
-        for segment in name_upper.split("/"):
-            segment = segment.strip().strip("[]").strip()
-            if not segment:
-                continue
-            if re.match(r"\d", segment):
-                segment = prefix + segment
-            for key in _SORTED_BW_KEYS:
-                if key.upper() in segment:
-                    return GPU_BANDWIDTH[key]
     return None
 
 
@@ -284,8 +271,13 @@ def detect_amd_gpus() -> list[GPUInfo]:
         if not key.startswith("card"):
             continue
         card_info = product_data[key]
-        name = card_info.get(
-            "Card SKU", card_info.get("Card series", "Unknown AMD GPU")
+        # rocm-smi JSON uses "Card Series" (capital S) for the human-readable name.
+        # Fall back through SKU only as a last resort.
+        name = (
+            card_info.get("Card Series")
+            or card_info.get("Card series")
+            or card_info.get("Card SKU")
+            or "Unknown AMD GPU"
         )
 
         vram_total = 0
