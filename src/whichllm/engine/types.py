@@ -22,3 +22,4 @@ class CompatibilityResult:
     benchmark_status: str = "none"  # "direct" | "estimated" | "self_reported" | "none"
     benchmark_source: str = "none"  # granular: "direct" | "variant" | "base_model" | "line_interp" | "self_reported" | "none"
     benchmark_confidence: float = 0.0  # 0.0-1.0 from BenchmarkEvidence
+    context_fits: bool = True  # False when known model max context < requested

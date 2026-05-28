@@ -672,3 +672,60 @@ def test_benchmark_source_and_confidence_exposed_for_none():
     assert results[0].benchmark_status == "none"
     assert results[0].benchmark_source == "none"
     assert results[0].benchmark_confidence == 0.0
+
+
+def test_ctx_penalty_demotes_non_fitting():
+    models = [
+        ModelInfo(
+            id="org/LongCtx-8B",
+            family_id="longctx-8b",
+            name="LongCtx-8B",
+            parameter_count=8_000_000_000,
+            context_length=131072,
+            downloads=900,
+            likes=90,
+            gguf_variants=[
+                GGUFVariant(
+                    filename="long-Q4_K_M.gguf",
+                    quant_type="Q4_K_M",
+                    file_size_bytes=4_500_000_000,
+                ),
+            ],
+        ),
+        ModelInfo(
+            id="org/ShortCtx-8B",
+            family_id="shortctx-8b",
+            name="ShortCtx-8B",
+            parameter_count=8_000_000_000,
+            context_length=8192,
+            downloads=1000,
+            likes=100,
+            gguf_variants=[
+                GGUFVariant(
+                    filename="short-Q4_K_M.gguf",
+                    quant_type="Q4_K_M",
+                    file_size_bytes=4_500_000_000,
+                ),
+            ],
+        ),
+    ]
+    scores = {
+        "org/LongCtx-8B": 74.0,
+        "org/ShortCtx-8B": 76.0,
+    }
+    hw = _make_hardware(bandwidth_gbps=900.0)
+
+    results = rank_models(
+        models,
+        hw,
+        context_length=32768,
+        top_n=2,
+        benchmark_scores=scores,
+        require_direct_top=False,
+        task_profile="any",
+    )
+
+    assert len(results) == 2
+    assert results[0].model.family_id == "longctx-8b"
+    assert results[0].context_fits is True
+    assert results[1].context_fits is False

@@ -114,7 +114,16 @@ def check_compatibility(
         warnings.append("Insufficient memory (GPU VRAM + RAM) to run this model")
 
     # Context length warning
-    if (
+    context_fits = not (
+        model.context_length is not None
+        and model.context_length < context_length
+    )
+    if not context_fits:
+        warnings.append(
+            f"Model max context {model.context_length} < requested "
+            f"{context_length}; runtime will truncate or reject"
+        )
+    elif (
         context_length > 8192
         and model.context_length
         and model.context_length >= context_length
@@ -137,4 +146,5 @@ def check_compatibility(
         vram_available_bytes=vram_available,
         warnings=warnings,
         fit_type=fit_type,
+        context_fits=context_fits,
     )

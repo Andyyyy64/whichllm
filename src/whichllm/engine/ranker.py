@@ -61,7 +61,8 @@ def _family_selection_key(
         direct_bonus = 5.0
     else:
         direct_bonus = 0.0
-    return (result.quality_score + fit_bonus + direct_bonus,)
+    ctx_penalty = -20.0 if not result.context_fits else 0.0
+    return (result.quality_score + fit_bonus + direct_bonus + ctx_penalty,)
 
 
 # Per-source benchmark weight applied to the raw 0-100 score before it is

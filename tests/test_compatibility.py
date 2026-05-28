@@ -5,12 +5,13 @@ from whichllm.hardware.types import GPUInfo, HardwareInfo
 from whichllm.models.types import GGUFVariant, ModelInfo
 
 
-def _make_model(params: int = 7_000_000_000) -> ModelInfo:
+def _make_model(params: int = 7_000_000_000, context_length: int | None = None) -> ModelInfo:
     return ModelInfo(
         id="test/model",
         family_id="test/model",
         name="model",
         parameter_count=params,
+        context_length=context_length,
     )
 
 
@@ -280,3 +281,29 @@ def test_insufficient_disk():
     result = check_compatibility(model, variant, hw)
     assert result.can_run is False
     assert any("disk" in w.lower() for w in result.warnings)
+
+
+def test_context_fits_true_when_model_supports():
+    model = _make_model(context_length=131072)
+    variant = _make_variant()
+    hw = _make_hardware(vram=24 * 1024**3)
+    result = check_compatibility(model, variant, hw, context_length=32768)
+    assert result.context_fits is True
+
+
+def test_context_fits_false_when_model_too_small():
+    model = _make_model(context_length=8192)
+    variant = _make_variant()
+    hw = _make_hardware(vram=24 * 1024**3)
+    result = check_compatibility(model, variant, hw, context_length=32768)
+    assert result.context_fits is False
+    assert any("max context" in w.lower() for w in result.warnings)
+
+
+def test_context_fits_unknown_is_true():
+    model = _make_model(context_length=None)
+    variant = _make_variant()
+    hw = _make_hardware(vram=24 * 1024**3)
+    result = check_compatibility(model, variant, hw, context_length=32768)
+    assert result.context_fits is True
+    assert not any("max context" in w.lower() for w in result.warnings)
