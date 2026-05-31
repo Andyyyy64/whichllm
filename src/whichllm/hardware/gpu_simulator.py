@@ -183,6 +183,44 @@ def _lookup_dbgpu(name: str):
 _last_suggestions: list[tuple[str, int]] = []
 
 
+def parse_multi_gpu_spec(spec: str) -> list[tuple[str, float | None]]:
+    """Parse a multi-GPU specification string.
+
+    Supported formats:
+        "RTX 5080,RTX 5060 Ti 16GB"   → heterogeneous, comma-separated
+        "2x RTX 4090"                  → count shorthand
+        "4x H100"                      → count shorthand
+        "RTX 4090"                     → single GPU (backward-compatible)
+
+    Returns list of (gpu_name, vram_override_gb | None).
+    """
+    spec = spec.strip()
+    if not spec:
+        raise ValueError("GPU specification cannot be empty.")
+
+    parts = [p.strip() for p in spec.split(",") if p.strip()]
+    if not parts:
+        raise ValueError("GPU specification cannot be empty.")
+
+    result: list[tuple[str, float | None]] = []
+    for part in parts:
+        count_match = re.match(r"^(\d+)\s*x\s+(.+)$", part, re.IGNORECASE)
+        if count_match:
+            count = int(count_match.group(1))
+            if count < 1:
+                raise ValueError("GPU count must be at least 1.")
+            if count > 16:
+                raise ValueError("GPU count cannot exceed 16.")
+            gpu_name = count_match.group(2).strip()
+            result.extend([(gpu_name, None)] * count)
+        else:
+            result.append((part, None))
+
+    if len(result) > 16:
+        raise ValueError("Total GPU count cannot exceed 16.")
+    return result
+
+
 def create_synthetic_gpu(name: str, vram_override_gb: float | None = None) -> GPUInfo:
     """Create a synthetic GPUInfo from a GPU name.
 

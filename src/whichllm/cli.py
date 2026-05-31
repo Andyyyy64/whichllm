@@ -89,10 +89,30 @@ def _apply_gpu_overrides(
     if cpu_only:
         hardware.gpus = []
     elif gpu:
-        from whichllm.hardware.gpu_simulator import create_synthetic_gpu
+        from whichllm.hardware.gpu_simulator import (
+            create_synthetic_gpu,
+            parse_multi_gpu_spec,
+        )
 
         try:
-            hardware.gpus = [create_synthetic_gpu(gpu, vram)]
+            gpu_specs = parse_multi_gpu_spec(gpu)
+        except ValueError as e:
+            console.print(f"[red]Error:[/] {e}")
+            raise typer.Exit(code=1)
+
+        if vram is not None and len(gpu_specs) > 1:
+            console.print(
+                "[red]Error:[/] --vram cannot be used with multiple GPUs. "
+                "Specify VRAM per GPU is not supported in multi-GPU mode."
+            )
+            raise typer.Exit(code=1)
+
+        try:
+            vram_for_single = vram if len(gpu_specs) == 1 else None
+            hardware.gpus = [
+                create_synthetic_gpu(name, vram_override_gb=vram_for_single)
+                for name, _ in gpu_specs
+            ]
         except ValueError as e:
             console.print(f"[red]Error:[/] {e}")
             raise typer.Exit(code=1)
@@ -233,7 +253,9 @@ def main(
         False, "--cpu-only", help="Ignore GPU and run in CPU-only mode"
     ),
     gpu: Optional[str] = typer.Option(
-        None, "--gpu", help="Simulate a GPU (e.g. 'RTX 4090')"
+        None,
+        "--gpu",
+        help="Simulate GPU(s): 'RTX 4090', '2x RTX 3090', 'RTX 5080,RTX 5060 Ti'",
     ),
     vram: Optional[float] = typer.Option(
         None, "--vram", help="Override VRAM in GB (requires --gpu)"
@@ -1077,7 +1099,9 @@ def hardware(
         False, "--cpu-only", help="Ignore GPU and run in CPU-only mode"
     ),
     gpu: Optional[str] = typer.Option(
-        None, "--gpu", help="Simulate a GPU (e.g. 'RTX 4090')"
+        None,
+        "--gpu",
+        help="Simulate GPU(s): 'RTX 4090', '2x RTX 3090', 'RTX 5080,RTX 5060 Ti'",
     ),
     vram: Optional[float] = typer.Option(
         None, "--vram", help="Override VRAM in GB (requires --gpu)"

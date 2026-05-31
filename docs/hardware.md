@@ -121,6 +121,21 @@ whichllm hardware --gpu "Apple M3 Max"
 whichllm upgrade "RTX 4090" "RTX 5090" "H100"
 ```
 
+### Multi-GPU simulation
+
+Simulate multiple GPUs with comma-separated names or a count prefix:
+
+```bash
+whichllm --gpu "2x RTX 4090"
+whichllm --gpu "4x H100"
+whichllm --gpu "RTX 5080,RTX 5060 Ti"
+whichllm --gpu "2x RTX 3090,RTX 4090"
+```
+
+VRAM is pooled across all GPUs for fit determination. Speed estimation uses a
+tensor-parallel model where the slowest GPU is the bottleneck, with inter-GPU
+communication overhead (PCIe or NVLink) factored in.
+
 Simulation uses the `dbgpu` package for a TechPowerUp-backed GPU database.
 whichllm adds extra handling for common aliases and Apple Silicon chips because
 those are not covered by dbgpu.
@@ -132,7 +147,7 @@ whichllm --gpu "RTX 5060 Ti" --vram 16
 whichllm hardware --gpu "Unknown GPU" --vram 24
 ```
 
-`--vram` requires `--gpu`.
+`--vram` requires `--gpu` and only works with single-GPU simulation.
 
 ## Fit types
 

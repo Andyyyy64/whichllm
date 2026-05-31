@@ -13,7 +13,11 @@ from whichllm.constants import (
     QUANT_PREFERENCE_ORDER,
 )
 from whichllm.engine.compatibility import check_compatibility
-from whichllm.engine.performance import estimate_speed_uncertainty, estimate_tok_per_sec
+from whichllm.engine.performance import (
+    estimate_speed_uncertainty,
+    estimate_tok_per_sec,
+    estimate_tok_per_sec_multi_gpu,
+)
 from whichllm.engine.quantization import effective_quant_type, quant_quality_penalty
 from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.types import HardwareInfo
@@ -647,6 +651,8 @@ def rank_models(
         if best_gpu is None or gpu.vram_bytes > best_gpu.vram_bytes:
             best_gpu = gpu
 
+    use_multi_gpu = len(hardware.gpus) > 1
+
     for model in sorted_models:
         if _is_excluded_model(model.id):
             continue
@@ -708,9 +714,14 @@ def rank_models(
             if not compat.can_run:
                 continue
 
-            tok_per_sec = estimate_tok_per_sec(
-                model, variant, best_gpu, compat.fit_type
-            )
+            if use_multi_gpu:
+                tok_per_sec = estimate_tok_per_sec_multi_gpu(
+                    model, variant, hardware.gpus, compat.fit_type
+                )
+            else:
+                tok_per_sec = estimate_tok_per_sec(
+                    model, variant, best_gpu, compat.fit_type
+                )
             if min_speed is not None and tok_per_sec < min_speed:
                 continue
 
@@ -736,6 +747,7 @@ def rank_models(
                 best_gpu,
                 compat.fit_type,
                 tok_per_sec,
+                gpu_count=len(hardware.gpus),
             )
             compat.quality_score = _compute_quality_score(
                 model,

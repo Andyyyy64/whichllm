@@ -138,6 +138,7 @@ def estimate_speed_uncertainty(
     gpu: GPUInfo | None,
     fit_type: str,
     estimated_tok_per_sec: float | None,
+    gpu_count: int = 1,
 ) -> tuple[str, tuple[float, float] | None, list[str]]:
     """Return confidence metadata for the speed point estimate.
 
@@ -202,6 +203,13 @@ def estimate_speed_uncertainty(
             "This is a synthetic GGUF estimate for an official repo, not a measured GGUF file."
         )
 
+    if gpu_count > 1:
+        confidence = _lower_speed_confidence(confidence, "low")
+        notes.append(
+            f"Multi-GPU ({gpu_count}x) speed estimate assumes tensor-parallel split; "
+            "actual throughput depends on inter-GPU bandwidth (PCIe/NVLink) and framework support."
+        )
+
     low_factor, high_factor = _SPEED_CONFIDENCE_RANGE_FACTORS[confidence]
     speed_range = (
         round(estimated_tok_per_sec * low_factor, 1),
@@ -216,7 +224,7 @@ def estimate_tok_per_sec(
     gpu: GPUInfo | None,
     fit_type: str = "full_gpu",
 ) -> float:
-    """Estimate tokens per second for inference.
+    """Estimate tokens per second for inference (single GPU).
 
     Model: throughput is bounded by the time it takes to read all weights
     needed per token, multiplied by quant- and backend-specific efficiency
@@ -232,17 +240,11 @@ def estimate_tok_per_sec(
             params_b = model.parameter_count_active / 1e9
         if params_b <= 0:
             return 0.0
-        # Modern desktop CPUs sustain roughly 4-8 GB/s effective for the
-        # bandwidth-bound dequant+matmul loop on a single socket. Quantized
-        # 4-bit 7B → ~3.5 GB → ~1-2 tok/s. Approximate with an inverse-size
-        # heuristic that gets the right order of magnitude.
         quant_factor = _quant_efficiency(model, variant) / _DEFAULT_QUANT_EFFICIENCY
         return max(0.3, 18.0 / max(params_b, 0.5) * quant_factor)
 
     model_size = estimate_weight_bytes(model, variant)
 
-    # MoE: use a speed-specific effective read ratio. VRAM fit still uses
-    # total stored weights elsewhere; this only estimates per-token reads.
     if model.is_moe and model.parameter_count_active:
         effective_read = model_size * _moe_effective_read_ratio(model, gpu)
     else:
@@ -254,22 +256,8 @@ def estimate_tok_per_sec(
 
     theoretical = bandwidth / effective_read
 
-    # Real-world efficiency depends on quant kernel and backend.
     efficiency = _quant_efficiency(model, variant) * _backend_factor(gpu)
 
-    # Partial offload penalty depends on the memory architecture:
-    #
-    # - Discrete GPU (NVIDIA/AMD/Intel): spilled weights live in CPU RAM
-    #   and are read across PCIe at ~1/10th of VRAM bandwidth. With ~40%
-    #   of the model offloaded the blended throughput lands near 0.45x.
-    # - Apple Silicon: GPU and CPU share one physical unified-memory pool.
-    #   AMD shared-memory APUs such as Strix Halo have the same no-PCIe-cliff
-    #   shape for model weights, even though their backend factor remains AMD.
-    #   "Exceeding VRAM" only means exceeding the recommended working set;
-    #   the bytes are still read from the same high-bandwidth unified RAM,
-    #   so there is no PCIe cliff — only mild OS/cache contention. Using
-    #   the discrete 0.45x here was the bug that made DeepSeek-R1-class
-    #   models on M2/M3 Ultra report ~1.7 t/s when real-world is 4-15.
     if fit_type == "partial_offload":
         if gpu.vendor == "apple" or gpu.shared_memory:
             efficiency *= 0.85
@@ -277,3 +265,59 @@ def estimate_tok_per_sec(
             efficiency *= 0.45
 
     return theoretical * efficiency
+
+
+# PCIe Gen4 x16 bidirectional bandwidth in GB/s. Tensor-parallel inference
+# requires exchanging activations across GPUs each layer; this is the
+# practical cap on most consumer multi-GPU rigs.
+_PCIE_GEN4_BANDWIDTH_GBPS = 32.0
+_NVLINK_BANDWIDTH_GBPS = 600.0
+
+_MULTI_GPU_OVERHEAD_FACTOR = 0.85
+
+
+def estimate_tok_per_sec_multi_gpu(
+    model: ModelInfo,
+    variant: GGUFVariant | None,
+    gpus: list[GPUInfo],
+    fit_type: str = "full_gpu",
+) -> float:
+    """Estimate tok/s for tensor-parallel inference across multiple GPUs.
+
+    For split-tensor inference the slowest GPU is the bottleneck: each GPU
+    holds a shard of every layer and they must synchronize after each layer.
+    Effective throughput is the minimum per-GPU rate scaled by the fraction
+    of the model each GPU holds, minus inter-GPU communication overhead.
+    """
+    if not gpus:
+        return estimate_tok_per_sec(model, variant, None, fit_type)
+    if len(gpus) == 1:
+        return estimate_tok_per_sec(model, variant, gpus[0], fit_type)
+
+    per_gpu_speeds = [
+        estimate_tok_per_sec(model, variant, gpu, fit_type) for gpu in gpus
+    ]
+    slowest = min(per_gpu_speeds) if per_gpu_speeds else 0.0
+    if slowest <= 0:
+        return 0.0
+
+    n = len(gpus)
+    model_size = estimate_weight_bytes(model, variant)
+
+    has_nvlink = all(
+        gpu.vendor == "nvidia"
+        and gpu.compute_capability
+        and gpu.compute_capability >= (7, 0)
+        for gpu in gpus
+    )
+    inter_gpu_bw = _NVLINK_BANDWIDTH_GBPS if has_nvlink else _PCIE_GEN4_BANDWIDTH_GBPS
+
+    activation_bytes_per_layer = 4096 * 2
+    num_layers = max(1, int(model.parameter_count / 1e9 * 2.5))
+    sync_time = (num_layers * activation_bytes_per_layer) / (inter_gpu_bw * 1e9)
+
+    base_time = 1.0 / slowest if slowest > 0 else float("inf")
+    total_time = base_time / n + sync_time
+
+    effective_speed = (1.0 / total_time) * _MULTI_GPU_OVERHEAD_FACTOR if total_time > 0 else 0.0
+    return effective_speed

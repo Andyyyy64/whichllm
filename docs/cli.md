@@ -28,8 +28,8 @@ Common options:
 | `--json` | Print machine-readable JSON |
 | `--refresh` | Ignore caches and fetch models/benchmarks again |
 | `--cpu-only` | Ignore GPUs and rank for CPU-only use |
-| `--gpu` | Simulate a GPU by name |
-| `--vram` | Override simulated GPU VRAM in GB. Requires `--gpu` |
+| `--gpu` | Simulate GPU(s) by name. Supports multi-GPU: `"2x RTX 4090"`, `"RTX 5080,RTX 5060 Ti"` |
+| `--vram` | Override simulated GPU VRAM in GB. Requires `--gpu` (single GPU only) |
 | `--version` | Print the installed package version |
 
 Examples:
@@ -37,6 +37,8 @@ Examples:
 ```bash
 whichllm
 whichllm --gpu "RTX 4090"
+whichllm --gpu "2x RTX 3090"
+whichllm --gpu "RTX 5080,RTX 5060 Ti"
 whichllm --gpu "RTX 5060 Ti" --vram 16
 whichllm --profile coding --top 5
 whichllm --context-length 64k
