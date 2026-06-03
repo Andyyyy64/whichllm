@@ -150,7 +150,9 @@ def display_ranking(
 ) -> None:
     """Display ranked model table."""
     if not results:
-        _console.console.print("[yellow]No compatible models found for your hardware.[/]")
+        _console.console.print(
+            "[yellow]No compatible models found for your hardware.[/]"
+        )
         return
 
     mem_label = "VRAM" if has_gpu else "RAM"
