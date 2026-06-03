@@ -115,8 +115,7 @@ def check_compatibility(
 
     # Context length warning
     context_fits = not (
-        model.context_length is not None
-        and model.context_length < context_length
+        model.context_length is not None and model.context_length < context_length
     )
     if not context_fits:
         warnings.append(

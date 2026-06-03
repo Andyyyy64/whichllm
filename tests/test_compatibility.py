@@ -5,7 +5,9 @@ from whichllm.hardware.types import GPUInfo, HardwareInfo
 from whichllm.models.types import GGUFVariant, ModelInfo
 
 
-def _make_model(params: int = 7_000_000_000, context_length: int | None = None) -> ModelInfo:
+def _make_model(
+    params: int = 7_000_000_000, context_length: int | None = None
+) -> ModelInfo:
     return ModelInfo(
         id="test/model",
         family_id="test/model",
