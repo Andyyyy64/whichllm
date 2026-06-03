@@ -61,10 +61,11 @@ def test_detect_intel_gpu_from_sysfs_when_lspci_missing(monkeypatch, tmp_path):
 
 
 def test_display_intel_shared_memory_without_zero_kb(monkeypatch):
+    from whichllm.output import _console as console_mod
     from whichllm.output import display as display_mod
 
     buf = StringIO()
-    monkeypatch.setattr(display_mod, "console", Console(file=buf, force_terminal=False))
+    monkeypatch.setattr(console_mod, "console", Console(file=buf, force_terminal=False))
 
     display_mod.display_hardware(
         HardwareInfo(

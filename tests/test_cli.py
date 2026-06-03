@@ -201,14 +201,14 @@ def test_plan_display_plan_json_outputs_valid_json():
     )
     # Capture output
     buf = StringIO()
-    import whichllm.output.display as disp_mod
+    import whichllm.output._console as console_mod
 
-    orig_console = disp_mod.console
-    disp_mod.console = Console(file=buf, force_terminal=False)
+    orig_console = console_mod.console
+    console_mod.console = Console(file=buf, force_terminal=False)
     try:
         display_plan_json(model, context_length=4096, target_quant="Q4_K_M")
     finally:
-        disp_mod.console = orig_console
+        console_mod.console = orig_console
     raw = buf.getvalue().strip()
     data = json_mod.loads(raw)
     assert data["model"]["id"] == "test-org/Test-Model-7B-GGUF"
@@ -624,14 +624,14 @@ def test_json_output_includes_benchmark_source_and_confidence():
     )
 
     buf = StringIO()
-    import whichllm.output.display as disp_mod
+    import whichllm.output._console as console_mod
 
-    orig_console = disp_mod.console
-    disp_mod.console = Console(file=buf, force_terminal=False)
+    orig_console = console_mod.console
+    console_mod.console = Console(file=buf, force_terminal=False)
     try:
         display_json([result], hw)
     finally:
-        disp_mod.console = orig_console
+        console_mod.console = orig_console
 
     data = json_mod.loads(buf.getvalue().strip())
     entry = data["models"][0]
