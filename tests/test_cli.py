@@ -1,7 +1,7 @@
 """Tests for CLI helper logic."""
 
 import pytest
-from click.exceptions import Exit
+from typer import Exit
 
 import whichllm.cli as cli_mod
 from whichllm.cli import (
