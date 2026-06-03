@@ -128,8 +128,28 @@ class TestMultiGpuVramPooling:
         assert result.fit_type == "full_gpu"
 
     def test_heterogeneous_vram_sums(self):
+        """Heterogeneous GPUs report raw total VRAM but use conservative fit."""
         model = _make_model(70_000_000_000)
         variant = _make_variant(30_000_000_000)
+        hw = HardwareInfo(
+            gpus=[_make_gpu(vram_gb=24), _make_gpu(vram_gb=12)],
+            cpu_name="Test CPU",
+            cpu_cores=8,
+            ram_bytes=64 * _GiB,
+            disk_free_bytes=200 * _GiB,
+            os="linux",
+        )
+        result = check_compatibility(model, variant, hw)
+        assert result.vram_available_bytes == 36 * _GiB
+        assert result.can_run is True
+        # Conservative overhead for heterogeneous GPUs means this tight
+        # configuration correctly falls to partial_offload
+        assert result.fit_type == "partial_offload"
+
+    def test_heterogeneous_with_headroom_fits(self):
+        """Heterogeneous GPUs still achieve full_gpu when VRAM has headroom."""
+        model = _make_model(13_000_000_000)
+        variant = _make_variant(8_000_000_000)
         hw = HardwareInfo(
             gpus=[_make_gpu(vram_gb=24), _make_gpu(vram_gb=12)],
             cpu_name="Test CPU",

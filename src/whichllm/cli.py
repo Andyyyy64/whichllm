@@ -103,7 +103,7 @@ def _apply_gpu_overrides(
         if vram is not None and len(gpu_specs) > 1:
             console.print(
                 "[red]Error:[/] --vram cannot be used with multiple GPUs. "
-                "Specify VRAM per GPU is not supported in multi-GPU mode."
+                "Per-GPU VRAM override is not yet supported for multi-GPU configurations."
             )
             raise typer.Exit(code=1)
 

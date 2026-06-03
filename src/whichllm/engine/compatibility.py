@@ -44,24 +44,57 @@ def check_compatibility(
     # Reserve 20% of RAM for OS and other processes
     usable_ram = int(hardware.ram_bytes * 0.80)
 
-    # Determine best GPU
+    # Determine best GPU and effective multi-GPU VRAM
     best_gpu: GPUInfo | None = None
     best_gpu_available = 0
     total_vram = 0
     candidate_gpus = _fit_candidate_gpus(hardware.gpus)
+    per_gpu_vrams: list[int] = []
     for gpu in candidate_gpus:
         gpu_available = _gpu_available_memory(gpu, usable_ram)
         total_vram += gpu_available
+        per_gpu_vrams.append(gpu_available)
         if best_gpu is None or gpu_available > best_gpu_available:
             best_gpu = gpu
             best_gpu_available = gpu_available
 
     vram_available = total_vram if total_vram > 0 else 0
+
+    # For multi-GPU: apply conservative overhead to the VRAM budget used
+    # for fit decisions. Each additional GPU costs framework context,
+    # duplicated activation buffers, and (for heterogeneous configs) split
+    # inefficiency. The raw total is still reported in vram_available_bytes
+    # so the user sees what they physically have.
+    effective_vram_for_fit = vram_available
+    if len(per_gpu_vrams) > 1:
+        per_gpu_overhead = int(0.3 * _GiB)
+        overhead = per_gpu_overhead * len(per_gpu_vrams)
+        min_vram = min(per_gpu_vrams)
+        max_vram = max(per_gpu_vrams)
+        is_heterogeneous = min_vram < max_vram * 0.75
+        utilization = 0.90 if is_heterogeneous else 0.95
+        effective_vram_for_fit = max(0, int((total_vram - overhead) * utilization))
+
     offload_ram_available = (
         0
         if best_gpu and (best_gpu.shared_memory or best_gpu.vendor == "apple")
         else usable_ram
     )
+
+    # Multi-GPU warnings
+    if len(per_gpu_vrams) > 1:
+        n = len(per_gpu_vrams)
+        min_v = min(per_gpu_vrams)
+        max_v = max(per_gpu_vrams)
+        if min_v < max_v * 0.75:
+            warnings.append(
+                f"Heterogeneous {n}-GPU setup; fit estimate is conservative "
+                "due to uneven VRAM split"
+            )
+        else:
+            warnings.append(
+                f"Model will be split across {n} GPUs"
+            )
 
     # Check compute capability for NVIDIA
     if best_gpu and best_gpu.vendor == "nvidia" and best_gpu.compute_capability:
@@ -85,16 +118,17 @@ def check_compatibility(
         warnings.append("Metal requires macOS for Apple Silicon inference")
 
     # Determine fit type
-    if vram_available >= vram_required:
+    if effective_vram_for_fit >= vram_required:
         fit_type = "full_gpu"
         can_run = True
     elif (
-        vram_available > 0 and (vram_available + offload_ram_available) >= vram_required
+        effective_vram_for_fit > 0
+        and (effective_vram_for_fit + offload_ram_available) >= vram_required
     ):
         fit_type = "partial_offload"
         can_run = True
         offload_pct = (
-            (vram_required - vram_available) / vram_required * 100
+            (vram_required - effective_vram_for_fit) / vram_required * 100
             if vram_required > 0
             else 0
         )

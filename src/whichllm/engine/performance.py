@@ -267,13 +267,7 @@ def estimate_tok_per_sec(
     return theoretical * efficiency
 
 
-# PCIe Gen4 x16 bidirectional bandwidth in GB/s. Tensor-parallel inference
-# requires exchanging activations across GPUs each layer; this is the
-# practical cap on most consumer multi-GPU rigs.
-_PCIE_GEN4_BANDWIDTH_GBPS = 32.0
-_NVLINK_BANDWIDTH_GBPS = 600.0
-
-_MULTI_GPU_OVERHEAD_FACTOR = 0.85
+_MULTI_GPU_OVERHEAD_FACTOR = 0.70
 
 
 def estimate_tok_per_sec_multi_gpu(
@@ -282,12 +276,15 @@ def estimate_tok_per_sec_multi_gpu(
     gpus: list[GPUInfo],
     fit_type: str = "full_gpu",
 ) -> float:
-    """Estimate tok/s for tensor-parallel inference across multiple GPUs.
+    """Conservative tok/s estimate for inference split across multiple GPUs.
 
-    For split-tensor inference the slowest GPU is the bottleneck: each GPU
-    holds a shard of every layer and they must synchronize after each layer.
-    Effective throughput is the minimum per-GPU rate scaled by the fraction
-    of the model each GPU holds, minus inter-GPU communication overhead.
+    Each GPU holds ~1/N of the model, so the theoretical speedup is Nx over
+    the slowest GPU. We apply a flat 30% overhead to account for inter-GPU
+    synchronization without claiming to know the exact interconnect topology
+    (PCIe generation, NVLink presence, bridge vs switch, etc.). The real
+    bottleneck depends on hardware, framework, and split strategy — those
+    details are modeled as low-confidence uncertainty in
+    ``estimate_speed_uncertainty`` rather than baked into the point estimate.
     """
     if not gpus:
         return estimate_tok_per_sec(model, variant, None, fit_type)
@@ -302,22 +299,4 @@ def estimate_tok_per_sec_multi_gpu(
         return 0.0
 
     n = len(gpus)
-    model_size = estimate_weight_bytes(model, variant)
-
-    has_nvlink = all(
-        gpu.vendor == "nvidia"
-        and gpu.compute_capability
-        and gpu.compute_capability >= (7, 0)
-        for gpu in gpus
-    )
-    inter_gpu_bw = _NVLINK_BANDWIDTH_GBPS if has_nvlink else _PCIE_GEN4_BANDWIDTH_GBPS
-
-    activation_bytes_per_layer = 4096 * 2
-    num_layers = max(1, int(model.parameter_count / 1e9 * 2.5))
-    sync_time = (num_layers * activation_bytes_per_layer) / (inter_gpu_bw * 1e9)
-
-    base_time = 1.0 / slowest if slowest > 0 else float("inf")
-    total_time = base_time / n + sync_time
-
-    effective_speed = (1.0 / total_time) * _MULTI_GPU_OVERHEAD_FACTOR if total_time > 0 else 0.0
-    return effective_speed
+    return slowest * n * _MULTI_GPU_OVERHEAD_FACTOR
