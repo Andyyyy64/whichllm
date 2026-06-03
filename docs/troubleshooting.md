@@ -224,6 +224,32 @@ Try a known public GGUF model first:
 whichllm run "qwen 2.5 1.5b gguf"
 ```
 
+## How much disk space does `run` need?
+
+Normal ranking commands do not download model weights. They cache Hugging Face
+model metadata and benchmark metadata under the whichllm cache.
+
+`whichllm run` downloads the selected GGUF file through `huggingface_hub`. The
+required disk space is roughly the selected GGUF file size plus normal Hugging
+Face cache overhead.
+
+By default, Hugging Face stores downloaded files under:
+
+```text
+~/.cache/huggingface/hub
+```
+
+You can move that cache by setting `HF_HOME` or `HF_HUB_CACHE`.
+
+Cleanup is handled by the Hugging Face cache tools:
+
+```bash
+hf cache scan
+hf cache delete
+```
+
+whichllm does not currently delete model files automatically after a run.
+
 ## Ollama names do not match HuggingFace IDs
 
 JSON output returns HuggingFace repo IDs:
