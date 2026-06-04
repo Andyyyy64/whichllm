@@ -270,8 +270,9 @@ def get_aa_curated_fallback() -> dict[str, float]:
     Used whenever the live HTML scrape cannot extract data — for example
     when artificialanalysis.ai changes its Next.js payload shape.
     """
-    return {
-        hf_id: _normalize_aa_index(raw)
-        for hf_id, raw in AA_INDEX_FALLBACK_2026_05_14.items()
-        if _normalize_aa_index(raw) > 0
-    }
+    result: dict[str, float] = {}
+    for hf_id, raw in AA_INDEX_FALLBACK_2026_05_14.items():
+        normalized = _normalize_aa_index(raw)
+        if normalized > 0:
+            result[hf_id] = normalized
+    return result
