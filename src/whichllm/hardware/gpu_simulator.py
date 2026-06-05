@@ -8,6 +8,10 @@ from __future__ import annotations
 
 import logging
 import re
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from dbgpu import GPUSpecification
 
 from whichllm.constants import AMD_SHARED_MEMORY_APU_MARKERS, GPU_BANDWIDTH, _GiB
 from whichllm.hardware.types import GPUInfo
@@ -129,7 +133,7 @@ def _substring_search(db, name: str):
     return None
 
 
-def _lookup_dbgpu(name: str):
+def _lookup_dbgpu(name: str) -> GPUSpecification | None:
     """Look up GPU spec from dbgpu database. Returns GPUSpecification or None."""
     from dbgpu import GPUDatabase
 
