@@ -64,6 +64,7 @@ def test_partial_offload():
     result = check_compatibility(model, variant, hw)
     assert result.can_run is True
     assert result.fit_type == "partial_offload"
+    assert 0.0 < result.offload_ratio < 1.0
     assert any("offload" in w.lower() for w in result.warnings)
 
 

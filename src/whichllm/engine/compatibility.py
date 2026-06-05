@@ -88,16 +88,18 @@ def check_compatibility(
     if vram_available >= vram_required:
         fit_type = "full_gpu"
         can_run = True
+        offload_ratio = 0.0
     elif (
         vram_available > 0 and (vram_available + offload_ram_available) >= vram_required
     ):
         fit_type = "partial_offload"
         can_run = True
-        offload_pct = (
-            (vram_required - vram_available) / vram_required * 100
+        offload_ratio = (
+            (vram_required - vram_available) / vram_required
             if vram_required > 0
-            else 0
+            else 0.0
         )
+        offload_pct = offload_ratio * 100
         if best_gpu and (best_gpu.shared_memory or best_gpu.vendor == "apple"):
             warnings.append("Will use shared system memory")
         else:
@@ -107,10 +109,12 @@ def check_compatibility(
     elif usable_ram >= vram_required:
         fit_type = "cpu_only"
         can_run = True
+        offload_ratio = 0.0
         warnings.append("Will run on CPU only (much slower)")
     else:
         fit_type = "cpu_only"
         can_run = False
+        offload_ratio = 0.0
         warnings.append("Insufficient memory (GPU VRAM + RAM) to run this model")
 
     # Context length warning
@@ -143,6 +147,7 @@ def check_compatibility(
         can_run=can_run,
         vram_required_bytes=vram_required,
         vram_available_bytes=vram_available,
+        offload_ratio=offload_ratio,
         warnings=warnings,
         fit_type=fit_type,
         context_fits=context_fits,

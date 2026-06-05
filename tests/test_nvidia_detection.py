@@ -28,6 +28,28 @@ def test_nvidia_smi_fallback_when_pynvml_missing(monkeypatch):
     assert gpus[0].vram_bytes == 16303 * 1024**2
 
 
+def test_nvidia_smi_fallback_applies_rtx_a3000_laptop_catalog(monkeypatch):
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "pynvml":
+            raise ImportError
+        return real_import(name, *args, **kwargs)
+
+    def fake_run(*args, **kwargs):
+        return SimpleNamespace(stdout="NVIDIA RTX A3000 Laptop GPU, 6144 MiB\n")
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    gpus = detect_nvidia_gpus()
+
+    assert len(gpus) == 1
+    assert gpus[0].name == "NVIDIA RTX A3000 Laptop GPU"
+    assert gpus[0].compute_capability == (8, 6)
+    assert gpus[0].memory_bandwidth_gbps == 264.0
+
+
 def test_nvidia_smi_fallback_when_nvml_init_fails(monkeypatch):
     class FakeNVMLError(Exception):
         pass
