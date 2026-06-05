@@ -21,6 +21,7 @@ import httpx
 from whichllm.models.benchmark_sources.constants import _NEXT_DATA_RE
 from whichllm.models.benchmark_sources.types import ExtractionFailed
 from whichllm.models.benchmark_sources.utils import _walk
+from whichllm.models.http import get_with_retries
 
 logger = logging.getLogger(__name__)
 
@@ -230,7 +231,7 @@ async def fetch_aa_index_scores(client: httpx.AsyncClient) -> dict[str, float]:
     Raises on HTTP / parse failure.
     """
     scores: dict[str, float] = {}
-    resp = await client.get(AA_LEADERBOARD_URL)
+    resp = await get_with_retries(client, AA_LEADERBOARD_URL)
     resp.raise_for_status()
     match = _NEXT_DATA_RE.search(resp.text)
     if not match:

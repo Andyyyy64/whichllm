@@ -27,6 +27,23 @@ def _run_async(coro):
     return asyncio.run(coro)
 
 
+def _format_fetch_error(error: Exception) -> str:
+    """Return a useful one-line fetch error even when str(error) is empty."""
+    detail = str(error).strip()
+    if detail:
+        return detail
+
+    response = getattr(error, "response", None)
+    request = getattr(error, "request", None) or getattr(response, "request", None)
+    status_code = getattr(response, "status_code", None)
+    url = getattr(request, "url", None)
+    if status_code and url:
+        return f"{type(error).__name__}: HTTP {status_code} for {url}"
+    if url:
+        return f"{type(error).__name__} while requesting {url}"
+    return f"{type(error).__name__} with no detail from the network layer"
+
+
 def _print_version(value: bool) -> None:
     """Print version and exit when --version is requested."""
     if value:
@@ -293,7 +310,9 @@ def main(
                 save_cache(models_to_dicts(models))
                 progress.update(task, description=f"Fetched {len(models)} models")
             except Exception as e:
-                console.print(f"[red]Error fetching models:[/] {e}")
+                console.print(
+                    f"[red]Error fetching models:[/] {_format_fetch_error(e)}"
+                )
                 sys.exit(1)
 
         # Step 3: Fetch benchmark scores
@@ -424,7 +443,9 @@ def plan(
                 models = _run_async(fetch_models(include_vision=True))
                 save_cache(models_to_dicts(models))
             except Exception as e:
-                console.print(f"[red]Error fetching models:[/] {e}")
+                console.print(
+                    f"[red]Error fetching models:[/] {_format_fetch_error(e)}"
+                )
                 sys.exit(1)
 
     model = _search_model(models, model_name)
@@ -507,7 +528,9 @@ def upgrade(
                 models = _run_async(fetch_models(include_vision=False))
                 save_cache(models_to_dicts(models))
             except Exception as e:
-                console.print(f"[red]Error fetching models:[/] {e}")
+                console.print(
+                    f"[red]Error fetching models:[/] {_format_fetch_error(e)}"
+                )
                 raise typer.Exit(code=1)
 
         progress.update(task, description="Loading benchmark data...")
@@ -594,7 +617,7 @@ def _load_models(refresh: bool, include_vision: bool = True):
         save_cache(models_to_dicts(models))
         return models
     except Exception as e:
-        console.print(f"[red]Error fetching models:[/] {e}")
+        console.print(f"[red]Error fetching models:[/] {_format_fetch_error(e)}")
         sys.exit(1)
 
 

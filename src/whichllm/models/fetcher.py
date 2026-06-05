@@ -10,6 +10,7 @@ import statistics
 import httpx
 
 from whichllm.constants import QUANT_BYTES_PER_WEIGHT
+from whichllm.models.http import get_with_retries
 from whichllm.models.types import GGUFVariant, ModelInfo
 
 logger = logging.getLogger(__name__)
@@ -593,7 +594,7 @@ async def fetch_models(
             ],
         }
         logger.debug(f"Fetching models from HF API (limit={limit})")
-        resp = await client.get(f"{HF_API_BASE}/models", params=params)
+        resp = await get_with_retries(client, f"{HF_API_BASE}/models", params=params)
         resp.raise_for_status()
         data_list = resp.json()
         for data in data_list:
@@ -617,7 +618,9 @@ async def fetch_models(
             ],
         }
         logger.debug("Fetching GGUF models from HF API")
-        resp = await client.get(f"{HF_API_BASE}/models", params=gguf_params)
+        resp = await get_with_retries(
+            client, f"{HF_API_BASE}/models", params=gguf_params
+        )
         resp.raise_for_status()
         gguf_data_list = resp.json()
 
@@ -645,7 +648,9 @@ async def fetch_models(
             ],
         }
         logger.debug("Fetching recent GGUF models from HF API")
-        resp = await client.get(f"{HF_API_BASE}/models", params=recent_params)
+        resp = await get_with_retries(
+            client, f"{HF_API_BASE}/models", params=recent_params
+        )
         resp.raise_for_status()
         recent_data_list = resp.json()
 
@@ -679,7 +684,9 @@ async def fetch_models(
                 f"Fetching trending {filter_value or 'all'} models from HF API"
             )
             try:
-                resp = await client.get(f"{HF_API_BASE}/models", params=trending_params)
+                resp = await get_with_retries(
+                    client, f"{HF_API_BASE}/models", params=trending_params
+                )
                 resp.raise_for_status()
                 trending_data_list = resp.json()
             except (httpx.HTTPError, ValueError) as e:
@@ -775,7 +782,8 @@ async def fetch_models(
             if model_id in seen_ids:
                 continue
             try:
-                resp = await client.get(
+                resp = await get_with_retries(
+                    client,
                     f"{HF_API_BASE}/models/{model_id}",
                     params={
                         "expand[]": [
@@ -823,7 +831,9 @@ async def fetch_models(
                     ],
                 }
                 logger.debug(f"Fetching {pipeline_tag} models from HF API")
-                resp = await client.get(f"{HF_API_BASE}/models", params=mm_params)
+                resp = await get_with_retries(
+                    client, f"{HF_API_BASE}/models", params=mm_params
+                )
                 resp.raise_for_status()
                 mm_data_list = resp.json()
 

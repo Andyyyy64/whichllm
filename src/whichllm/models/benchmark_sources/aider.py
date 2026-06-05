@@ -17,6 +17,8 @@ import re
 
 import httpx
 
+from whichllm.models.http import get_with_retries
+
 logger = logging.getLogger(__name__)
 
 AIDER_POLYGLOT_YML_URL = (
@@ -108,7 +110,7 @@ def _parse_yaml_lite(text: str) -> list[tuple[str, float]]:
 async def fetch_aider_polyglot_scores(client: httpx.AsyncClient) -> dict[str, float]:
     """Fetch Aider polyglot pass-rates. Raises on HTTP / parse failure."""
     scores: dict[str, float] = {}
-    resp = await client.get(AIDER_POLYGLOT_YML_URL)
+    resp = await get_with_retries(client, AIDER_POLYGLOT_YML_URL)
     resp.raise_for_status()
     pairs = _parse_yaml_lite(resp.text)
     if not pairs:

@@ -1,5 +1,6 @@
 """Tests for CLI helper logic."""
 
+import httpx
 import pytest
 from typer import Exit
 
@@ -7,6 +8,7 @@ import whichllm.cli as cli_mod
 from whichllm.cli import (
     _auto_min_params_for_profile,
     _fill_missing_published_at,
+    _format_fetch_error,
     _generate_chat_script,
     _include_vision_candidates,
     _merge_model_eval_benchmarks,
@@ -98,6 +100,26 @@ def test_version_option_prints_version_and_exits():
     assert _current_version() in result.stdout
 
 
+def test_format_fetch_error_uses_exception_class_when_message_is_empty():
+    class EmptyNetworkError(Exception):
+        def __str__(self) -> str:
+            return ""
+
+    assert _format_fetch_error(EmptyNetworkError()) == (
+        "EmptyNetworkError with no detail from the network layer"
+    )
+
+
+def test_format_fetch_error_includes_status_and_url_for_empty_http_error():
+    request = httpx.Request("GET", "https://huggingface.co/api/models")
+    response = httpx.Response(429, request=request)
+    error = httpx.HTTPStatusError("", request=request, response=response)
+
+    assert _format_fetch_error(error) == (
+        "HTTPStatusError: HTTP 429 for https://huggingface.co/api/models"
+    )
+
+
 def test_merge_model_eval_benchmarks_is_now_a_noop():
     """As of the self_reported evidence tier, _merge_model_eval_benchmarks
     must NOT mutate the leaderboard scores. Uploader-reported hf_eval values
@@ -153,7 +175,8 @@ def test_resolve_evidence_mode_direct_alias_wins():
 # --------------- plan command tests ---------------
 
 
-def test_plan_no_model_found_shows_error():
+def test_plan_no_model_found_shows_error(monkeypatch):
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
     runner = CliRunner()
     result = runner.invoke(app, ["plan", "nonexistent_model_xyz_999"])
     assert result.exit_code != 0
@@ -579,7 +602,8 @@ def test_run_auto_pick_resolves_ranked_gguf_before_launch(monkeypatch):
     assert "transformers" not in captured["cmd"]
 
 
-def test_snippet_no_model_found():
+def test_snippet_no_model_found(monkeypatch):
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [])
     runner = CliRunner()
     result = runner.invoke(app, ["snippet", "nonexistent_model_xyz_999"])
     assert result.exit_code != 0
