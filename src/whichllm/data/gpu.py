@@ -31,6 +31,8 @@ GPU_BANDWIDTH: dict[str, float] = {
     "RTX 5070 Ti": 896.0,
     "RTX 5070": 672.0,
     "RTX 5060 Ti": 448.0,
+    "RTX 5060": 336.0,
+    "RTX 3050": 224.0,
     # NVIDIA Consumer - RTX 40 series
     "RTX 4090": 1008.0,
     "RTX 4080 SUPER": 736.0,
@@ -71,6 +73,7 @@ GPU_BANDWIDTH: dict[str, float] = {
     "A100 80GB": 2039.0,
     "A100 40GB": 1555.0,
     "A100": 1555.0,
+    "RTX A3000 Laptop": 264.0,
     "A6000": 768.0,
     "A5000": 768.0,
     "A4000": 448.0,
@@ -81,6 +84,8 @@ GPU_BANDWIDTH: dict[str, float] = {
     "V100": 900.0,
     "P100": 732.0,
     # AMD
+    "RX 9070 XT": 640.0,
+    "RX 9070": 560.0,
     "RX 9060 XT": 320.0,
     "RX 7900 XTX": 960.0,
     "RX 7900 XT": 800.0,
@@ -136,6 +141,8 @@ NVIDIA_COMPUTE_CAPABILITY: dict[str, tuple[int, int]] = {
     "RTX 5090": (10, 0),
     "RTX 5080": (10, 0),
     "RTX 5070": (10, 0),
+    "RTX 5070 Ti": (10, 0),
+    "RTX 5060": (10, 0),
     # RTX 40 series (Ada Lovelace)
     "RTX 4090": (8, 9),
     "RTX 4080": (8, 9),
@@ -163,6 +170,7 @@ NVIDIA_COMPUTE_CAPABILITY: dict[str, tuple[int, int]] = {
     "DGX Spark": (12, 1),
     "GB10": (12, 1),
     "A100": (8, 0),
+    "RTX A3000 Laptop": (8, 6),
     "A6000": (8, 6),
     "A5000": (8, 6),
     "A4000": (8, 6),

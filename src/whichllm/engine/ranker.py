@@ -65,6 +65,27 @@ def _family_selection_key(
     return (result.quality_score + fit_bonus + direct_bonus + ctx_penalty,)
 
 
+def _partial_offload_quality_factor(model: ModelInfo, offload_ratio: float) -> float:
+    """Discount partial-offload candidates by how much leaves VRAM."""
+    ratio = max(0.0, min(1.0, offload_ratio))
+    if ratio >= 0.75:
+        factor = 0.42
+    elif ratio >= 0.60:
+        factor = 0.52
+    elif ratio >= 0.40:
+        factor = 0.62
+    else:
+        factor = 0.72
+
+    # MoE offload is more nuanced: inactive experts and router/runtime
+    # placement do not hurt equally. Keep the penalty, but do not treat it
+    # as badly as dense-layer offload.
+    if model.is_moe and model.parameter_count_active:
+        factor = min(0.72, factor + 0.08)
+
+    return factor
+
+
 # Per-source benchmark weight applied to the raw 0-100 score before it is
 # combined with size, quant penalty, etc. The widest gap is between "direct"
 # (independent leaderboard) and "self_reported" (uploader card claim).
@@ -440,6 +461,7 @@ def _compute_quality_score(
     variant: GGUFVariant | None,
     tok_per_sec: float,
     fit_type: str,
+    offload_ratio: float = 0.0,
     family_downloads: int = 0,
     family_likes: int = 0,
     benchmark_avg: float | None = None,
@@ -502,7 +524,7 @@ def _compute_quality_score(
 
     # Runtime form factor penalty
     if fit_type == "partial_offload":
-        quality_core *= 0.72
+        quality_core *= _partial_offload_quality_factor(model, offload_ratio)
     elif fit_type == "cpu_only":
         quality_core *= 0.50
 
@@ -518,7 +540,15 @@ def _compute_quality_score(
         else:
             speed_score = min(8.0, math.log2(tok_per_sec / required_speed + 1.0) * 3.2)
     else:
-        speed_score = -8.0
+        if fit_type == "partial_offload":
+            if offload_ratio >= 0.70:
+                speed_score = -24.0
+            elif offload_ratio >= 0.40:
+                speed_score = -18.0
+            else:
+                speed_score = -12.0
+        else:
+            speed_score = -8.0
 
     # Popularity is a tie-breaker, never primary.
     downloads = max(model.downloads, family_downloads)
@@ -742,6 +772,7 @@ def rank_models(
                 variant,
                 tok_per_sec,
                 compat.fit_type,
+                offload_ratio=compat.offload_ratio,
                 family_downloads=family_max_downloads.get(fid, 0),
                 family_likes=family_max_likes.get(fid, 0),
                 benchmark_avg=bench_avg,

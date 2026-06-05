@@ -42,6 +42,61 @@ def _cpu_name_from_devicetree() -> str | None:
         return None
 
 
+def _clean_cpu_name(name: str | None) -> str | None:
+    if name is None:
+        return None
+    cleaned = name.strip()
+    if not cleaned or cleaned == "-" or cleaned.lower() == "name":
+        return None
+    return cleaned
+
+
+def _cpu_name_from_wmic() -> str | None:
+    try:
+        result = subprocess.run(
+            ["wmic", "cpu", "get", "name"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (FileNotFoundError, subprocess.SubprocessError, OSError):
+        return None
+
+    if result.returncode != 0:
+        return None
+
+    for line in result.stdout.splitlines():
+        name = _clean_cpu_name(line)
+        if name:
+            return name
+    return None
+
+
+def _cpu_name_from_windows_cim() -> str | None:
+    script = (
+        "Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name"
+    )
+    for executable in ("powershell", "pwsh"):
+        try:
+            result = subprocess.run(
+                [executable, "-NoProfile", "-Command", script],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+        except (FileNotFoundError, subprocess.SubprocessError, OSError):
+            continue
+
+        if result.returncode != 0:
+            continue
+
+        for line in result.stdout.splitlines():
+            name = _clean_cpu_name(line)
+            if name:
+                return name
+    return None
+
+
 def detect_cpu_name() -> str:
     """Get CPU model name."""
     system = platform.system()
@@ -64,22 +119,13 @@ def detect_cpu_name() -> str:
                 timeout=5,
             )
             if result.returncode == 0:
-                return result.stdout.strip()
+                name = _clean_cpu_name(result.stdout)
+                if name:
+                    return name
         elif system == "Windows":
-            result = subprocess.run(
-                ["wmic", "cpu", "get", "name"],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            if result.returncode == 0:
-                lines = [
-                    line.strip()
-                    for line in result.stdout.strip().split("\n")
-                    if line.strip()
-                ]
-                if len(lines) > 1:
-                    return lines[1]
+            name = _cpu_name_from_wmic() or _cpu_name_from_windows_cim()
+            if name:
+                return name
     except Exception as e:
         logger.debug(f"Failed to detect CPU name: {e}")
     return "Unknown CPU"

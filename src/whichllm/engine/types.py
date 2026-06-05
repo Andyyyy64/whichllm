@@ -12,6 +12,7 @@ class CompatibilityResult:
     can_run: bool
     vram_required_bytes: int
     vram_available_bytes: int
+    offload_ratio: float = 0.0  # 0.0-1.0 fraction of weights spilled to CPU RAM
     estimated_tok_per_sec: float | None = None
     speed_confidence: str = "medium"  # "high" | "medium" | "low"
     speed_range_tok_per_sec: tuple[float, float] | None = None

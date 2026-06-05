@@ -4,6 +4,8 @@ import re
 
 import httpx
 
+from whichllm.models.http import get_with_retries
+
 # --- Data source URLs ---
 ARENA_ROWS_URL = "https://datasets-server.huggingface.co/rows"
 ARENA_DATASET = "mathewhe/chatbot-arena-elo"
@@ -94,7 +96,8 @@ async def fetch_arena_scores(client: httpx.AsyncClient) -> dict[str, float]:
     offset = 0
 
     while True:
-        resp = await client.get(
+        resp = await get_with_retries(
+            client,
             ARENA_ROWS_URL,
             params={
                 "dataset": ARENA_DATASET,

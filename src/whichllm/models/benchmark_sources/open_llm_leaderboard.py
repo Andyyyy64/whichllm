@@ -4,6 +4,8 @@ import io
 
 import httpx
 
+from whichllm.models.http import get_with_retries
+
 LEADERBOARD_PARQUET_URL = (
     "https://huggingface.co/api/datasets/open-llm-leaderboard/contents"
     "/parquet/default/train/0.parquet"
@@ -24,7 +26,9 @@ async def _fetch_leaderboard_parquet(client: httpx.AsyncClient) -> dict[str, flo
     """Download Open LLM Leaderboard parquet (requires pyarrow)."""
     import pyarrow.parquet as pq
 
-    resp = await client.get(LEADERBOARD_PARQUET_URL, follow_redirects=True)
+    resp = await get_with_retries(
+        client, LEADERBOARD_PARQUET_URL, follow_redirects=True
+    )
     resp.raise_for_status()
     table = pq.read_table(
         io.BytesIO(resp.content),
@@ -46,7 +50,8 @@ async def _fetch_leaderboard_api(client: httpx.AsyncClient) -> dict[str, float]:
     offset = 0
 
     while True:
-        resp = await client.get(
+        resp = await get_with_retries(
+            client,
             LEADERBOARD_ROWS_URL,
             params={
                 "dataset": LEADERBOARD_DATASET,

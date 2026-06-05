@@ -553,6 +553,75 @@ def test_evidence_base_keeps_base_model_match_and_drops_line_interp():
     assert "Qwen/Qwen3-14B-Instruct-GGUF" not in ids
 
 
+def test_unknown_speed_heavy_partial_offload_does_not_top_rank():
+    heavy_partial = ModelInfo(
+        id="Qwen/Qwen3.6-27B",
+        family_id="qwen3.6-27b",
+        name="Qwen3.6-27B",
+        parameter_count=27_800_000_000,
+        downloads=1_000_000,
+        likes=10_000,
+        gguf_variants=[
+            GGUFVariant(
+                filename="qwen3.6-27b-q8_0.gguf",
+                quant_type="Q8_0",
+                file_size_bytes=29_500_000_000,
+            )
+        ],
+    )
+    full_gpu = ModelInfo(
+        id="Qwen/Qwen3-8B",
+        family_id="qwen3-8b",
+        name="Qwen3-8B",
+        parameter_count=8_000_000_000,
+        downloads=500_000,
+        likes=5_000,
+        gguf_variants=[
+            GGUFVariant(
+                filename="qwen3-8b-q4_k_m.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=4_000_000_000,
+            )
+        ],
+    )
+    hardware = HardwareInfo(
+        gpus=[
+            GPUInfo(
+                name="Unknown 6GB NVIDIA GPU",
+                vendor="nvidia",
+                vram_bytes=6 * 1024**3,
+                compute_capability=(8, 6),
+                memory_bandwidth_gbps=None,
+            )
+        ],
+        cpu_name="Test CPU",
+        cpu_cores=8,
+        has_avx2=True,
+        ram_bytes=32 * 1024**3,
+        disk_free_bytes=500 * 1024**3,
+        os="windows",
+    )
+
+    results = rank_models(
+        [heavy_partial, full_gpu],
+        hardware,
+        top_n=2,
+        benchmark_scores={
+            "Qwen/Qwen3.6-27B": 84.0,
+            "Qwen/Qwen3-8B": 62.0,
+        },
+    )
+
+    assert results
+    assert results[0].model.id == "Qwen/Qwen3-8B"
+    assert results[0].fit_type == "full_gpu"
+    heavy = next((r for r in results if r.model.id == "Qwen/Qwen3.6-27B"), None)
+    if heavy is not None:
+        assert heavy.fit_type == "partial_offload"
+        assert heavy.offload_ratio >= 0.70
+        assert heavy.estimated_tok_per_sec == 0.0
+
+
 def test_benchmark_source_and_confidence_exposed_for_direct():
     model = ModelInfo(
         id="Qwen/Qwen2.5-7B-Instruct",

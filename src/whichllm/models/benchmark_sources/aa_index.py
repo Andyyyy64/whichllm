@@ -21,6 +21,7 @@ import httpx
 from whichllm.models.benchmark_sources.constants import _NEXT_DATA_RE
 from whichllm.models.benchmark_sources.types import ExtractionFailed
 from whichllm.models.benchmark_sources.utils import _walk
+from whichllm.models.http import get_with_retries
 
 logger = logging.getLogger(__name__)
 
@@ -230,7 +231,7 @@ async def fetch_aa_index_scores(client: httpx.AsyncClient) -> dict[str, float]:
     Raises on HTTP / parse failure.
     """
     scores: dict[str, float] = {}
-    resp = await client.get(AA_LEADERBOARD_URL)
+    resp = await get_with_retries(client, AA_LEADERBOARD_URL)
     resp.raise_for_status()
     match = _NEXT_DATA_RE.search(resp.text)
     if not match:
@@ -270,8 +271,9 @@ def get_aa_curated_fallback() -> dict[str, float]:
     Used whenever the live HTML scrape cannot extract data — for example
     when artificialanalysis.ai changes its Next.js payload shape.
     """
-    return {
-        hf_id: _normalize_aa_index(raw)
-        for hf_id, raw in AA_INDEX_FALLBACK_2026_05_14.items()
-        if _normalize_aa_index(raw) > 0
-    }
+    result: dict[str, float] = {}
+    for hf_id, raw in AA_INDEX_FALLBACK_2026_05_14.items():
+        normalized = _normalize_aa_index(raw)
+        if normalized > 0:
+            result[hf_id] = normalized
+    return result

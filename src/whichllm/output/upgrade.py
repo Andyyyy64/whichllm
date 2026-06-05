@@ -92,7 +92,9 @@ def display_upgrade(
     table.add_row(
         current_row["name"],
         current_row["gpu"],
-        f"{current_row['vram_gb']:.0f} GB" if current_row["vram_gb"] else "—",
+        f"{current_row['vram_gb']:.0f} GB"
+        if current_row["vram_gb"] is not None
+        else "—",
         current_row["top_model"],
         current_row["top_quant"],
         f"{current_row['top_quality']:.1f}",
@@ -107,7 +109,7 @@ def display_upgrade(
         table.add_row(
             row["name"],
             row["gpu"],
-            f"{row['vram_gb']:.0f} GB" if row["vram_gb"] else "—",
+            f"{row['vram_gb']:.0f} GB" if row["vram_gb"] is not None else "—",
             row["top_model"],
             row["top_quant"],
             f"{row['top_quality']:.1f}",

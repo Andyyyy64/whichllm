@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.8] - 2026-06-05
+
+### Added
+
+- `--context-length` now accepts shorthand values such as `64k` and `128k`.
+- JSON ranking output now includes benchmark source and confidence metadata.
+- Asahi Linux / Apple Silicon detection now recognizes Apple CPU and GPU names.
+- Added GPU catalog coverage for `NVIDIA RTX A3000 Laptop GPU`, `RTX 3050`,
+  `RTX 5060`, `RTX 5070 Ti`, `RX 9070`, and `RX 9070 XT`.
+
+### Fixed
+
+- A3000 Laptop 6GB systems no longer get `0.0 tok/s` / heavy partial-offload
+  recommendations at the top just because bandwidth was missing.
+- Windows CPU detection now falls back through PowerShell/CIM when `wmic` does
+  not return a useful CPU name.
+- Models that cannot hold the requested context are demoted instead of staying
+  near the top of the ranking.
+- Hugging Face and benchmark fetches now retry transient failures such as 429s
+  before falling back or failing.
+- `Error fetching models:` now includes useful detail even when the underlying
+  network exception message is empty.
+- Upgrade tables now show `0 GB` VRAM instead of treating zero as missing.
+
+### Changed
+
+- Curated registry data was split out of `constants.py` into
+  `whichllm.data.*` modules.
+- Troubleshooting and cache documentation now better explain disk-cache paths
+  and stale fetch behavior.
+
 ## [0.5.7] - 2026-05-20
 
 ### Added
