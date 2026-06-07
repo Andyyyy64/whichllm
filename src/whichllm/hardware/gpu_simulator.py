@@ -61,7 +61,9 @@ _APPLE_SILICON_CHIPS: dict[str, tuple[str, float]] = {
     "M4 Pro": ("Apple M4 Pro", 24.0),
     "M4 Max": ("Apple M4 Max", 36.0),
     "M4 Ultra": ("Apple M4 Ultra", 64.0),
+    "M5": ("Apple M5", 16.0),
     "M5 Pro": ("Apple M5 Pro", 24.0),
+    "M5 Max": ("Apple M5 Max", 36.0),
 }
 
 

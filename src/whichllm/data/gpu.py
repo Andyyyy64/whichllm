@@ -133,7 +133,9 @@ GPU_BANDWIDTH: dict[str, float] = {
     "M4 Max": 546.0,
     "M4 Pro": 273.0,
     "M4": 120.0,
+    "M5 Max": 614.0,
     "M5 Pro": 307.0,
+    "M5": 153.0,
 }
 
 # NVIDIA GPU compute capability lookup (substring match, case-insensitive)
