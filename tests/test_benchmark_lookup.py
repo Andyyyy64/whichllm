@@ -47,6 +47,71 @@ def test_lookup_benchmark_gguf_suffix_match_is_inherited():
     assert result == (70.0, False)
 
 
+def test_lookup_benchmark_community_gguf_without_base_model_matches_official_id():
+    scores = {"Qwen/Qwen3.6-27B": 83.5}
+    ci, line = build_score_index(scores)
+    buckets = build_line_bucket_index(scores)
+    result = lookup_benchmark_evidence(
+        "unsloth/Qwen3.6-27B-GGUF",
+        None,
+        scores,
+        ci,
+        line,
+        buckets,
+    )
+    assert result.source == "variant"
+    assert result.score == 83.5
+
+
+def test_lookup_benchmark_community_gguf_underscore_name_matches_official_id():
+    scores = {"Qwen/Qwen3.6-35B-A3B": 86.0}
+    ci, line = build_score_index(scores)
+    buckets = build_line_bucket_index(scores)
+    result = lookup_benchmark_evidence(
+        "unsloth/Qwen_Qwen3.6-35B-A3B-GGUF",
+        None,
+        scores,
+        ci,
+        line,
+        buckets,
+    )
+    assert result.source == "variant"
+    assert result.score == 86.0
+
+
+def test_lookup_benchmark_community_gguf_keeps_params_guard():
+    scores = {"Qwen/Qwen3.6-27B": 83.5}
+    ci, line = build_score_index(scores)
+    buckets = build_line_bucket_index(scores)
+    result = lookup_benchmark_evidence(
+        "unsloth/Qwen3.6-27B-GGUF",
+        None,
+        scores,
+        ci,
+        line,
+        buckets,
+        actual_params_b=6.6,
+    )
+    assert result.source != "variant"
+
+
+def test_lookup_benchmark_community_gguf_beats_self_reported_score():
+    scores = {"Qwen/Qwen3.6-27B": 83.5}
+    ci, line = build_score_index(scores)
+    buckets = build_line_bucket_index(scores)
+    result = lookup_benchmark_evidence(
+        "unsloth/Qwen3.6-27B-GGUF",
+        None,
+        scores,
+        ci,
+        line,
+        buckets,
+        self_reported_score=12.0,
+    )
+    assert result.source == "variant"
+    assert result.score == 83.5
+
+
 def test_lookup_benchmark_evidence_direct_has_full_confidence():
     scores = {"Qwen/Qwen2.5-7B-Instruct": 70.0}
     ci, line = build_score_index(scores)

@@ -427,6 +427,47 @@ def _generate_candidates(model_id: str) -> list[str]:
     return candidates
 
 
+def _append_unique(candidates: list[str], candidate: str) -> None:
+    if candidate and candidate not in candidates:
+        candidates.append(candidate)
+
+
+def _strip_repo_suffix(model_id: str) -> str:
+    for suffix in _REPO_SUFFIXES:
+        if model_id.endswith(suffix):
+            return model_id[: -len(suffix)]
+    return model_id
+
+
+def _generate_score_name_candidates(
+    model_id: str, scores: dict[str, float]
+) -> list[str]:
+    """Match community repo names to benchmark IDs with the same model name."""
+    stripped = _strip_repo_suffix(model_id)
+    repo_name = stripped.rsplit("/", 1)[-1]
+    model_names = [repo_name]
+
+    explicit_candidates: list[str] = []
+    if "_" in repo_name:
+        org, name = repo_name.split("_", 1)
+        if org and name:
+            _append_unique(explicit_candidates, f"{org}/{name}")
+            _append_unique(model_names, name)
+
+    score_candidates: list[str] = []
+    wanted_names = {name.lower() for name in model_names if name}
+    for score_id in scores:
+        score_name = score_id.rsplit("/", 1)[-1].lower()
+        if score_name in wanted_names:
+            _append_unique(score_candidates, score_id)
+
+    return explicit_candidates + [
+        candidate
+        for candidate in score_candidates
+        if candidate not in explicit_candidates
+    ]
+
+
 def lookup_benchmark(
     model_id: str,
     base_model: str | None,
@@ -501,7 +542,10 @@ def lookup_benchmark_evidence(
         return BenchmarkEvidence(score=direct_result, confidence=1.0, source="direct")
 
     # Try model_id-derived variants (inherited)
-    for candidate in _generate_candidates(model_id)[1:]:
+    variant_candidates = _generate_candidates(model_id)[1:]
+    for candidate in _generate_score_name_candidates(model_id, scores):
+        _append_unique(variant_candidates, candidate)
+    for candidate in variant_candidates:
         result = _try_lookup(candidate, scores, ci_index)
         if result is not None:
             if not _params_compatible(actual_params_b, candidate):
