@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- Artificial Analysis Intelligence Index is fetched live again. The
+  artificialanalysis.ai leaderboard migrated to the Next.js App Router and no
+  longer ships a `__NEXT_DATA__` blob, so every run logged
+  `AA Index fetch failed ... __NEXT_DATA__ payload not found` and silently used
+  the frozen snapshot. The scraper now parses the App Router RSC stream
+  (`self.__next_f.push(...)`), canonicalizes AA's variant-suffixed display
+  names (`(Reasoning)`, `(high)`, ...) for mapping, and overlays live scores on
+  top of the curated fallback so a successful fetch can only add coverage. The
+  legacy `__NEXT_DATA__` path is kept as a secondary fallback.
+
 ## [0.5.8] - 2026-06-05
 
 ### Added
