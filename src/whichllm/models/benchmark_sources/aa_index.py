@@ -93,6 +93,19 @@ AA_NAME_TO_HF_IDS: dict[str, list[str]] = {
 # normalized, and 8B-class (Qwen3-8B = 30) → 40 normalized. This keeps a
 # strong 8B model competitive with frozen-OLLB 7B scores while still leaving
 # clear headroom for frontier-tier models.
+_PAREN_RE = re.compile(r"\([^)]*\)")
+
+
+def _canonical_name(name: str) -> str:
+    name = _PAREN_RE.sub("", name)
+    name = name.lower().replace("-", " ").replace("_", " ")
+    return re.sub(r"\s+", " ", name).strip()
+
+
+_AA_CANON_TO_HF_IDS: dict[str, list[str]] = {}
+for _disp, _ids in AA_NAME_TO_HF_IDS.items():
+    _AA_CANON_TO_HF_IDS.setdefault(_canonical_name(_disp), []).extend(_ids)
+
 _AA_INDEX_MIN = 12.5
 _AA_INDEX_MAX = 56.2
 
@@ -295,7 +308,9 @@ async def fetch_aa_index_scores(client: httpx.AsyncClient) -> dict[str, float]:
         if current is None or score > current:
             best_by_name[name] = score
     for name, score in best_by_name.items():
-        hf_ids = AA_NAME_TO_HF_IDS.get(name)
+        hf_ids = AA_NAME_TO_HF_IDS.get(name) or _AA_CANON_TO_HF_IDS.get(
+            _canonical_name(name)
+        )
         if not hf_ids:
             continue
         normalized = _normalize_aa_index(score)

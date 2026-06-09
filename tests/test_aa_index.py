@@ -7,6 +7,7 @@ import httpx
 import pytest
 
 from whichllm.models.benchmark_sources.aa_index import (
+    _canonical_name,
     _extract_rsc_pairs,
     fetch_aa_index_scores,
     get_aa_curated_fallback,
@@ -95,3 +96,60 @@ def test_fallback_returns_normalized_scores():
     assert len(fallback) > 0
     for hf_id, score in fallback.items():
         assert 0.0 < score <= 100.0, f"{hf_id} score {score} out of range"
+
+
+def test_canonical_name_strips_variants():
+    assert _canonical_name("Qwen3 14B (Reasoning)") == "qwen3 14b"
+    assert _canonical_name("GLM-5 (Non-reasoning)") == "glm 5"
+    assert _canonical_name("gpt-oss-20B (high)") == "gpt oss 20b"
+
+
+def test_canonical_name_normalizes_separators():
+    assert _canonical_name("GLM-4.7-Flash") == "glm 4.7 flash"
+    assert _canonical_name("DeepSeek_V3") == "deepseek v3"
+    assert _canonical_name("Kimi  K2") == "kimi k2"
+
+
+def test_canonical_name_preserves_distinct_models():
+    assert _canonical_name("GLM-5") != _canonical_name("GLM-5.1")
+    assert _canonical_name("Qwen3 14B") != _canonical_name("Qwen3 8B")
+    assert _canonical_name("DeepSeek V3") != _canonical_name("DeepSeek V3.1")
+
+
+def test_canonical_fallback_maps_parenthetical_variant():
+    html = _make_rsc_html(
+        ("Qwen3 14B (Reasoning)", "qwen3-14b-reasoning", 35.0),
+    )
+    pairs = _extract_rsc_pairs(html)
+    assert len(pairs) > 0
+    scores = {name: score for name, score in pairs}
+    assert scores["Qwen3 14B (Reasoning)"] == 35.0
+
+    mock_resp = AsyncMock(spec=httpx.Response)
+    mock_resp.text = html
+    mock_resp.raise_for_status = lambda: None
+    client = AsyncMock(spec=httpx.AsyncClient)
+
+    async def run():
+        with patch(
+            "whichllm.models.benchmark_sources.aa_index.get_with_retries",
+            return_value=mock_resp,
+        ):
+            return await fetch_aa_index_scores(client)
+
+    result = asyncio.run(run())
+    assert "Qwen/Qwen3-14B" in result
+
+
+def test_rsc_non_tag1_chunks_extracted():
+    """Chunks with tag != 1 should also be scanned for model data."""
+    objs = (
+        '{\\"name\\":\\"DeepSeek V3\\",'
+        '\\"slug\\":\\"deepseek-v3\\",'
+        '\\"intelligenceIndex\\":38.0}'
+    )
+    models = f'{{\\"models\\":[{objs}]}}'
+    html = f'<html><script>self.__next_f.push([3,"{models}"])</script></html>'
+    pairs = _extract_rsc_pairs(html)
+    assert len(pairs) == 1
+    assert pairs[0] == ("DeepSeek V3", 38.0)

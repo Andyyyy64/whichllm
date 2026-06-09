@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- AA name matching now canonicalizes variant-suffixed display names
+  (`(Reasoning)`, `(Non-reasoning)`, `(high)`) so live fetch maps ~46 models
+  instead of ~8.
+- RSC chunk regex now matches any tag number (`[\d+, ...]`) instead of only
+  tag 1, so model data in other RSC segments is no longer silently dropped.
+
 ## [0.5.8] - 2026-06-05
 
 ### Added
