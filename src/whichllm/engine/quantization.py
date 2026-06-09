@@ -11,6 +11,10 @@ from whichllm.models.types import GGUFVariant, ModelInfo
 _NON_GGUF_PATTERNS: list[tuple[str, str]] = [
     (r"(^|[-_/])awq($|[-_/])", "AWQ"),
     (r"(^|[-_/])gptq($|[-_/])", "GPTQ"),
+    # 4-bit microscaling float formats. Anchored so they only match a distinct
+    # repo-name token, never a substring of an unrelated id.
+    (r"(^|[-_/])mxfp4($|[-_/])", "MXFP4"),
+    (r"(^|[-_/])nvfp4($|[-_/])", "NVFP4"),
     (r"(bnb[-_/]?4bit|nf4|int4|4bit)", "BNB_4BIT"),
     (r"(int8|8bit)", "INT8"),
     (r"(^|[-_/])fp8($|[-_/])", "FP8"),
@@ -23,6 +27,8 @@ _NON_GGUF_BYTES_PER_WEIGHT: dict[str, float] = {
     "AWQ": 0.5,
     "GPTQ": 0.5,
     "BNB_4BIT": 0.5,
+    "MXFP4": 0.53125,
+    "NVFP4": 0.5625,
     "INT8": 1.0,
     "FP8": 1.0,
     "BF16": 2.0,
@@ -34,6 +40,8 @@ _NON_GGUF_QUALITY_PENALTY: dict[str, float] = {
     "AWQ": 0.05,
     "GPTQ": 0.05,
     "BNB_4BIT": 0.07,
+    "MXFP4": 0.06,
+    "NVFP4": 0.05,
     "INT8": 0.02,
     "FP8": 0.02,
     "BF16": 0.0,

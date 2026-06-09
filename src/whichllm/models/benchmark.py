@@ -289,7 +289,7 @@ def _extract_model_lines(model_id: str) -> list[str]:
     lower = model_id.lower()
 
     # Pre-strip repo/quant suffixes and date codes before line extraction
-    stripped = re.sub(r"-(gguf|awq|gptq|fp8|fp16|bf16|nvfp4)$", "", lower)
+    stripped = re.sub(r"-(gguf|awq|gptq|fp8|fp16|bf16|mxfp4|nvfp4)$", "", lower)
     stripped = re.sub(r"-\d{4}(-hf)?$", "", stripped)  # date suffixes like -2507
 
     lines: list[str] = []

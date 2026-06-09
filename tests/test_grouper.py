@@ -1,6 +1,6 @@
 """Tests for model grouping logic."""
 
-from whichllm.models.grouper import group_models
+from whichllm.models.grouper import _normalize_name, group_models
 from whichllm.models.types import ModelInfo
 
 
@@ -32,6 +32,14 @@ def test_group_by_name_normalization():
     gguf = _make_model("org/model-v1-GGUF", downloads=200)
     families = group_models([base, gguf])
     assert len(families) <= 2  # may or may not merge depending on normalization
+
+
+def test_fp4_suffixes_normalize_to_base_family():
+    # MXFP4 and NVFP4 derivatives must collapse onto the base family the same
+    # way the older quant suffixes do, instead of orphaning into their own.
+    base = _normalize_name("openai/gpt-oss-20b")
+    assert _normalize_name("openai/gpt-oss-20b-MXFP4") == base
+    assert _normalize_name("openai/gpt-oss-20b-NVFP4") == base
 
 
 def test_ungrouped_models_separate():

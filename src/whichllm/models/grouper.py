@@ -27,6 +27,7 @@ def _normalize_name(model_id: str) -> str:
         r"-fp8$",
         r"-fp16$",
         r"-bf16$",
+        r"-mxfp4$",
         r"-nvfp4$",
         r"-\d+bit$",
         r"-\d{4}$",  # date suffixes like -2507, -2503

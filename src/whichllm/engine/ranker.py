@@ -101,7 +101,7 @@ _SOURCE_WEIGHTS: dict[str, float] = {
 
 _SYNTHETIC_QUANTS = ("Q3_K_M", "Q4_K_M", "Q5_K_M", "Q6_K", "Q8_0")
 _PREQUANTIZED_REPO_RE = re.compile(
-    r"-(awq|gptq|bnb|fp8|fp16|bf16|nvfp4|int4|int8|4bit|8bit|gguf)$",
+    r"-(awq|gptq|bnb|fp8|fp16|bf16|mxfp4|nvfp4|int4|int8|4bit|8bit|gguf)$",
     re.IGNORECASE,
 )
 

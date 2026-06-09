@@ -25,6 +25,11 @@ _QUANT_EFFICIENCY: dict[str, float] = {
     "Q4_K_M": 0.55,
     "Q4_K_S": 0.55,
     "Q4_0": 0.53,
+    # 4-bit microscaling floats decode through native FP4 tensor-core paths
+    # (e.g. Blackwell) where weight reads dominate, so they land in the same
+    # high-efficiency band as the best 4-bit GGUF kernels.
+    "NVFP4": 0.56,
+    "MXFP4": 0.55,
     "Q3_K_M": 0.50,
     "Q3_K_S": 0.48,
     "Q3_K_L": 0.50,
