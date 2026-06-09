@@ -98,6 +98,7 @@ GPU_BANDWIDTH: dict[str, float] = {
     "GTX 770": 224.3,
     "GTX 760": 192.2,
     # AMD
+    "R9700": 640.0,
     "RX 9070 XT": 640.0,
     "RX 9070": 560.0,
     "RX 9060 XT": 320.0,
