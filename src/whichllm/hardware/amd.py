@@ -23,15 +23,33 @@ _SORTED_BW_KEYS = sorted(GPU_BANDWIDTH, key=len, reverse=True)
 
 
 def _lookup_bandwidth(name: str) -> float | None:
-    # Compound lspci names like "Navi 22 [Radeon RX 6700/6700 XT/6750 XT / 6800M/6850M XT]"
-    # cover multiple variants. Substring matching would hit "RX 6700" (320 GB/s) even for a
-    # 6750 XT owner. Return None rather than report a confidently wrong value.
-    if "/" in name:
-        return None
     name_upper = name.upper()
-    for key in _SORTED_BW_KEYS:
-        if key.upper() in name_upper:
-            return GPU_BANDWIDTH[key]
+    # For non-compound names, direct substring match is safe.
+    if "/" not in name:
+        for key in _SORTED_BW_KEYS:
+            if key.upper() in name_upper:
+                return GPU_BANDWIDTH[key]
+        return None
+    # Compound lspci names like "Navi 22 [Radeon RX 6700/6700 XT/6750 XT / 6800M/6850M XT]"
+    # contain multiple variants separated by '/'. Split and try each segment,
+    # re-applying the "RX " prefix for bare segments like "6750 XT".
+    import re
+
+    bracket = re.search(r"\[(.+)]", name)
+    raw = bracket.group(1) if bracket else name
+    for seg in raw.split("/"):
+        seg = seg.strip()
+        if not seg:
+            continue
+        seg_upper = seg.upper()
+        for key in _SORTED_BW_KEYS:
+            if key.upper() in seg_upper:
+                return GPU_BANDWIDTH[key]
+        # Bare segment like "6750 XT" — try with "RX " prefix
+        prefixed_upper = f"RX {seg}".upper()
+        for key in _SORTED_BW_KEYS:
+            if key.upper() in prefixed_upper:
+                return GPU_BANDWIDTH[key]
     return None
 
 
