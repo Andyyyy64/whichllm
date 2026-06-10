@@ -203,9 +203,7 @@ def _normalize_aa_index(index: float) -> float:
 # ``{"name": …, …, "intelligenceIndex": …}`` record out with a bounded regex
 # (the payload is a flat RSC stream, not a single parseable JSON document).
 
-_RSC_CHUNK_RE = re.compile(
-    r'self\.__next_f\.push\(\[\d+,(?P<s>"(?:[^"\\]|\\.)*")\]\)'
-)
+_RSC_CHUNK_RE = re.compile(r'self\.__next_f\.push\(\[\d+,(?P<s>"(?:[^"\\]|\\.)*")\]\)')
 # A model record: a "name" string followed, within the SAME object, by its
 # "intelligenceIndex". The middle group forbids another '"name":"' so the
 # match cannot leak across into a neighbouring record that lacks an index.
