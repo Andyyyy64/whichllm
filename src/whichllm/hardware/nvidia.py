@@ -6,7 +6,8 @@ import logging
 import re
 import subprocess
 
-from whichllm.constants import GPU_BANDWIDTH, NVIDIA_COMPUTE_CAPABILITY, _GiB
+from whichllm.constants import NVIDIA_COMPUTE_CAPABILITY, _GiB
+from whichllm.hardware.gpu_db import _static_bandwidth, resolve_detected_bandwidth
 from whichllm.hardware.types import GPUInfo
 
 logger = logging.getLogger(__name__)
@@ -23,12 +24,9 @@ def _lookup_compute_capability(name: str) -> tuple[int, int] | None:
 
 
 def _lookup_bandwidth(name: str) -> float | None:
-    name_upper = name.upper()
-    # Try longer matches first (e.g. "RTX 4080 SUPER" before "RTX 4080")
-    for key in sorted(GPU_BANDWIDTH, key=len, reverse=True):
-        if key.upper() in name_upper:
-            return GPU_BANDWIDTH[key]
-    return None
+    """Curated GPU_BANDWIDTH lookup. Kept for regression tests; live detection
+    goes through ``resolve_detected_bandwidth``, which also consults dbgpu."""
+    return _static_bandwidth(name)
 
 
 def _is_unified_memory_nvidia_gpu(name: str) -> bool:
@@ -62,7 +60,7 @@ def _make_nvidia_gpu(
         vram_bytes=vram_bytes,
         compute_capability=_lookup_compute_capability(name),
         cuda_version=cuda_version,
-        memory_bandwidth_gbps=_lookup_bandwidth(name),
+        memory_bandwidth_gbps=resolve_detected_bandwidth(name, vram_bytes),
         shared_memory=shared_memory,
     )
 

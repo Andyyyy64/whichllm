@@ -8,7 +8,8 @@ import shlex
 import subprocess
 from pathlib import Path
 
-from whichllm.constants import AMD_SHARED_MEMORY_APU_MARKERS, GPU_BANDWIDTH, _GiB
+from whichllm.constants import AMD_SHARED_MEMORY_APU_MARKERS, _GiB
+from whichllm.hardware.gpu_db import _static_bandwidth, resolve_detected_bandwidth
 from whichllm.hardware.types import GPUInfo
 
 logger = logging.getLogger(__name__)
@@ -19,38 +20,12 @@ _DISPLAY_CLASSES = (
     "display controller",
 )
 
-_SORTED_BW_KEYS = sorted(GPU_BANDWIDTH, key=len, reverse=True)
-
 
 def _lookup_bandwidth(name: str) -> float | None:
-    name_upper = name.upper()
-    # For non-compound names, direct substring match is safe.
-    if "/" not in name:
-        for key in _SORTED_BW_KEYS:
-            if key.upper() in name_upper:
-                return GPU_BANDWIDTH[key]
-        return None
-    # Compound lspci names like "Navi 22 [Radeon RX 6700/6700 XT/6750 XT / 6800M/6850M XT]"
-    # contain multiple variants separated by '/'. Split and try each segment,
-    # re-applying the "RX " prefix for bare segments like "6750 XT".
-    import re
-
-    bracket = re.search(r"\[(.+)]", name)
-    raw = bracket.group(1) if bracket else name
-    for seg in raw.split("/"):
-        seg = seg.strip()
-        if not seg:
-            continue
-        seg_upper = seg.upper()
-        for key in _SORTED_BW_KEYS:
-            if key.upper() in seg_upper:
-                return GPU_BANDWIDTH[key]
-        # Bare segment like "6750 XT" — try with "RX " prefix
-        prefixed_upper = f"RX {seg}".upper()
-        for key in _SORTED_BW_KEYS:
-            if key.upper() in prefixed_upper:
-                return GPU_BANDWIDTH[key]
-    return None
+    """Curated GPU_BANDWIDTH lookup, compound-lspci aware. Kept for regression
+    tests; live detection goes through ``resolve_detected_bandwidth``, which
+    also consults dbgpu."""
+    return _static_bandwidth(name)
 
 
 def _is_shared_memory_apu(name: str) -> bool:
@@ -76,7 +51,7 @@ def _make_gpu(
         vendor="amd",
         vram_bytes=_normalize_apu_vram(name, vram_bytes),
         rocm_version=rocm_version,
-        memory_bandwidth_gbps=_lookup_bandwidth(name),
+        memory_bandwidth_gbps=resolve_detected_bandwidth(name, vram_bytes),
         shared_memory=shared_memory,
     )
 

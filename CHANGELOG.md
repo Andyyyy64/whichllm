@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- GPU bandwidth detection no longer depends solely on the hand-curated
+  catalog. When a detected card is missing from `GPU_BANDWIDTH`, bandwidth is
+  now resolved from the bundled TechPowerUp database (dbgpu, 2824 GPUs) using
+  strict name matching only: an exact normalized hit or a name plus VRAM-size
+  bin, never fuzzy. Laptop / Mobile / Max-Q names can no longer inherit a
+  desktop card's bandwidth, and VRAM bins written without a space
+  (`RTX A2000 12GB`) are recognized. This fixes the cluster of reports where
+  an uncatalogued GPU showed `BW: N/A`, was estimated at `0.0 tok/s`, and
+  received oversized recommendations (#74, #98).
 - Artificial Analysis Intelligence Index is fetched live again. The
   artificialanalysis.ai leaderboard migrated to the Next.js App Router and no
   longer ships a `__NEXT_DATA__` blob, so every run logged
