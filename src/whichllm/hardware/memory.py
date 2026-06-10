@@ -21,7 +21,7 @@ def estimate_usable_ram(total: int) -> int:
     _GiB = 1024**3
     reserve = int(total * 0.15)
     reserve = max(4 * _GiB, min(reserve, 32 * _GiB))
-    return total - reserve
+    return max(0, total - reserve)
 
 
 def detect_disk_free_bytes(path: str | None = None) -> int:
