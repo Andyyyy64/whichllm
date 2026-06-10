@@ -410,6 +410,7 @@ know what it picked for your rig. Drop it in [Issues](https://github.com/Andyyyy
 - Python 3.11+
 - NVIDIA GPU detection via `nvidia-ml-py` (included by default)
 - AMD / Apple Silicon detected automatically
+- Change by Josue!
 
 ## License
 
