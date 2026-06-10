@@ -7,7 +7,8 @@ import logging
 import re
 import subprocess
 
-from whichllm.constants import AMD_SHARED_MEMORY_APU_MARKERS, GPU_BANDWIDTH, _GiB
+from whichllm.constants import AMD_SHARED_MEMORY_APU_MARKERS, _GiB
+from whichllm.hardware.gpu_db import resolve_detected_bandwidth
 from whichllm.hardware.types import GPUInfo
 
 logger = logging.getLogger(__name__)
@@ -18,14 +19,6 @@ _WINDOWS_DISCRETE_VRAM_FLOORS: tuple[tuple[str, int], ...] = (
     # known floor instead of trusting the capped value.
     ("RX 9060 XT", 8 * _GiB),
 )
-
-
-def _lookup_bandwidth(name: str) -> float | None:
-    name_upper = name.upper()
-    for key in sorted(GPU_BANDWIDTH, key=len, reverse=True):
-        if key.upper() in name_upper:
-            return GPU_BANDWIDTH[key]
-    return None
 
 
 def _vendor_from_name(name: str) -> str | None:
@@ -182,7 +175,7 @@ def detect_windows_gpus() -> list[GPUInfo]:
                 name=name,
                 vendor=vendor,
                 vram_bytes=vram_bytes,
-                memory_bandwidth_gbps=_lookup_bandwidth(name),
+                memory_bandwidth_gbps=resolve_detected_bandwidth(name, vram_bytes),
                 shared_memory=shared_memory,
             )
         )

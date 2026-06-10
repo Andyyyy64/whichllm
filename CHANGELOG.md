@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.9] - 2026-06-10
+
+### Added
+
+- MXFP4 and NVFP4 4-bit quantization support across ID/filename parsing, VRAM
+  estimation, quality penalties, speed efficiency, and family grouping.
+  Repos shipping these formats were previously labeled FP16 and their VRAM
+  requirement overestimated about 3.5x. (#99)
+- Apple M5-family entries for `--gpu` simulation. (#92)
+- Kepler-era Quadro bandwidth and compute capability entries. (#75)
+
+### Fixed
+
+- AMD discrete GPU detection on Linux: rocm-smi names are read from the
+  correct `Card Series` key, compound lspci names such as
+  `Navi 22 [Radeon RX 6700/6700 XT/6750 XT ...]` resolve bandwidth, sysfs VRAM
+  enriches the fallback path, and discrete cards are no longer mislabeled
+  `shared memory`. Adds RX 6750 XT / RX 6700 / RX 6650 XT / RX 6600 series and
+  Radeon AI PRO R9700 to the bandwidth catalog. (#61, #68)
+- Community GGUF repos without `base_model` metadata (for example
+  `unsloth/...-GGUF`) now inherit the official model's benchmark score by
+  name matching instead of falling through to no evidence. (#94)
+- GPU bandwidth detection no longer depends solely on the hand-curated
+  catalog. When a detected card is missing from `GPU_BANDWIDTH`, bandwidth is
+  now resolved from the bundled TechPowerUp database (dbgpu, 2824 GPUs) using
+  strict name matching only: an exact normalized hit or a name plus VRAM-size
+  bin, never fuzzy. Laptop / Mobile / Max-Q names can no longer inherit a
+  desktop card's bandwidth, and VRAM bins written without a space
+  (`RTX A2000 12GB`) are recognized. This fixes the cluster of reports where
+  an uncatalogued GPU showed `BW: N/A`, was estimated at `0.0 tok/s`, and
+  received oversized recommendations (#74, #98).
+- Artificial Analysis Intelligence Index is fetched live again. The
+  artificialanalysis.ai leaderboard migrated to the Next.js App Router and no
+  longer ships a `__NEXT_DATA__` blob, so every run logged
+  `AA Index fetch failed ... __NEXT_DATA__ payload not found` and silently used
+  the frozen snapshot. The scraper now parses the App Router RSC stream
+  (`self.__next_f.push(...)`), canonicalizes AA's variant-suffixed display
+  names (`(Reasoning)`, `(high)`, ...) for mapping, and overlays live scores on
+  top of the curated fallback so a successful fetch can only add coverage. The
+  legacy `__NEXT_DATA__` path is kept as a secondary fallback.
+
 ## [0.5.8] - 2026-06-05
 
 ### Added

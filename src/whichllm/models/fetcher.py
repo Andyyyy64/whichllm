@@ -220,6 +220,7 @@ def _extract_quant_type(filename: str) -> str:
         r"[.-](Q\d+_\d+)",
         r"[.-](Q\d+_K)",
         r"[.-](IQ\d+_\w+)",
+        r"[.-](MXFP4|NVFP4)",
         r"[.-](F16|FP16|BF16|F32)",
     ]
     upper = filename.upper()

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from whichllm.constants import _GiB
 from whichllm.constants import MIN_COMPUTE_CAPABILITY_OLLAMA
+from whichllm.constants import VULKAN_ONLY_GPUS
 from whichllm.engine.quantization import estimate_weight_bytes
 from whichllm.engine.types import CompatibilityResult
 from whichllm.engine.vram import estimate_vram
@@ -19,6 +20,20 @@ def _gpu_available_memory(gpu: GPUInfo, usable_ram: int) -> int:
 
 def _uses_shared_system_pool(gpu: GPUInfo) -> bool:
     return gpu.shared_memory and gpu.vram_bytes < 2 * _GiB
+
+
+def _is_vulkan_only_gpu(gpu: GPUInfo) -> bool:
+    """Return True for legacy NVIDIA GPUs with no modern CUDA support.
+
+    Kepler cards (compute capability 3.x) were dropped by CUDA 12 and current
+    llama.cpp CUDA builds, so they only run through the Vulkan backend. Matches
+    ``VULKAN_ONLY_GPUS`` entries as case-insensitive substrings of the GPU name,
+    the same convention used by the bandwidth/compute-capability lookups.
+    """
+    if gpu.vendor != "nvidia":
+        return False
+    name_upper = gpu.name.upper()
+    return any(marker.upper() in name_upper for marker in VULKAN_ONLY_GPUS)
 
 
 def _fit_candidate_gpus(gpus: list[GPUInfo]) -> list[GPUInfo]:
@@ -70,6 +85,14 @@ def check_compatibility(
                 f"Compute capability {best_gpu.compute_capability} is below "
                 f"minimum {MIN_COMPUTE_CAPABILITY_OLLAMA} for Ollama"
             )
+
+    # Flag legacy Kepler GPUs that have no CUDA support in modern llama.cpp.
+    # They can still run, but only through the Vulkan backend on Linux.
+    if best_gpu and _is_vulkan_only_gpu(best_gpu):
+        warnings.append(
+            "Legacy Kepler GPU: no CUDA support in modern llama.cpp; "
+            "use the Vulkan backend (Linux) instead"
+        )
 
     # Check ROCm for AMD. Windows AMD users can still use Vulkan/DirectML
     # backends, so do not label the GPU path as unavailable there.

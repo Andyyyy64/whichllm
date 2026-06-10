@@ -15,6 +15,7 @@ from whichllm.data.gpu import (
     AMD_SHARED_MEMORY_APU_MARKERS,
     GPU_BANDWIDTH,
     NVIDIA_COMPUTE_CAPABILITY,
+    VULKAN_ONLY_GPUS,
 )
 from whichllm.data.lineage import (
     MODEL_GENERATION_BONUS_MAX,
@@ -41,4 +42,5 @@ __all__ = [
     "QUANT_BYTES_PER_WEIGHT",
     "QUANT_PREFERENCE_ORDER",
     "QUANT_QUALITY_PENALTY",
+    "VULKAN_ONLY_GPUS",
 ]

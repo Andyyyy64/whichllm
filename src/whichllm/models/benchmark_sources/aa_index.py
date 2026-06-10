@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 
 import httpx
 
@@ -193,6 +194,77 @@ def _normalize_aa_index(index: float) -> float:
     return max(0.0, min(100.0, round(normalized, 1)))
 
 
+# --- Next.js App Router (RSC) scraping -------------------------------------
+#
+# artificialanalysis.ai migrated off the classic ``__NEXT_DATA__`` blob to the
+# App Router streaming format: model data arrives in ``self.__next_f.push([n,
+# "…"])`` calls whose second element is a JSON-string-escaped fragment of the
+# RSC payload. We concatenate + unescape those chunks, then pull every
+# ``{"name": …, …, "intelligenceIndex": …}`` record out with a bounded regex
+# (the payload is a flat RSC stream, not a single parseable JSON document).
+
+_RSC_CHUNK_RE = re.compile(r'self\.__next_f\.push\(\[\d+,(?P<s>"(?:[^"\\]|\\.)*")\]\)')
+# A model record: a "name" string followed, within the SAME object, by its
+# "intelligenceIndex". The middle group forbids another '"name":"' so the
+# match cannot leak across into a neighbouring record that lacks an index.
+_AA_RECORD_RE = re.compile(
+    r'"name":"(?P<name>(?:[^"\\]|\\.)*)"'
+    r'(?:(?!"name":").)*?'
+    r'"intelligenceIndex":(?P<idx>-?\d+(?:\.\d+)?)',
+    re.DOTALL,
+)
+# Variant qualifiers AA appends that don't change the underlying HF weights:
+# "(Reasoning)", "(Non-reasoning)", "(high)", "(Reasoning, Max Effort)", etc.
+_PAREN_RE = re.compile(r"\([^)]*\)")
+
+
+def _canonical_name(name: str) -> str:
+    """Normalize an AA display name for fuzzy matching against the HF map.
+
+    Drops parenthetical variant qualifiers and collapses separator/case noise
+    so ``"Qwen3 14B (Reasoning)"`` and ``"Qwen3-14B"`` both canonicalize to
+    ``"qwen3 14b"``.
+    """
+    name = _PAREN_RE.sub("", name)
+    name = name.lower().replace("-", " ").replace("_", " ")
+    return re.sub(r"\s+", " ", name).strip()
+
+
+# Canonical-name -> HF ids, derived once from AA_NAME_TO_HF_IDS. Several display
+# names can collapse to one canonical key; we union their HF ids.
+_AA_CANON_TO_HF_IDS: dict[str, list[str]] = {}
+for _disp, _ids in AA_NAME_TO_HF_IDS.items():
+    _AA_CANON_TO_HF_IDS.setdefault(_canonical_name(_disp), []).extend(_ids)
+
+
+def _decode_rsc_blob(html: str) -> str:
+    """Concatenate and unescape the App Router RSC chunks into one string."""
+    parts: list[str] = []
+    for m in _RSC_CHUNK_RE.finditer(html):
+        try:
+            parts.append(json.loads(m.group("s")))
+        except (ValueError, json.JSONDecodeError):
+            continue
+    return "".join(parts)
+
+
+def _extract_aa_pairs_from_html(html: str) -> list[tuple[str, float]]:
+    """Extract (name, intelligence_index) pairs from the RSC stream."""
+    blob = _decode_rsc_blob(html)
+    if not blob:
+        return []
+    pairs: list[tuple[str, float]] = []
+    for m in _AA_RECORD_RE.finditer(blob):
+        try:
+            name = json.loads('"' + m.group("name") + '"').strip()
+            score = float(m.group("idx"))
+        except (ValueError, json.JSONDecodeError):
+            continue
+        if name and score > 0:
+            pairs.append((name, score))
+    return pairs
+
+
 def _extract_aa_pairs(payload: dict) -> list[tuple[str, float]]:
     """Walk the Next.js payload looking for {name, intelligenceIndex}-shaped
     objects regardless of where they are nested."""
@@ -230,38 +302,58 @@ async def fetch_aa_index_scores(client: httpx.AsyncClient) -> dict[str, float]:
 
     Raises on HTTP / parse failure.
     """
-    scores: dict[str, float] = {}
     resp = await get_with_retries(client, AA_LEADERBOARD_URL)
     resp.raise_for_status()
-    match = _NEXT_DATA_RE.search(resp.text)
-    if not match:
-        raise ExtractionFailed("__NEXT_DATA__ payload not found")
-    payload = json.loads(match.group("json"))
-    pairs = _extract_aa_pairs(payload)
+    # Primary: Next.js App Router RSC stream (current site format).
+    pairs = _extract_aa_pairs_from_html(resp.text)
+    # Legacy fallback: classic __NEXT_DATA__ JSON blob (older site format).
     if not pairs:
-        raise ExtractionFailed("AA leaderboard: no (name, score) pairs found")
-    # When the same display name appears multiple times (different size
-    # tiers), keep the maximum value — it represents the most capable
-    # variant available.
+        match = _NEXT_DATA_RE.search(resp.text)
+        if match:
+            try:
+                pairs = _extract_aa_pairs(json.loads(match.group("json")))
+            except (ValueError, json.JSONDecodeError):
+                pairs = []
+    if not pairs:
+        raise ExtractionFailed(
+            "AA leaderboard: no (name, score) pairs found "
+            "(neither RSC __next_f nor __NEXT_DATA__ matched)"
+        )
+    # When the same display name appears multiple times (different size /
+    # reasoning tiers), keep the maximum value — it represents the most
+    # capable variant available.
     best_by_name: dict[str, float] = {}
     for name, score in pairs:
         current = best_by_name.get(name)
         if current is None or score > current:
             best_by_name[name] = score
+
+    live: dict[str, float] = {}
     for name, score in best_by_name.items():
-        hf_ids = AA_NAME_TO_HF_IDS.get(name)
+        # Exact display name first, then canonicalized (variant-stripped) match.
+        hf_ids = AA_NAME_TO_HF_IDS.get(name) or _AA_CANON_TO_HF_IDS.get(
+            _canonical_name(name)
+        )
         if not hf_ids:
             continue
         normalized = _normalize_aa_index(score)
         if normalized <= 0:
             continue
         for hf_id in hf_ids:
-            existing = scores.get(hf_id, 0.0)
-            if normalized > existing:
-                scores[hf_id] = normalized
-    if not scores:
+            if normalized > live.get(hf_id, 0.0):
+                live[hf_id] = normalized
+    if not live:
         raise ExtractionFailed("AA index: live fetch returned 0 mapped scores")
-    logger.debug(f"AA index: {len(scores)} mapped scores")
+
+    # Overlay live scores on top of the curated snapshot so a successful live
+    # fetch can only ADD coverage, never shrink it below the fallback. Live
+    # numbers win wherever both exist; the snapshot fills the long tail of
+    # models AA labels in a way we can't map (or no longer tracks).
+    scores = get_aa_curated_fallback()
+    for hf_id, normalized in live.items():
+        if normalized > scores.get(hf_id, 0.0):
+            scores[hf_id] = normalized
+    logger.debug(f"AA index: {len(live)} live + {len(scores)} merged scores")
     return scores
 
 

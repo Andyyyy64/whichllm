@@ -1,5 +1,6 @@
 """Tests for ranking behavior."""
 
+from whichllm.engine.quantization import effective_quant_type
 from whichllm.engine.ranker import rank_models
 from whichllm.hardware.types import GPUInfo, HardwareInfo
 from whichllm.models.types import GGUFVariant, ModelInfo
@@ -86,6 +87,45 @@ def test_quant_filter_applies_to_non_gguf_models():
 
     assert len(awq_only) == 1
     assert q4_only == []
+
+
+def test_quant_filter_matches_mxfp4_non_gguf_model():
+    model = ModelInfo(
+        id="openai/gpt-oss-20b-MXFP4",
+        family_id="gpt-oss-20b",
+        name="gpt-oss-20b-MXFP4",
+        parameter_count=20_000_000_000,
+        downloads=1000,
+        likes=100,
+    )
+    # Linux + NVIDIA: non-GGUF formats are runnable, so the filter resolves.
+    hw = _make_hardware(vram_gb=24, bandwidth_gbps=900.0)
+
+    mxfp4_only = rank_models([model], hw, top_n=5, quant_filter="MXFP4")
+    nvfp4_only = rank_models([model], hw, top_n=5, quant_filter="NVFP4")
+
+    assert len(mxfp4_only) == 1
+    # The label surfaced in the output table (display.py uses the same call).
+    assert (
+        effective_quant_type(mxfp4_only[0].model, mxfp4_only[0].gguf_variant) == "MXFP4"
+    )
+    assert nvfp4_only == []
+
+
+def test_darwin_backend_filters_out_fp4_non_gguf_models():
+    mxfp4_model = ModelInfo(
+        id="openai/gpt-oss-20b-MXFP4",
+        family_id="gpt-oss-20b",
+        name="gpt-oss-20b-MXFP4",
+        parameter_count=20_000_000_000,
+        downloads=1000,
+        likes=100,
+    )
+    hw = _make_hardware(
+        vram_gb=64, bandwidth_gbps=400.0, vendor="apple", os_name="darwin"
+    )
+    results = rank_models([mxfp4_model], hw, top_n=10)
+    assert results == []
 
 
 def test_darwin_backend_filters_out_non_gguf_models():
