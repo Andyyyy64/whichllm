@@ -1,7 +1,7 @@
 """Tests for ranking behavior."""
 
 from whichllm.engine.quantization import effective_quant_type
-from whichllm.engine.ranker import rank_models
+from whichllm.engine.ranker import _partial_offload_quality_factor, rank_models
 from whichllm.hardware.types import GPUInfo, HardwareInfo
 from whichllm.models.types import GGUFVariant, ModelInfo
 
@@ -491,6 +491,129 @@ def test_full_gpu_estimated_ranks_above_partial_direct():
     assert results
     assert results[0].fit_type == "full_gpu"
     assert results[0].model.id == "Qwen/Qwen3-8B-AWQ"
+
+
+def test_strong_partial_offload_not_buried_below_weaker_full_gpu():
+    strong_partial = ModelInfo(
+        id="Qwen/Qwen3.6-27B",
+        family_id="qwen3.6-27b",
+        name="Qwen3.6-27B",
+        parameter_count=27_800_000_000,
+        downloads=5_300_000,
+        likes=10_000,
+        gguf_variants=[
+            GGUFVariant(
+                filename="qwen3.6-27b-q4_k_m.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=15 * 1024**3,
+            )
+        ],
+    )
+    full_gpu_14b = ModelInfo(
+        id="Qwen/Qwen3-14B",
+        family_id="qwen3-14b",
+        name="Qwen3-14B",
+        parameter_count=14_800_000_000,
+        downloads=1_600_000,
+        likes=5_000,
+        gguf_variants=[
+            GGUFVariant(
+                filename="qwen3-14b-q5_k_m.gguf",
+                quant_type="Q5_K_M",
+                file_size_bytes=9 * 1024**3,
+            )
+        ],
+    )
+    full_gpu_8b = ModelInfo(
+        id="Qwen/Qwen3-8B",
+        family_id="qwen3-8b",
+        name="Qwen3-8B",
+        parameter_count=8_200_000_000,
+        downloads=11_000_000,
+        likes=5_000,
+        gguf_variants=[
+            GGUFVariant(
+                filename="qwen3-8b-q5_k_m.gguf",
+                quant_type="Q5_K_M",
+                file_size_bytes=5 * 1024**3,
+            )
+        ],
+    )
+    old_full_gpu = ModelInfo(
+        id="google/gemma-2-9b-it",
+        family_id="gemma-2-9b-it",
+        name="gemma-2-9b-it",
+        parameter_count=9_200_000_000,
+        downloads=400_000,
+        likes=1_000,
+        gguf_variants=[
+            GGUFVariant(
+                filename="gemma-2-9b-q5_k_m.gguf",
+                quant_type="Q5_K_M",
+                file_size_bytes=5_500_000_000,
+            )
+        ],
+    )
+    hardware = HardwareInfo(
+        gpus=[
+            GPUInfo(
+                name="RTX 3060",
+                vendor="nvidia",
+                vram_bytes=12 * 1024**3,
+                compute_capability=(8, 6),
+                memory_bandwidth_gbps=360.0,
+            )
+        ],
+        cpu_name="Test CPU",
+        cpu_cores=6,
+        has_avx2=True,
+        ram_bytes=32 * 1024**3,
+        disk_free_bytes=500 * 1024**3,
+        os="windows",
+    )
+
+    results = rank_models(
+        [strong_partial, full_gpu_14b, full_gpu_8b, old_full_gpu],
+        hardware,
+        top_n=10,
+        benchmark_scores={
+            "Qwen/Qwen3.6-27B": 83.5,
+            "Qwen/Qwen3-14B": 66.7,
+            "Qwen/Qwen3-8B": 56.1,
+            "google/gemma-2-9b-it": 35.1,
+        },
+        task_profile="any",
+    )
+
+    ids = [r.model.id for r in results]
+    assert ids.index("Qwen/Qwen3.6-27B") < ids.index("Qwen/Qwen3-8B")
+    assert ids.index("Qwen/Qwen3.6-27B") < ids.index("google/gemma-2-9b-it")
+    strong = next(r for r in results if r.model.id == "Qwen/Qwen3.6-27B")
+    assert strong.fit_type == "partial_offload"
+    assert (
+        strong.quality_score
+        > next(r for r in results if r.model.id == "Qwen/Qwen3-8B").quality_score
+    )
+
+
+def test_moe_partial_offload_penalty_uses_active_working_set():
+    dense = ModelInfo(
+        id="example/Dense-30B",
+        family_id="dense-30b",
+        name="Dense-30B",
+        parameter_count=30_000_000_000,
+    )
+    moe = ModelInfo(
+        id="example/MoE-30B-A3B",
+        family_id="moe-30b-a3b",
+        name="MoE-30B-A3B",
+        parameter_count=30_000_000_000,
+        parameter_count_active=3_000_000_000,
+        is_moe=True,
+    )
+
+    assert _partial_offload_quality_factor(dense, 0.80) == 0.42
+    assert _partial_offload_quality_factor(moe, 0.80) >= 0.66
 
 
 def test_evidence_strict_filters_out_estimated_models():

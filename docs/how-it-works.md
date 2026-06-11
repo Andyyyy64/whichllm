@@ -168,9 +168,10 @@ For each candidate variant:
 5. Compute a quality score.
 6. Keep the best variant for the model family.
 
-The final sorting key includes the quality score, a fit bonus, and a small
-direct-benchmark bonus. Full-GPU candidates are preferred over comparable
-partial-offload candidates because they are usually more responsive in practice.
+The final sorting key stays close to the displayed quality score, with a small
+direct-benchmark bonus and a CPU-only penalty. Full-GPU candidates are already
+favored inside the score through the runtime-fit and speed adjustments, so the
+sort key does not add a second full-GPU bonus.
 
 See [Scoring](scoring.md) for the score details.
 

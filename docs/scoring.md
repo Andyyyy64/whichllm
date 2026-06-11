@@ -99,20 +99,17 @@ The candidate's runtime form matters:
 | Fit | Multiplier |
 | --- | ---: |
 | Full GPU | `1.00` |
-| Partial offload | `0.72` |
+| Partial offload | `0.42`-`0.88`, based on spill ratio |
 | CPU-only | `0.50` |
 
-The final family selection key also adds a fit bonus:
+Light partial offload is penalized less than heavy offload. MoE models receive
+a milder penalty when the active parameter working set can plausibly stay on
+GPU while inactive experts spill to CPU RAM.
 
-| Fit | Bonus |
-| --- | ---: |
-| Full GPU | `+15` |
-| Partial offload | `0` |
-| CPU-only | `-15` |
-
-This keeps a responsive full-GPU result ahead of a similar partial-offload
-result, without letting a very weak full-GPU model beat a much stronger model
-that only needs modest offload.
+The final family selection key does not add a separate full-GPU bonus. Runtime
+fit is already reflected in the quality score through the multiplier above and
+the speed adjustment below. CPU-only results receive a small extra sort penalty
+when mixed with GPU-backed candidates.
 
 ## Speed adjustment
 

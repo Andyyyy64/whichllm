@@ -41,28 +41,20 @@ def _family_selection_key(
 ) -> tuple[float]:
     """Family-level selection key — single composite score.
 
-    Combines quality, fit type, and evidence tier into one number so the
-    sort is fully transitive and edge cases resolve sensibly:
+    ``quality_score`` already includes the runtime fit penalty and speed
+    adjustment. Keep final selection close to that displayed score so strong
+    partial-offload candidates do not get discounted again while sorting.
 
-    - ``fit_bonus`` (+15 / 0 / -15) is large enough that "estimated,
-      full-GPU" still beats "direct, partial-offload" of comparable
-      quality (users on small VRAM prefer the responsive option),
-      but small enough that a quality-17 Q1_0 full-GPU model loses to
-      a quality-57 partial-offload 27B model
     - ``direct_bonus`` (+5) gives independent leaderboard evidence a
       small edge at the same fit; cannot overturn a 6+ point quality gap
     """
-    fit_bonus = {
-        "full_gpu": 15.0,
-        "partial_offload": 0.0,
-        "cpu_only": -15.0,
-    }.get(result.fit_type, -15.0)
     if require_direct_top and result.benchmark_status == "direct":
         direct_bonus = 5.0
     else:
         direct_bonus = 0.0
+    cpu_penalty = -6.0 if result.fit_type == "cpu_only" else 0.0
     ctx_penalty = -20.0 if not result.context_fits else 0.0
-    return (result.quality_score + fit_bonus + direct_bonus + ctx_penalty,)
+    return (result.quality_score + direct_bonus + cpu_penalty + ctx_penalty,)
 
 
 def _partial_offload_quality_factor(model: ModelInfo, offload_ratio: float) -> float:
@@ -74,14 +66,36 @@ def _partial_offload_quality_factor(model: ModelInfo, offload_ratio: float) -> f
         factor = 0.52
     elif ratio >= 0.40:
         factor = 0.62
+    elif ratio >= 0.25:
+        factor = 0.76
     else:
-        factor = 0.72
+        factor = 0.86
 
     # MoE offload is more nuanced: inactive experts and router/runtime
-    # placement do not hurt equally. Keep the penalty, but do not treat it
-    # as badly as dense-layer offload.
+    # placement do not hurt equally. If the GPU can plausibly hold the
+    # active expert working set, do not treat inactive-expert spill like
+    # dense-layer spill.
     if model.is_moe and model.parameter_count_active:
-        factor = min(0.72, factor + 0.08)
+        active_ratio = (
+            model.parameter_count_active / model.parameter_count
+            if model.parameter_count > 0
+            else 1.0
+        )
+        active_ratio = max(0.0, min(1.0, active_ratio))
+        active_set_fits = ratio <= max(0.0, 1.0 - active_ratio)
+        if active_set_fits:
+            if ratio >= 0.75:
+                factor = max(factor, 0.66)
+            elif ratio >= 0.60:
+                factor = max(factor, 0.70)
+            elif ratio >= 0.40:
+                factor = max(factor, 0.76)
+            elif ratio >= 0.25:
+                factor = max(factor, 0.82)
+            else:
+                factor = max(factor, 0.88)
+        else:
+            factor = min(0.76, factor + 0.08)
 
     return factor
 
