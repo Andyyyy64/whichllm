@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.10] - 2026-06-11
+
+### Fixed
+
+- Strong partial-offload candidates are no longer buried below weaker full-GPU
+  models because the final ranking sort no longer counts full-GPU fit a second
+  time after runtime-fit and speed penalties have already been applied. Light
+  partial offload is penalized less aggressively, while heavy dense offload
+  remains strongly discounted. (#105, #108)
+- MoE partial-offload scoring now uses the active parameter working set when it
+  can plausibly stay on GPU, so active-small MoE models are not penalized like
+  dense models with the same total parameter count. (#105, #108)
+
 ## [0.5.9] - 2026-06-10
 
 ### Added

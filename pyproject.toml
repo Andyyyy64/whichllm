@@ -1,6 +1,6 @@
 [project]
 name = "whichllm"
-version = "0.5.9"
+version = "0.5.10"
 description = "Find the best LLM that runs on your hardware"
 authors = [{name = "Andyyyy64"}]
 readme = "README.md"
