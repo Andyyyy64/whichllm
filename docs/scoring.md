@@ -182,6 +182,7 @@ Examples of tracked lineages include:
 - Kimi
 - Granite
 - OLMo
+- T5 (incl. Flan-T5, mT5, ByT5, T5Gemma)
 
 ## Benchmark markers
 
