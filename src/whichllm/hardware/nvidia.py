@@ -121,9 +121,7 @@ def _detect_nvidia_gpus_via_smi() -> list[GPUInfo]:
 
         memory_mib = int(match.group(0))
         gpus.append(
-            _make_nvidia_gpu(
-                name, memory_mib * 1024**2, mem_clock_mhz=mem_clock_mhz
-            )
+            _make_nvidia_gpu(name, memory_mib * 1024**2, mem_clock_mhz=mem_clock_mhz)
         )
 
     return gpus
@@ -184,9 +182,7 @@ def detect_nvidia_gpus() -> list[GPUInfo]:
                 )
                 mem_clock_mhz = None
 
-            gpus.append(
-                _make_nvidia_gpu(name, vram_bytes, cuda_str, mem_clock_mhz)
-            )
+            gpus.append(_make_nvidia_gpu(name, vram_bytes, cuda_str, mem_clock_mhz))
     except pynvml.NVMLError as e:
         logger.debug(f"Error enumerating NVIDIA GPUs: {e}")
     finally:

@@ -68,8 +68,14 @@ def test_threshold_boundary(clock, expected):
 def test_non_variant_card_ignores_memory_clock():
     # A single-memory-type card must resolve to its curated value regardless of
     # any clock passed in (clock only disambiguates listed variants).
-    assert resolve_detected_bandwidth("NVIDIA GeForce GTX 1660", 6 * 1024**3, 9999.0) == 192.0
-    assert resolve_detected_bandwidth("NVIDIA GeForce GTX 1660", 6 * 1024**3, 100.0) == 192.0
+    assert (
+        resolve_detected_bandwidth("NVIDIA GeForce GTX 1660", 6 * 1024**3, 9999.0)
+        == 192.0
+    )
+    assert (
+        resolve_detected_bandwidth("NVIDIA GeForce GTX 1660", 6 * 1024**3, 100.0)
+        == 192.0
+    )
 
 
 def test_gddr6_estimate_scales_with_bandwidth_and_matches_measured():
@@ -87,10 +93,20 @@ def test_gddr6_estimate_scales_with_bandwidth_and_matches_measured():
         quant_type="Q4_K_M",
         file_size_bytes=1_353_000_000,
     )
-    gpu6 = GPUInfo("NVIDIA GeForce GTX 1650", "nvidia", 4 * 1024**3,
-                   compute_capability=(7, 5), memory_bandwidth_gbps=192.0)
-    gpu5 = GPUInfo("NVIDIA GeForce GTX 1650", "nvidia", 4 * 1024**3,
-                   compute_capability=(7, 5), memory_bandwidth_gbps=128.0)
+    gpu6 = GPUInfo(
+        "NVIDIA GeForce GTX 1650",
+        "nvidia",
+        4 * 1024**3,
+        compute_capability=(7, 5),
+        memory_bandwidth_gbps=192.0,
+    )
+    gpu5 = GPUInfo(
+        "NVIDIA GeForce GTX 1650",
+        "nvidia",
+        4 * 1024**3,
+        compute_capability=(7, 5),
+        memory_bandwidth_gbps=128.0,
+    )
     est6 = estimate_tok_per_sec(model, variant, gpu6)
     est5 = estimate_tok_per_sec(model, variant, gpu5)
     assert est6 > est5
