@@ -25,7 +25,7 @@ def load_cache() -> list[dict] | None:
         return None
 
     try:
-        data = json.loads(CACHE_FILE.read_text())
+        data = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
         cached_at = data.get("cached_at", 0)
         if time.time() - cached_at > DEFAULT_TTL_SECONDS:
             logger.debug("Cache expired")
@@ -43,5 +43,5 @@ def save_cache(models: list[dict]) -> None:
         "cached_at": time.time(),
         "models": models,
     }
-    CACHE_FILE.write_text(json.dumps(data, ensure_ascii=False))
+    CACHE_FILE.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     logger.debug(f"Saved {len(models)} models to cache")
