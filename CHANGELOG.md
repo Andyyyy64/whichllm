@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.11] - 2026-06-18
+
+### Added
+
+- Multi-GPU simulation for repeated `--gpu` flags, comma-separated GPU specs,
+  and count shorthand such as `2x RTX 4090`. The fit model uses a conservative
+  effective VRAM budget and keeps speed confidence low for split-device
+  recommendations. (#113)
+- `python -m whichllm` now runs the CLI entrypoint. (#116)
+- `--gpu-only` and `--fit full-gpu` now filter recommendations to models that
+  fit fully in GPU VRAM. `--fit any` keeps the existing behavior. (#119, #122)
+- T5 lineage support so T5-family models get version-aware benchmark handling.
+
+### Fixed
+
+- Fixed UTF-8 decoding for cached model and benchmark data on systems whose
+  default filesystem encoding is not UTF-8. (#121)
+- GTX 1650 simulation now distinguishes GDDR5 and GDDR6 variants by memory
+  clock instead of treating every card as the slower 128 GB/s model. (#115)
+- RAM reserve logic now uses a bounded reserve formula instead of a fixed 80%
+  usable-RAM cap, which avoids underestimating machines with more system
+  memory. (#103)
+
 ## [0.5.10] - 2026-06-11
 
 ### Fixed
