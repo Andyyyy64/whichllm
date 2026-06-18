@@ -20,6 +20,8 @@ Common options:
 | `--context-length`, `-c` | Context length used for KV cache estimation. Accepts integers or `k` shorthand such as `64k`. Default: `4096` |
 | `--quant`, `-q` | Keep only a quantization type such as `Q4_K_M` |
 | `--min-speed` | Keep only models above a tok/s estimate |
+| `--fit` | Runtime fit filter: `any` or `full-gpu` |
+| `--gpu-only` | Alias for `--fit full-gpu`; excludes partial offload and CPU-only candidates |
 | `--profile` | Ranking profile: `general`, `coding`, `vision`, `math`, `any` |
 | `--evidence` | Benchmark evidence filter: `strict`, `base`, `any` |
 | `--direct` | Alias for `--evidence strict` |
@@ -43,6 +45,8 @@ whichllm --gpu "RTX 4090" --gpu "RTX 3090"
 whichllm --gpu "RTX 4090, RTX 3090"
 whichllm --profile coding --top 5
 whichllm --context-length 64k
+whichllm --gpu-only
+whichllm --fit full-gpu --status
 whichllm --evidence strict
 whichllm --status
 whichllm --json | jq '.models[0]'

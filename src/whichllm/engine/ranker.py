@@ -650,6 +650,7 @@ def rank_models(
     require_direct_top: bool = True,
     min_params_b: float | None = None,
     evidence_filter: str = "any",
+    fit_filter: str = "any",
 ) -> list[CompatibilityResult]:
     """Rank models by quality for the given hardware. Returns top N results."""
     results: list[CompatibilityResult] = []
@@ -751,6 +752,8 @@ def rank_models(
                 continue
             compat = check_compatibility(model, variant, hardware, context_length)
             if not compat.can_run:
+                continue
+            if fit_filter == "full_gpu" and compat.fit_type != "full_gpu":
                 continue
 
             tok_per_sec = estimate_tok_per_sec(

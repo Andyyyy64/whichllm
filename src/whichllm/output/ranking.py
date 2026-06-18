@@ -144,11 +144,12 @@ def display_ranking(
     *,
     has_gpu: bool = True,
     show_status: bool = False,
+    empty_message: str | None = None,
 ) -> None:
     """Display ranked model table."""
     if not results:
         _console.console.print(
-            "[yellow]No compatible models found for your hardware.[/]"
+            f"[yellow]{empty_message or 'No compatible models found for your hardware.'}[/]"
         )
         return
 

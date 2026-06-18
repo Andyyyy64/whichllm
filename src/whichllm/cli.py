@@ -96,6 +96,17 @@ def _resolve_evidence_mode(evidence: str, direct: bool) -> str:
     return mode
 
 
+def _resolve_fit_filter(fit: str, gpu_only: bool) -> str:
+    """Resolve runtime fit filtering, keeping --gpu-only as a short alias."""
+    mode = fit.lower().replace("_", "-")
+    if mode not in {"any", "full-gpu"}:
+        console.print("[red]Error:[/] --fit must be one of: any, full-gpu.")
+        raise typer.Exit(code=1)
+    if gpu_only:
+        return "full_gpu"
+    return "full_gpu" if mode == "full-gpu" else "any"
+
+
 def _apply_gpu_overrides(
     hardware: HardwareInfo,
     cpu_only: bool,
@@ -222,6 +233,16 @@ def main(
     min_speed: Optional[float] = typer.Option(
         None, "--min-speed", help="Minimum tok/s filter"
     ),
+    fit: str = typer.Option(
+        "any",
+        "--fit",
+        help="Runtime fit filter: any | full-gpu",
+    ),
+    gpu_only: bool = typer.Option(
+        False,
+        "--gpu-only",
+        help="Only show models that fit fully in GPU VRAM",
+    ),
     evidence: str = typer.Option(
         "any",
         "--evidence",
@@ -267,6 +288,7 @@ def main(
     _validate_gpu_flags(cpu_only, gpu, vram)
     profile = _validate_profile(profile)
     evidence_mode = _resolve_evidence_mode(evidence, direct)
+    fit_filter = _resolve_fit_filter(fit, gpu_only)
 
     from rich.progress import Progress, SpinnerColumn, TextColumn
 
@@ -365,6 +387,7 @@ def main(
             require_direct_top=True,
             min_params_b=auto_min_params,
             evidence_filter=evidence_mode,
+            fit_filter=fit_filter,
         )
 
         # 自動しきい値で候補ゼロなら緩和して表示を維持する
@@ -381,6 +404,7 @@ def main(
                 require_direct_top=True,
                 min_params_b=None,
                 evidence_filter=evidence_mode,
+                fit_filter=fit_filter,
             )
 
         # 上位候補の公開日時が欠けている場合のみ補完して表示品質を上げる
@@ -399,10 +423,22 @@ def main(
     if json_output:
         display_json(results, hardware)
     else:
+        empty_message = None
+        if fit_filter == "full_gpu":
+            empty_message = (
+                "No full-GPU models found for this hardware. "
+                "Remove --gpu-only or use --fit any to include partial offload "
+                "and CPU-only candidates."
+            )
         console.print()
         display_hardware(hardware)
         console.print()
-        display_ranking(results, has_gpu=bool(hardware.gpus), show_status=status)
+        display_ranking(
+            results,
+            has_gpu=bool(hardware.gpus),
+            show_status=status,
+            empty_message=empty_message,
+        )
         console.print()
 
 

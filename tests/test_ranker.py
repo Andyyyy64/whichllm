@@ -785,6 +785,95 @@ def test_unknown_speed_heavy_partial_offload_does_not_top_rank():
         assert heavy.estimated_tok_per_sec == 0.0
 
 
+def test_fit_filter_full_gpu_excludes_partial_offload_and_cpu_only():
+    partial = ModelInfo(
+        id="org/Test-30B-GGUF",
+        family_id="test-30b",
+        name="Test-30B-GGUF",
+        parameter_count=30_000_000_000,
+        downloads=1000,
+        likes=100,
+        gguf_variants=[
+            GGUFVariant(
+                filename="test-30b-Q4_K_M.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=18_000_000_000,
+            )
+        ],
+    )
+    full = ModelInfo(
+        id="org/Test-7B-GGUF",
+        family_id="test-7b",
+        name="Test-7B-GGUF",
+        parameter_count=7_000_000_000,
+        downloads=900,
+        likes=90,
+        gguf_variants=[
+            GGUFVariant(
+                filename="test-7b-Q4_K_M.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=4_000_000_000,
+            )
+        ],
+    )
+    cpu_only = ModelInfo(
+        id="org/Test-60B-GGUF",
+        family_id="test-60b",
+        name="Test-60B-GGUF",
+        parameter_count=60_000_000_000,
+        downloads=800,
+        likes=80,
+        gguf_variants=[
+            GGUFVariant(
+                filename="test-60b-Q4_K_M.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=36_000_000_000,
+            )
+        ],
+    )
+    hw = _make_hardware(vram_gb=8, bandwidth_gbps=300.0)
+    results = rank_models(
+        [partial, full, cpu_only],
+        hw,
+        top_n=10,
+        fit_filter="full_gpu",
+        task_profile="any",
+        require_direct_top=False,
+    )
+
+    assert [r.model.id for r in results] == ["org/Test-7B-GGUF"]
+    assert results[0].fit_type == "full_gpu"
+
+
+def test_fit_filter_full_gpu_returns_empty_when_no_full_gpu_candidate():
+    partial = ModelInfo(
+        id="org/Test-30B-GGUF",
+        family_id="test-30b",
+        name="Test-30B-GGUF",
+        parameter_count=30_000_000_000,
+        downloads=1000,
+        likes=100,
+        gguf_variants=[
+            GGUFVariant(
+                filename="test-30b-Q4_K_M.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=18_000_000_000,
+            )
+        ],
+    )
+    hw = _make_hardware(vram_gb=8, bandwidth_gbps=300.0)
+    results = rank_models(
+        [partial],
+        hw,
+        top_n=10,
+        fit_filter="full_gpu",
+        task_profile="any",
+        require_direct_top=False,
+    )
+
+    assert results == []
+
+
 def test_multi_gpu_speed_confidence_is_low():
     from whichllm.engine.performance import estimate_tok_per_sec
 

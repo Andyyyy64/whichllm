@@ -17,6 +17,7 @@ from whichllm.cli import (
     _pick_gguf_variant,
     _resolve_ranked_gguf_for_run,
     _resolve_evidence_mode,
+    _resolve_fit_filter,
     _search_model,
     _validate_evidence,
     app,
@@ -186,6 +187,90 @@ def test_validate_evidence_rejects_unknown_mode():
 
 def test_resolve_evidence_mode_direct_alias_wins():
     assert _resolve_evidence_mode("base", direct=True) == "strict"
+
+
+def test_resolve_fit_filter_accepts_gpu_only_alias():
+    assert _resolve_fit_filter("any", gpu_only=False) == "any"
+    assert _resolve_fit_filter("full-gpu", gpu_only=False) == "full_gpu"
+    assert _resolve_fit_filter("full_gpu", gpu_only=False) == "full_gpu"
+    assert _resolve_fit_filter("any", gpu_only=True) == "full_gpu"
+
+
+def test_resolve_fit_filter_rejects_unknown_mode():
+    with pytest.raises(Exit):
+        _resolve_fit_filter("partial", gpu_only=False)
+
+
+def test_main_passes_gpu_only_fit_filter(monkeypatch):
+    model = ModelInfo(
+        id="org/Test-7B",
+        family_id="test-7b",
+        name="Test-7B",
+        parameter_count=7_000_000_000,
+        downloads=1,
+        likes=1,
+        published_at="2026-01-01T00:00:00.000Z",
+    )
+    captured: dict[str, object] = {}
+
+    def fake_rank_models(models, hardware, **kwargs):
+        captured["fit_filter"] = kwargs.get("fit_filter")
+        return [
+            CompatibilityResult(
+                model=model,
+                gguf_variant=None,
+                can_run=True,
+                vram_required_bytes=4 * 1024**3,
+                vram_available_bytes=8 * 1024**3,
+                fit_type="full_gpu",
+                quality_score=80.0,
+            )
+        ]
+
+    monkeypatch.setattr(
+        "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
+    )
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
+    monkeypatch.setattr("whichllm.engine.ranker.rank_models", fake_rank_models)
+    monkeypatch.setattr(
+        "whichllm.output.display.display_hardware", lambda hardware: None
+    )
+    monkeypatch.setattr(
+        "whichllm.output.display.display_ranking",
+        lambda results, **kwargs: None,
+    )
+
+    result = CliRunner().invoke(app, ["--gpu-only"])
+
+    assert result.exit_code == 0
+    assert captured["fit_filter"] == "full_gpu"
+
+
+def test_main_empty_gpu_only_result_shows_fit_message(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_rank_models(models, hardware, **kwargs):
+        return []
+
+    def fake_display_ranking(results, **kwargs):
+        captured["empty_message"] = kwargs.get("empty_message")
+
+    monkeypatch.setattr(
+        "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
+    )
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
+    monkeypatch.setattr("whichllm.engine.ranker.rank_models", fake_rank_models)
+    monkeypatch.setattr(
+        "whichllm.output.display.display_hardware", lambda hardware: None
+    )
+    monkeypatch.setattr("whichllm.output.display.display_ranking", fake_display_ranking)
+
+    result = CliRunner().invoke(app, ["--fit", "full-gpu", "--min-params", "1"])
+
+    assert result.exit_code == 0
+    assert "No full-GPU models found" in captured["empty_message"]
 
 
 # --------------- plan command tests ---------------
