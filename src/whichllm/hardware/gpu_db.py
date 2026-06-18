@@ -30,7 +30,7 @@ import functools
 import logging
 import re
 
-from whichllm.constants import GPU_BANDWIDTH, _GiB
+from whichllm.constants import GPU_BANDWIDTH, GPU_MEMORY_CLOCK_VARIANTS, _GiB
 
 logger = logging.getLogger(__name__)
 
@@ -172,14 +172,44 @@ def _dbgpu_bandwidth(name: str, vram_bytes: int | None) -> float | None:
     return min(bandwidths) if bandwidths else None
 
 
+def _memory_clock_variant_bandwidth(
+    name: str, mem_clock_mhz: float | None
+) -> float | None:
+    """Disambiguate cards sold in multiple memory types by max memory clock.
+
+    Some GPUs (e.g. GTX 1650 GDDR5 vs GDDR6) share a marketing name and PCI
+    device id, so only the memory clock tells them apart. Returns the matching
+    variant bandwidth when the name is a known dual-memory card and the clock is
+    known, else ``None`` (so the caller falls back to the curated default).
+    """
+    if not name or not mem_clock_mhz or mem_clock_mhz <= 0:
+        return None
+    name_upper = name.upper()
+    for key in sorted(GPU_MEMORY_CLOCK_VARIANTS, key=len, reverse=True):
+        if key.upper() in name_upper:
+            for min_clock, bandwidth in GPU_MEMORY_CLOCK_VARIANTS[key]:
+                if mem_clock_mhz >= min_clock:
+                    return bandwidth
+    return None
+
+
 def resolve_detected_bandwidth(
-    name: str, vram_bytes: int | None = None
+    name: str,
+    vram_bytes: int | None = None,
+    mem_clock_mhz: float | None = None,
 ) -> float | None:
     """Best memory bandwidth (GB/s) for a detected GPU, or ``None`` if unknown.
 
-    Curated ``GPU_BANDWIDTH`` wins; dbgpu fills the gaps. ``vram_bytes`` (when
-    known) disambiguates same-name cards that ship in multiple VRAM bins.
+    Memory-clock variant disambiguation wins first (for cards that share a name
+    across memory types, e.g. GTX 1650 GDDR5/GDDR6); then curated
+    ``GPU_BANDWIDTH``; then dbgpu fills the gaps. ``vram_bytes`` (when known)
+    disambiguates same-name cards that ship in multiple VRAM bins;
+    ``mem_clock_mhz`` (max memory clock, when known) disambiguates memory-type
+    variants. With both unset, behaviour is identical to before.
     """
     if not name:
         return None
+    variant = _memory_clock_variant_bandwidth(name, mem_clock_mhz)
+    if variant is not None:
+        return variant
     return _static_bandwidth(name) or _dbgpu_bandwidth(name, vram_bytes)

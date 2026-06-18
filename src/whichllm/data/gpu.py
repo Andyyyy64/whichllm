@@ -64,6 +64,11 @@ GPU_BANDWIDTH: dict[str, float] = {
     "GTX 1660 Ti": 288.0,
     "GTX 1660 SUPER": 336.0,
     "GTX 1660": 192.0,
+    "GTX 1650 SUPER": 192.0,
+    # GTX 1650 GDDR5 (8 Gbps x 128-bit). A later GDDR6 revision runs 192 GB/s;
+    # both share the TU117 die and PCI id 0x1F82, so they are disambiguated by
+    # memory clock via GPU_MEMORY_CLOCK_VARIANTS below. 128 is the conservative
+    # default used when the memory clock is unknown.
     "GTX 1650": 128.0,
     # NVIDIA Data Center
     "H100": 3350.0,
@@ -182,6 +187,7 @@ NVIDIA_COMPUTE_CAPABILITY: dict[str, tuple[int, int]] = {
     "RTX 2060": (7, 5),
     # GTX 16 series (Turing)
     "GTX 1660": (7, 5),
+    "GTX 1650 SUPER": (7, 5),
     "GTX 1650": (7, 5),
     # GTX 10 series (Pascal)
     "GTX 1080": (6, 1),
@@ -214,6 +220,26 @@ NVIDIA_COMPUTE_CAPABILITY: dict[str, tuple[int, int]] = {
     "GTX 780": (3, 5),
     "GTX 770": (3, 0),
     "GTX 760": (3, 0),
+}
+
+# GPUs sold under one marketing name in multiple memory configurations that the
+# driver name and PCI device id cannot tell apart, resolved by max memory clock
+# (MHz) at detection time. Each value is a list of (min_mem_clock_mhz,
+# bandwidth_gbps), highest threshold first; the first threshold the detected
+# clock meets wins. The base name stays in GPU_BANDWIDTH as the conservative
+# default used when the memory clock is unknown.
+# Threshold sits between the two memory-clock regimes (GDDR5 ~4 GHz vs GDDR6
+# ~6 GHz), well clear of either, so factory-OC boards do not straddle it.
+GPU_MEMORY_CLOCK_VARIANTS: dict[str, list[tuple[float, float]]] = {
+    # GTX 1650 shipped as the original GDDR5 (8 Gbps x 128-bit = 128 GB/s) and a
+    # later GDDR6 revision (12 Gbps x 128-bit = 192 GB/s) on the same TU117 die
+    # and PCI id 0x1F82, so only the memory clock distinguishes them. Measured on
+    # a GDDR6 board (VBIOS 90.17.4D.00.1E): nvidia-smi reports clocks.max.memory
+    # = 6001 MHz, and Qwen3-1.7B Q4_K_M decodes at 75.4 tok/s, matching the
+    # 192 GB/s estimate (~78) and not 128's (~52). The GDDR5 board reports
+    # ~4001 MHz (NVIDIA spec, 8 Gbps GDDR5; not independently measured here);
+    # the 5500 MHz split is far from both.
+    "GTX 1650": [(5500.0, 192.0), (0.0, 128.0)],
 }
 
 # Legacy NVIDIA GPUs with no CUDA support in modern llama.cpp builds.
