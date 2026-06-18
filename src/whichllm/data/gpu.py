@@ -64,6 +64,7 @@ GPU_BANDWIDTH: dict[str, float] = {
     "GTX 1660 Ti": 288.0,
     "GTX 1660 SUPER": 336.0,
     "GTX 1660": 192.0,
+    "GTX 1650 SUPER": 192.0,
     # GTX 1650 GDDR5 (8 Gbps x 128-bit). A later GDDR6 revision runs 192 GB/s;
     # both share the TU117 die and PCI id 0x1F82, so they are disambiguated by
     # memory clock via GPU_MEMORY_CLOCK_VARIANTS below. 128 is the conservative
@@ -186,6 +187,7 @@ NVIDIA_COMPUTE_CAPABILITY: dict[str, tuple[int, int]] = {
     "RTX 2060": (7, 5),
     # GTX 16 series (Turing)
     "GTX 1660": (7, 5),
+    "GTX 1650 SUPER": (7, 5),
     "GTX 1650": (7, 5),
     # GTX 10 series (Pascal)
     "GTX 1080": (6, 1),

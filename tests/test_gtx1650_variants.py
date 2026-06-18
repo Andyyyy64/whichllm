@@ -78,6 +78,17 @@ def test_non_variant_card_ignores_memory_clock():
     )
 
 
+def test_gtx1650_super_does_not_fall_through_to_base_1650():
+    assert (
+        resolve_detected_bandwidth("NVIDIA GeForce GTX 1650 SUPER", 4 * 1024**3)
+        == 192.0
+    )
+    assert (
+        resolve_detected_bandwidth("NVIDIA GeForce GTX 1650 SUPER", 4 * 1024**3, 0.0)
+        == 192.0
+    )
+
+
 def test_gddr6_estimate_scales_with_bandwidth_and_matches_measured():
     # Bandwidth flows linearly into the tok/s estimate; the GDDR6 estimate must
     # exceed the GDDR5 one by the bandwidth ratio, and land near the measured
