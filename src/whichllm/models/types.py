@@ -27,6 +27,14 @@ class ModelInfo:
     gguf_variants: list[GGUFVariant] = field(default_factory=list)
     benchmark_scores: dict[str, float] = field(default_factory=dict)
     base_model: str | None = None  # cardData.base_model
+    # Sliding-window-attention KV-cache modeling. Only populated for
+    # architectures whose mainline runtimes actually honor interleaved SWA
+    # (Gemma-2/3, gpt-oss, Cohere2); left None otherwise so VRAM estimates
+    # stay conservative. sliding_window is the local-attention window in
+    # tokens; sliding_window_global_ratio is the fraction of layers that use
+    # full (global) attention (0.0 = pure SWA, 1.0 = fully dense).
+    sliding_window: int | None = None
+    sliding_window_global_ratio: float | None = None
 
 
 @dataclass

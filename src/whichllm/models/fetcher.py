@@ -175,6 +175,148 @@ def _resolve_moe_active_params(
     return None
 
 
+# Sliding-window-attention (SWA) registry. We only model SWA KV-cache savings
+# for architectures whose mainline runtimes actually honor interleaved SWA
+# (llama.cpp's ISWA path, MLX). Each entry is (default_window_tokens,
+# global_layer_ratio) where the ratio is the fraction of layers that use full
+# (global) attention. Models outside this allowlist keep full-context KV so
+# estimates stay conservative — notably Mistral-7B-v0.1, whose config declares
+# sliding_window=4096 but whose window is ignored by mainline runtimes.
+#   - gemma2:  alternating local/global -> 1/2 global
+#   - gemma3:  5 local : 1 global (sliding_window_pattern=6) -> 1/6 global
+#   - gpt_oss: alternating sliding/full -> 1/2 global
+#   - cohere2: 3 local : 1 global (sliding_window_pattern=4) -> 1/4 global
+_SWA_ARCH_DEFAULTS: dict[str, tuple[int, float]] = {
+    "gemma2": (4096, 0.5),
+    "gemma3": (1024, 1.0 / 6.0),
+    "gpt_oss": (128, 0.5),
+    "cohere2": (4096, 0.25),
+}
+
+# Map the many spellings an arch string can take (HF model_type, the
+# ForCausalLM/ForConditionalGeneration class prefix, and GGUF metadata) onto a
+# canonical key in _SWA_ARCH_DEFAULTS.
+_SWA_ARCH_ALIASES: dict[str, str] = {
+    "gemma2": "gemma2",
+    "gemma2_text": "gemma2",
+    "gemma3": "gemma3",
+    "gemma3_text": "gemma3",
+    "gpt_oss": "gpt_oss",
+    "gptoss": "gpt_oss",
+    "cohere2": "cohere2",
+}
+
+# Last-resort fallback keyed by a model-name token, for GGUF-only repos that
+# expose neither an HF config nor GGUF architecture metadata. Matched only as a
+# delimited token in the model name, and only when no *other* base-architecture
+# family is named (to avoid mislabeling merges/finetunes). Kept deliberately
+# small and precise — a false positive here would under-count VRAM.
+_SWA_ID_HINTS: tuple[tuple[str, str], ...] = (
+    ("gemma-3", "gemma3"),
+    ("gemma-2", "gemma2"),
+    ("gpt-oss", "gpt_oss"),
+    ("command-r7b", "cohere2"),
+)
+
+# Other base families that, if named in a model id, make an id-hint match
+# ambiguous (e.g. a "gemma-3 distilled from llama" merge) — bail conservatively.
+_CONFLICTING_ARCH_TOKENS: tuple[str, ...] = (
+    "llama",
+    "qwen",
+    "mistral",
+    "mixtral",
+    "phi",
+    "deepseek",
+    "yi",
+    "falcon",
+    "internlm",
+    "baichuan",
+    "glm",
+)
+
+
+def _swa_key_from_arch(arch: str | None) -> str | None:
+    """Resolve an arch string (model_type / class / gguf metadata) to a key."""
+    if not arch:
+        return None
+    arch = arch.lower()
+    if arch in _SWA_ARCH_ALIASES:
+        return _SWA_ARCH_ALIASES[arch]
+    stripped = arch.replace("forcausallm", "").replace("forconditionalgeneration", "")
+    if stripped in _SWA_ARCH_ALIASES:
+        return _SWA_ARCH_ALIASES[stripped]
+    return None
+
+
+def _swa_key_from_id(model_id: str) -> str | None:
+    """Boundary-aware, conflict-guarded model-id fallback (see _SWA_ID_HINTS)."""
+    name = model_id.split("/")[-1].lower()
+    for hint, key in _SWA_ID_HINTS:
+        if re.search(rf"(?<![a-z0-9]){re.escape(hint)}(?![a-z0-9])", name):
+            family = key.split("_")[0].rstrip("0123456789")  # gemma3 -> gemma
+            if any(tok in name for tok in _CONFLICTING_ARCH_TOKENS if tok != family):
+                return None
+            return key
+    return None
+
+
+def _swa_arch_key(config: dict, model_id: str, gguf_arch: str | None) -> str | None:
+    """Identify the SWA architecture key for a model, or None if not honored.
+
+    Prefers authoritative sources — the raw HF config ``model_type``/
+    ``architectures`` (not the normalized architecture string, which collapses
+    gemma2 and gemma3 into "gemma") and the GGUF metadata architecture — before
+    a narrow, conflict-guarded model-id fallback for config-less GGUF repos.
+    """
+    model_type = config.get("model_type")
+    key = _swa_key_from_arch(model_type if isinstance(model_type, str) else None)
+    if key:
+        return key
+
+    arch_list = config.get("architectures") or []
+    if arch_list and isinstance(arch_list[0], str):
+        key = _swa_key_from_arch(arch_list[0])
+        if key:
+            return key
+
+    key = _swa_key_from_arch(gguf_arch)
+    if key:
+        return key
+
+    return _swa_key_from_id(model_id)
+
+
+def _resolve_sliding_window(
+    config: dict, model_id: str, gguf_arch: str | None = None
+) -> tuple[int | None, float | None]:
+    """Resolve (sliding_window, global_ratio) for honored SWA architectures.
+
+    Returns (None, None) for every model outside the allowlist so the KV
+    estimate stays at full context (conservative).
+    """
+    # Respect an explicit opt-out before doing any work.
+    if config.get("use_sliding_window") is False:
+        return None, None
+
+    key = _swa_arch_key(config, model_id, gguf_arch)
+    if key is None:
+        return None, None
+
+    default_window, default_ratio = _SWA_ARCH_DEFAULTS[key]
+
+    window = config.get("sliding_window")
+    if not isinstance(window, int) or window <= 0:
+        window = default_window
+
+    pattern = config.get("sliding_window_pattern")
+    if isinstance(pattern, int) and pattern > 0:
+        global_ratio = 1.0 / pattern
+    else:
+        global_ratio = default_ratio
+
+    return window, global_ratio
+
+
 def _normalize_param_count(
     extracted: int,
     model_id: str,
@@ -549,6 +691,11 @@ def _parse_model(data: dict) -> ModelInfo | None:
     if not context_length and isinstance(gguf_meta, dict):
         context_length = gguf_meta.get("context_length")
 
+    gguf_arch = gguf_meta.get("architecture") if isinstance(gguf_meta, dict) else None
+    sliding_window, swa_global_ratio = _resolve_sliding_window(
+        config, model_id, gguf_arch
+    )
+
     benchmark_scores: dict[str, float] = {}
     eval_score = _extract_hf_eval_score(data)
     if eval_score is not None:
@@ -570,6 +717,8 @@ def _parse_model(data: dict) -> ModelInfo | None:
         gguf_variants=gguf_variants,
         benchmark_scores=benchmark_scores,
         base_model=base_model,
+        sliding_window=sliding_window,
+        sliding_window_global_ratio=swa_global_ratio,
     )
 
 
@@ -877,6 +1026,8 @@ def models_to_dicts(models: list[ModelInfo]) -> list[dict]:
                 ],
                 "benchmark_scores": m.benchmark_scores,
                 "base_model": m.base_model,
+                "sliding_window": m.sliding_window,
+                "sliding_window_global_ratio": m.sliding_window_global_ratio,
             }
         )
     return result
@@ -925,6 +1076,8 @@ def dicts_to_models(data: list[dict]) -> list[ModelInfo]:
                 ],
                 benchmark_scores=d.get("benchmark_scores", {}),
                 base_model=base_model,
+                sliding_window=d.get("sliding_window"),
+                sliding_window_global_ratio=d.get("sliding_window_global_ratio"),
             )
         )
     return models

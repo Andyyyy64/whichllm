@@ -398,3 +398,186 @@ def test_deepseek_v4_flash_uses_model_card_counts_over_hf_tensor_metadata():
     assert parsed is not None
     assert parsed.parameter_count == 284_000_000_000
     assert parsed.parameter_count_active == 13_000_000_000
+
+
+def test_parse_model_resolves_gemma3_sliding_window():
+    parsed = _parse_model(
+        {
+            "id": "google/gemma-3-27b-it",
+            "config": {
+                "architectures": ["Gemma3ForConditionalGeneration"],
+                "model_type": "gemma3",
+                "sliding_window": 1024,
+                "sliding_window_pattern": 6,
+                "max_position_embeddings": 131072,
+            },
+            "safetensors": {"total": 27_000_000_000},
+            "siblings": [],
+            "cardData": {},
+        }
+    )
+    assert parsed is not None
+    assert parsed.sliding_window == 1024
+    assert parsed.sliding_window_global_ratio == 1.0 / 6.0
+
+
+def test_parse_model_resolves_gpt_oss_sliding_window():
+    parsed = _parse_model(
+        {
+            "id": "openai/gpt-oss-20b",
+            "config": {
+                "architectures": ["GptOssForCausalLM"],
+                "model_type": "gpt_oss",
+                "sliding_window": 128,
+                "max_position_embeddings": 131072,
+            },
+            "safetensors": {"total": 20_000_000_000},
+            "siblings": [],
+            "cardData": {},
+        }
+    )
+    assert parsed is not None
+    assert parsed.sliding_window == 128
+    assert parsed.sliding_window_global_ratio == 0.5
+
+
+def test_parse_model_does_not_honor_mistral_sliding_window():
+    """Mistral declares sliding_window in config but runtimes ignore it."""
+    parsed = _parse_model(
+        {
+            "id": "mistralai/Mistral-7B-v0.1",
+            "config": {
+                "architectures": ["MistralForCausalLM"],
+                "model_type": "mistral",
+                "sliding_window": 4096,
+                "max_position_embeddings": 32768,
+            },
+            "safetensors": {"total": 7_000_000_000},
+            "siblings": [],
+            "cardData": {},
+        }
+    )
+    assert parsed is not None
+    assert parsed.sliding_window is None
+    assert parsed.sliding_window_global_ratio is None
+
+
+def test_parse_model_respects_disabled_sliding_window():
+    parsed = _parse_model(
+        {
+            "id": "google/gemma-3-4b-it",
+            "config": {
+                "architectures": ["Gemma3ForConditionalGeneration"],
+                "model_type": "gemma3",
+                "sliding_window": 1024,
+                "use_sliding_window": False,
+            },
+            "safetensors": {"total": 4_000_000_000},
+            "siblings": [],
+            "cardData": {},
+        }
+    )
+    assert parsed is not None
+    assert parsed.sliding_window is None
+    assert parsed.sliding_window_global_ratio is None
+
+
+def test_parse_model_does_not_honor_gemma1_window():
+    """Gemma-1 has no sliding window; the gemma2/gemma3 keys must not match it."""
+    parsed = _parse_model(
+        {
+            "id": "google/gemma-7b",
+            "config": {
+                "architectures": ["GemmaForCausalLM"],
+                "model_type": "gemma",
+            },
+            "safetensors": {"total": 7_000_000_000},
+            "siblings": [],
+            "cardData": {},
+        }
+    )
+    assert parsed is not None
+    assert parsed.sliding_window is None
+
+
+def test_parse_model_sliding_window_from_gguf_metadata():
+    """GGUF-only repos: trust the authoritative GGUF architecture metadata."""
+    parsed = _parse_model(
+        {
+            "id": "unsloth/gemma-3-12b-it-GGUF",
+            "config": {},
+            "gguf": {"architecture": "gemma3"},
+            "safetensors": {"total": 12_000_000_000},
+            "siblings": [],
+            "cardData": {},
+        }
+    )
+    assert parsed is not None
+    assert parsed.sliding_window == 1024
+    assert parsed.sliding_window_global_ratio == 1.0 / 6.0
+
+
+def test_parse_model_sliding_window_from_id_hint_when_no_metadata():
+    """With neither config nor GGUF arch, fall back to a boundary-matched hint."""
+    parsed = _parse_model(
+        {
+            "id": "TheBloke/gemma-2-9b-it-GGUF",
+            "config": {},
+            "gguf": {},
+            "safetensors": {"total": 9_000_000_000},
+            "siblings": [],
+            "cardData": {},
+        }
+    )
+    assert parsed is not None
+    assert parsed.sliding_window == 4096
+    assert parsed.sliding_window_global_ratio == 0.5
+
+
+def test_parse_model_id_hint_ignores_merge_with_other_base():
+    """A merge/finetune that names another base arch must NOT get a fake window."""
+    parsed = _parse_model(
+        {
+            "id": "someorg/llama3-gemma-2-distill-merge",
+            "config": {},
+            "gguf": {},
+            "safetensors": {"total": 8_000_000_000},
+            "siblings": [],
+            "cardData": {},
+        }
+    )
+    assert parsed is not None
+    assert parsed.sliding_window is None
+    assert parsed.sliding_window_global_ratio is None
+
+
+def test_parse_model_id_hint_requires_token_boundary():
+    """A substring buried inside another token must not trigger the hint."""
+    parsed = _parse_model(
+        {
+            "id": "someorg/notagemma-2x-model",
+            "config": {},
+            "gguf": {},
+            "safetensors": {"total": 8_000_000_000},
+            "siblings": [],
+            "cardData": {},
+        }
+    )
+    assert parsed is not None
+    assert parsed.sliding_window is None
+
+
+def test_models_cache_roundtrip_keeps_sliding_window():
+    models = [
+        ModelInfo(
+            id="google/gemma-3-27b-it",
+            family_id="gemma-3-27b",
+            name="gemma-3-27b-it",
+            parameter_count=27_000_000_000,
+            sliding_window=1024,
+            sliding_window_global_ratio=1.0 / 6.0,
+        )
+    ]
+    restored = dicts_to_models(models_to_dicts(models))
+    assert restored[0].sliding_window == 1024
+    assert restored[0].sliding_window_global_ratio == 1.0 / 6.0
