@@ -212,22 +212,41 @@ def _normalize_param_count(
     return extracted
 
 
+# Filename quant tokens that name the same format under a different spelling
+# than the canonical key used by QUANT_BYTES_PER_WEIGHT / QUANT_QUALITY_PENALTY.
+# llama.cpp GGUFs are frequently published as ``*-FP16.gguf`` / ``*-FP32.gguf``,
+# but the byte/penalty tables key full precision as ``F16`` / ``F32``. Without
+# this mapping the extracted token misses the table and _estimate_gguf_size
+# silently falls back to the Q4_K_M default, under-counting an FP16 GGUF ~3.5x.
+_QUANT_ALIASES = {
+    "FP16": "F16",
+    "FP32": "F32",
+}
+
+
 def _extract_quant_type(filename: str) -> str:
-    """Extract quantization type from GGUF filename."""
+    """Extract quantization type from a GGUF filename.
+
+    The returned key is canonicalized to match QUANT_BYTES_PER_WEIGHT (see the
+    ``test_extract_quant_type_keys_resolve_in_byte_table`` drift guard), so
+    callers can look it up directly. Returns ``"unknown"`` when nothing matches.
+    """
     # Common patterns: model-Q4_K_M.gguf, model.Q4_K_M.gguf
     patterns = [
         r"[.-](Q\d+_K_[SMLA])",
         r"[.-](Q\d+_\d+)",
         r"[.-](Q\d+_K)",
+        r"[.-](TQ\d+_\d+)",
         r"[.-](IQ\d+_\w+)",
         r"[.-](MXFP4|NVFP4)",
-        r"[.-](F16|FP16|BF16|F32)",
+        r"[.-](F16|FP16|BF16|F32|FP32)",
     ]
     upper = filename.upper()
     for pattern in patterns:
         m = re.search(pattern, upper)
         if m:
-            return m.group(1)
+            quant = m.group(1)
+            return _QUANT_ALIASES.get(quant, quant)
     return "unknown"
 
 

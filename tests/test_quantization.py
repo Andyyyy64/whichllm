@@ -75,3 +75,67 @@ def test_extract_quant_type_parses_fp4_gguf_filenames():
 
     assert _extract_quant_type("gpt-oss-20b-MXFP4.gguf") == "MXFP4"
     assert _extract_quant_type("model.NVFP4.gguf") == "NVFP4"
+
+
+def test_extract_quant_type_canonicalizes_full_precision_aliases():
+    # llama.cpp publishes full-precision GGUFs as *-FP16/*-FP32; the byte and
+    # penalty tables key these as F16/F32, so the extractor must canonicalize.
+    from whichllm.models.fetcher import _extract_quant_type
+
+    assert _extract_quant_type("Meta-Llama-3-8B-FP16.gguf") == "F16"
+    assert _extract_quant_type("model.FP32.gguf") == "F32"
+    # Canonical spellings still pass through unchanged.
+    assert _extract_quant_type("model-F16.gguf") == "F16"
+    assert _extract_quant_type("model.BF16.gguf") == "BF16"
+
+
+def test_extract_quant_type_recognizes_ternary_gguf():
+    # BitNet-class ternary GGUFs (TQ1_0/TQ2_0) are fully priced in the tables
+    # but were previously extracted as "unknown" and dropped at fetch.
+    from whichllm.models.fetcher import _extract_quant_type
+
+    assert _extract_quant_type("BitNet-b1.58-2B-4T-TQ1_0.gguf") == "TQ1_0"
+    assert _extract_quant_type("model.TQ2_0.gguf") == "TQ2_0"
+
+
+def test_estimate_gguf_size_does_not_undersize_fp16():
+    # An FP16 GGUF must size at full precision (2.0 bytes/weight), not collapse
+    # to the Q4_K_M 0.5625 default that an unrecognized token falls back to.
+    from whichllm.models.fetcher import _estimate_gguf_size, _extract_quant_type
+
+    params = 7_000_000_000
+    quant = _extract_quant_type("model-FP16.gguf")
+    size = _estimate_gguf_size(params, quant)
+    assert size == params * 2  # 14 GB, not the ~3.94 GB default
+    assert size == _estimate_gguf_size(params, "F16")
+
+
+def test_extract_quant_type_keys_resolve_in_byte_table():
+    # Drift guard: every quant the extractor surfaces from a real GGUF filename
+    # must resolve in QUANT_BYTES_PER_WEIGHT, otherwise it is silently mis-sized
+    # by the default or dropped at fetch. Keeps the extractor and tables aligned.
+    from whichllm.data.quantization import QUANT_BYTES_PER_WEIGHT
+    from whichllm.models.fetcher import _extract_quant_type
+
+    filenames = [
+        "model-Q4_K_M.gguf",
+        "model-Q8_0.gguf",
+        "model-Q6_K.gguf",
+        "model-IQ4_NL.gguf",
+        "model-IQ3_XXS.gguf",
+        "model-TQ1_0.gguf",
+        "model-TQ2_0.gguf",
+        "model-F16.gguf",
+        "model-FP16.gguf",
+        "model-BF16.gguf",
+        "model-F32.gguf",
+        "model-FP32.gguf",
+        "model-MXFP4.gguf",
+        "model-NVFP4.gguf",
+    ]
+    for fname in filenames:
+        quant = _extract_quant_type(fname)
+        assert quant != "unknown", f"{fname} not recognized by extractor"
+        assert quant in QUANT_BYTES_PER_WEIGHT, (
+            f"{fname} -> {quant!r} missing from QUANT_BYTES_PER_WEIGHT"
+        )
