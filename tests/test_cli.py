@@ -557,12 +557,12 @@ def test_plan_display_plan_json_outputs_valid_json():
 # --------------- helper tests ---------------
 
 
-def _make_model(model_id="org/Test-7B-GGUF", downloads=100, gguf_variants=None):
+def _make_model(model_id="org/Test-7B-GGUF", downloads=100, gguf_variants=None, parameter_count=7_000_000_000):
     return ModelInfo(
         id=model_id,
         family_id="test-7b",
         name="Test-7B",
-        parameter_count=7_000_000_000,
+        parameter_count=parameter_count,
         downloads=downloads,
         likes=10,
         gguf_variants=gguf_variants or [],
@@ -591,6 +591,89 @@ def test_search_model_not_found():
     models = [_make_model("org/Llama-8B")]
     with pytest.raises(Exit):
         _search_model(models, "nonexistent_xyz")
+
+
+# --- regression tests for size-token substring matching (#107) ---
+
+
+def test_search_model_7b_does_not_match_1_7b():
+    """'qwen 7b' should NOT match Qwen3-1.7B (issue #107)."""
+    models = [
+        _make_model("org/Qwen3-1.7B-GGUF", downloads=9999, parameter_count=1_700_000_000),
+        _make_model("org/Qwen3-7B-GGUF", downloads=100, parameter_count=7_000_000_000),
+    ]
+    result = _search_model(models, "qwen 7b")
+    assert result.id == "org/Qwen3-7B-GGUF"
+
+
+def test_search_model_2b_does_not_match_12b():
+    """'gemma 2b' should NOT match gemma-3-12b-it (issue #107)."""
+    models = [
+        _make_model("google/gemma-3-12b-it", downloads=5000, parameter_count=12_000_000_000),
+        _make_model("google/gemma-2b", downloads=100, parameter_count=2_000_000_000),
+    ]
+    result = _search_model(models, "gemma 2b")
+    assert result.id == "google/gemma-2b"
+
+
+def test_search_model_3b_does_not_match_30b_a3b():
+    """'qwen 3b' should NOT match Qwen3-30B-A3B (issue #107)."""
+    models = [
+        _make_model("org/Qwen3-30B-A3B-GGUF", downloads=8000, parameter_count=30_000_000_000),
+        _make_model("org/Qwen3-3B-GGUF", downloads=50, parameter_count=3_000_000_000),
+    ]
+    result = _search_model(models, "qwen 3b")
+    assert result.id == "org/Qwen3-3B-GGUF"
+
+
+def test_search_model_no_size_token_still_works():
+    """Queries without a size token should still use plain substring matching."""
+    models = [
+        _make_model("org/Llama-3.1-8B-GGUF", parameter_count=8_000_000_000),
+        _make_model("org/Qwen-7B", parameter_count=7_000_000_000),
+    ]
+    result = _search_model(models, "llama gguf")
+    assert result.id == "org/Llama-3.1-8B-GGUF"
+
+
+def test_search_model_millions_size_token():
+    """'500m' size token should match a ~500M parameter model."""
+    models = [
+        _make_model("org/SmolLM-500M", downloads=200, parameter_count=500_000_000),
+        _make_model("org/SmolLM-1.7B", downloads=300, parameter_count=1_700_000_000),
+    ]
+    result = _search_model(models, "smollm 500m")
+    assert result.id == "org/SmolLM-500M"
+
+
+def test_search_model_decimal_size_token():
+    """'0.5b' size token should match a ~500M parameter model."""
+    models = [
+        _make_model("org/TinyModel-0.5B", downloads=100, parameter_count=500_000_000),
+        _make_model("org/TinyModel-3B", downloads=500, parameter_count=3_000_000_000),
+    ]
+    result = _search_model(models, "tinymodel 0.5b")
+    assert result.id == "org/TinyModel-0.5B"
+
+
+def test_search_model_zero_param_count_passes_through():
+    """Models with parameter_count=0 (missing metadata) should not be excluded."""
+    models = [
+        _make_model("org/Mystery-7B-GGUF", downloads=500, parameter_count=0),
+    ]
+    result = _search_model(models, "mystery 7b")
+    assert result.id == "org/Mystery-7B-GGUF"
+
+
+def test_search_model_first_size_token_wins():
+    """When multiple size tokens appear, only the first is used as a filter."""
+    models = [
+        _make_model("org/Qwen3-30B-A3B-GGUF", downloads=8000, parameter_count=30_000_000_000),
+        _make_model("org/Qwen3-7B-3B-GGUF", downloads=100, parameter_count=7_000_000_000),
+    ]
+    # "7b" is the first size token and filters by ~7B; "3b" becomes a text term
+    result = _search_model(models, "qwen 7b 3b")
+    assert result.id == "org/Qwen3-7B-3B-GGUF"
 
 
 def test_pick_gguf_variant_by_preference():

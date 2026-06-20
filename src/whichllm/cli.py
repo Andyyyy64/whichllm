@@ -861,6 +861,48 @@ def _load_models(refresh: bool, include_vision: bool = True):
         sys.exit(1)
 
 
+_SIZE_TOKEN_RE = re.compile(r"^(\d+(?:\.\d+)?)([bm])$", re.IGNORECASE)
+
+
+def _parse_size_tokens(
+    terms: list[str],
+) -> tuple[list[str], float | None]:
+    """Split query terms into non-size terms and an optional size in billions.
+
+    Returns (remaining_terms, size_b) where size_b is None if no size token
+    was found.  Only the first size token is used; subsequent size tokens are
+    kept as plain text terms.  Handles 'b' (billions) and 'm' (millions).
+    """
+    remaining = []
+    size_b: float | None = None
+    for t in terms:
+        m = _SIZE_TOKEN_RE.match(t)
+        if m and size_b is None:
+            value = float(m.group(1))
+            if value <= 0:
+                remaining.append(t)
+                continue
+            unit = m.group(2).lower()
+            size_b = value if unit == "b" else value / 1000.0
+        else:
+            remaining.append(t)
+    return remaining, size_b
+
+
+def _size_compatible(model: ModelInfo, size_b: float) -> bool:
+    """Check whether a model's parameter count is compatible with a query size.
+
+    Uses a tolerance band of [0.7x, 1.5x] to accommodate rounding differences
+    (e.g. a 7B query matching a model with 7.6B actual parameters) while
+    rejecting adjacent model sizes (e.g. 7B vs 4B or 12B).
+    """
+    if model.parameter_count <= 0:
+        return True
+    actual_b = model.parameter_count / 1e9
+    ratio = actual_b / size_b
+    return 0.7 <= ratio <= 1.5
+
+
 def _search_model(models: list, model_name: str):
     """Search for a model by name/ID. Returns single model or exits."""
     query_lower = model_name.lower()
@@ -870,7 +912,13 @@ def _search_model(models: list, model_name: str):
     if not matches:
         matches = [m for m in models if m.id.lower().endswith("/" + query_lower)]
     if not matches:
-        matches = [m for m in models if all(t in m.id.lower() for t in terms)]
+        text_terms, size_b = _parse_size_tokens(terms)
+        matches = [
+            m
+            for m in models
+            if all(t in m.id.lower() for t in text_terms)
+            and (size_b is None or _size_compatible(m, size_b))
+        ]
 
     if not matches:
         console.print(f"[red]No model found matching '{model_name}'.[/]")
