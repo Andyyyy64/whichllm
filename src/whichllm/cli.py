@@ -907,6 +907,7 @@ def _search_model(models: list, model_name: str):
     """Search for a model by name/ID. Returns single model or exits."""
     query_lower = model_name.lower()
     terms = query_lower.split()
+    size_b = None
 
     matches = [m for m in models if m.id.lower() == query_lower]
     if not matches:
@@ -935,7 +936,16 @@ def _search_model(models: list, model_name: str):
                 console.print(f"  • {m.id} ({p})")
         raise typer.Exit(code=1)
 
-    matches.sort(key=lambda m: m.downloads, reverse=True)
+    if size_b is not None:
+        matches.sort(
+            key=lambda m: (
+                0 if m.parameter_count > 0 else 1,
+                abs(m.parameter_count / 1e9 - size_b) if m.parameter_count > 0 else 0,
+                -m.downloads,
+            )
+        )
+    else:
+        matches.sort(key=lambda m: m.downloads, reverse=True)
     model = matches[0]
     if len(matches) > 1:
         console.print(f"[dim]Found {len(matches)} matches, using: {model.id}[/]")

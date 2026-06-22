@@ -691,6 +691,50 @@ def test_search_model_first_size_token_wins():
     assert result.id == "org/Qwen3-7B-3B-GGUF"
 
 
+def test_search_model_7b_prefers_closest_size_over_downloads():
+    """'qwen 7b' should pick 8B (closest to 7B) over 4B even if 4B has more downloads."""
+    models = [
+        _make_model("org/Qwen3-4B-GGUF", downloads=9000, parameter_count=4_000_000_000),
+        _make_model("org/Qwen3-8B-GGUF", downloads=100, parameter_count=8_000_000_000),
+    ]
+    result = _search_model(models, "qwen 7b")
+    assert result.id == "org/Qwen3-8B-GGUF"
+
+
+def test_search_model_3b_prefers_closest_size_over_downloads():
+    """'qwen 3b' should pick 3B (exact) over 4B even if 4B has more downloads."""
+    models = [
+        _make_model("org/Qwen3-4B-GGUF", downloads=9000, parameter_count=4_000_000_000),
+        _make_model("org/Qwen3-3B-GGUF", downloads=50, parameter_count=3_000_000_000),
+    ]
+    result = _search_model(models, "qwen 3b")
+    assert result.id == "org/Qwen3-3B-GGUF"
+
+
+def test_search_model_size_tiebreak_falls_back_to_downloads():
+    """When two models are equally close in size, prefer the one with more downloads."""
+    models = [
+        _make_model(
+            "org/Qwen3-8B-A-GGUF", downloads=100, parameter_count=8_000_000_000
+        ),
+        _make_model(
+            "org/Qwen3-8B-B-GGUF", downloads=500, parameter_count=8_000_000_000
+        ),
+    ]
+    result = _search_model(models, "qwen 7b")
+    assert result.id == "org/Qwen3-8B-B-GGUF"
+
+
+def test_search_model_unknown_param_count_ranks_after_known():
+    """Models with parameter_count=0 should rank after models with known sizes."""
+    models = [
+        _make_model("org/Qwen3-Unknown-GGUF", downloads=9999, parameter_count=0),
+        _make_model("org/Qwen3-7B-GGUF", downloads=10, parameter_count=7_000_000_000),
+    ]
+    result = _search_model(models, "qwen 7b")
+    assert result.id == "org/Qwen3-7B-GGUF"
+
+
 def test_pick_gguf_variant_by_preference():
     variants = [
         GGUFVariant(filename="q2.gguf", quant_type="Q2_K", file_size_bytes=1000),
