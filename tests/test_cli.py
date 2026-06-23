@@ -10,6 +10,7 @@ from whichllm.cli import (
     _apply_memory_budgets,
     _apply_gpu_overrides,
     _auto_min_params_for_profile,
+    _extract_id_size_b,
     _fill_missing_published_at,
     _format_fetch_error,
     _generate_chat_script,
@@ -733,6 +734,34 @@ def test_search_model_unknown_param_count_ranks_after_known():
     ]
     result = _search_model(models, "qwen 7b")
     assert result.id == "org/Qwen3-7B-GGUF"
+
+
+@pytest.mark.parametrize(
+    "model_id, expected",
+    [
+        ("org/Qwen3-8B-GGUF", 8.0),
+        ("org/Qwen3.5-9B-NVFP4", 9.0),
+        ("org/Qwen3-30B-A3B-GGUF", 30.0),
+        ("org/SmolLM-500M", 0.5),
+        ("org/TinyModel-1.7B-Chat", 1.7),
+        ("org/Llama-3.1-8B-Instruct", 8.0),
+        ("org/NoSizeLabel-GGUF", None),
+    ],
+)
+def test_extract_id_size_b(model_id, expected):
+    assert _extract_id_size_b(model_id) == expected
+
+
+def test_search_model_7b_prefers_id_label_over_param_count():
+    """'qwen 7b' should not pick a 9B-labeled repo even if its param count is closer."""
+    models = [
+        _make_model(
+            "org/Qwen3.5-9B-NVFP4", downloads=500, parameter_count=6_600_000_000
+        ),
+        _make_model("org/Qwen3-8B-GGUF", downloads=100, parameter_count=8_000_000_000),
+    ]
+    result = _search_model(models, "qwen 7b")
+    assert result.id == "org/Qwen3-8B-GGUF"
 
 
 def test_pick_gguf_variant_by_preference():

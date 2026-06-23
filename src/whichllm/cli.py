@@ -889,6 +889,24 @@ def _parse_size_tokens(
     return remaining, size_b
 
 
+_ID_SIZE_RE = re.compile(r"(?:^|[-_/])(\d+(?:\.\d+)?)(b|m)(?:[-_.]|$)", re.IGNORECASE)
+
+
+def _extract_id_size_b(model_id: str) -> float | None:
+    """Extract the size label from a model ID string, in billions.
+
+    Scans for patterns like '7B', '1.7B', '500M' at word boundaries in the
+    model ID.  Returns the first match converted to billions, or None.
+    """
+    for m in _ID_SIZE_RE.finditer(model_id):
+        value = float(m.group(1))
+        if value <= 0:
+            continue
+        unit = m.group(2).lower()
+        return value if unit == "b" else value / 1000.0
+    return None
+
+
 def _size_compatible(model: ModelInfo, size_b: float) -> bool:
     """Check whether a model's parameter count is compatible with a query size.
 
@@ -937,13 +955,24 @@ def _search_model(models: list, model_name: str):
         raise typer.Exit(code=1)
 
     if size_b is not None:
-        matches.sort(
-            key=lambda m: (
-                0 if m.parameter_count > 0 else 1,
-                abs(m.parameter_count / 1e9 - size_b) if m.parameter_count > 0 else 0,
+
+        def _sort_key(m: ModelInfo) -> tuple:
+            id_size = _extract_id_size_b(m.id)
+            has_id_size = id_size is not None
+            id_dist = abs(id_size - size_b) if has_id_size else float("inf")
+            pc_dist = (
+                abs(m.parameter_count / 1e9 - size_b)
+                if m.parameter_count > 0
+                else float("inf")
+            )
+            return (
+                0 if (has_id_size or m.parameter_count > 0) else 1,
+                id_dist,
+                pc_dist,
                 -m.downloads,
             )
-        )
+
+        matches.sort(key=_sort_key)
     else:
         matches.sort(key=lambda m: m.downloads, reverse=True)
     model = matches[0]
