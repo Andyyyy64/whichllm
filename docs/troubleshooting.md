@@ -330,6 +330,23 @@ Try a known public GGUF model first:
 whichllm run "qwen 2.5 1.5b gguf"
 ```
 
+## Hugging Face API access fails or needs a mirror
+
+whichllm uses the Hugging Face API to fetch model metadata. If direct access to
+`huggingface.co` fails in your network, set `HF_ENDPOINT` to a compatible
+endpoint root:
+
+```powershell
+$env:HF_ENDPOINT = "https://huggingface.co"
+whichllm --refresh
+```
+
+```bash
+HF_ENDPOINT="https://huggingface.co" whichllm --refresh
+```
+
+Do not include `/api` in `HF_ENDPOINT`; whichllm adds that path internally.
+
 ## How much disk space does `run` need?
 
 Normal ranking commands do not download model weights. They cache Hugging Face

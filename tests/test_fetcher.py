@@ -1,14 +1,104 @@
 """Tests for model metadata normalization in fetcher."""
 
+import asyncio
+
+import httpx
+
+import whichllm.models.fetcher as fetcher
 from whichllm.models.fetcher import (
     _extract_hf_eval_score,
     _extract_published_at,
+    _hf_api_url,
     _normalize_param_count,
     _parse_model,
     dicts_to_models,
     models_to_dicts,
 )
 from whichllm.models.types import ModelInfo
+
+
+def test_hf_api_url_uses_default_endpoint(monkeypatch):
+    monkeypatch.delenv("HF_ENDPOINT", raising=False)
+
+    assert _hf_api_url("models") == "https://huggingface.co/api/models"
+
+
+def test_hf_api_url_respects_hf_endpoint(monkeypatch):
+    monkeypatch.setenv("HF_ENDPOINT", "https://hf-mirror.example")
+
+    assert _hf_api_url("models/Qwen/Qwen3-8B") == (
+        "https://hf-mirror.example/api/models/Qwen/Qwen3-8B"
+    )
+
+
+def test_hf_api_url_strips_trailing_slash(monkeypatch):
+    monkeypatch.setenv("HF_ENDPOINT", "https://hf-mirror.example/")
+
+    assert _hf_api_url("/models") == "https://hf-mirror.example/api/models"
+
+
+def test_hf_api_url_rejects_empty_endpoint(monkeypatch):
+    monkeypatch.setenv("HF_ENDPOINT", " ")
+
+    try:
+        _hf_api_url("models")
+    except ValueError as exc:
+        assert "HF_ENDPOINT must not be empty" in str(exc)
+    else:
+        raise AssertionError("expected empty HF_ENDPOINT to raise")
+
+
+def test_hf_api_url_rejects_endpoint_without_scheme(monkeypatch):
+    monkeypatch.setenv("HF_ENDPOINT", "hf-mirror.example")
+
+    try:
+        _hf_api_url("models")
+    except ValueError as exc:
+        assert "HF_ENDPOINT must start with http:// or https://" in str(exc)
+    else:
+        raise AssertionError("expected invalid HF_ENDPOINT to raise")
+
+
+def test_fetch_models_respects_hf_endpoint(monkeypatch):
+    monkeypatch.setenv("HF_ENDPOINT", "https://hf-mirror.example")
+    urls: list[str] = []
+
+    async def fake_get_with_retries(client, url: str, **kwargs):
+        urls.append(url)
+        request = httpx.Request("GET", url)
+        if "/models/" in url:
+            return httpx.Response(404, request=request)
+        return httpx.Response(200, json=[], request=request)
+
+    monkeypatch.setattr(fetcher, "get_with_retries", fake_get_with_retries)
+
+    models = asyncio.run(fetcher.fetch_models(limit=1, include_vision=False))
+
+    assert models == []
+    assert urls
+    assert all(url.startswith("https://hf-mirror.example/api/") for url in urls)
+    assert "https://hf-mirror.example/api/models" in urls
+    assert not any(url.startswith("https://huggingface.co/api/") for url in urls)
+
+
+def test_fetch_model_published_at_respects_hf_endpoint(monkeypatch):
+    monkeypatch.setenv("HF_ENDPOINT", "https://hf-mirror.example")
+    urls: list[str] = []
+
+    async def fake_get(self, url: str, **kwargs):
+        urls.append(url)
+        return httpx.Response(
+            200,
+            json={"createdAt": "2026-06-22T00:00:00.000Z"},
+            request=httpx.Request("GET", url),
+        )
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", fake_get)
+
+    result = asyncio.run(fetcher.fetch_model_published_at(["Qwen/Qwen3-8B"]))
+
+    assert result == {"Qwen/Qwen3-8B": "2026-06-22T00:00:00.000Z"}
+    assert urls == ["https://hf-mirror.example/api/models/Qwen/Qwen3-8B"]
 
 
 def test_normalize_param_count_for_quantized_repo_uses_size_hint():

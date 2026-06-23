@@ -39,6 +39,12 @@ Common options:
 | `--ram-budget` | Cap RAM available for partial offload. Accepts `available`, byte values like `8GB`, or percentages like `50%` |
 | `--version` | Print the installed package version |
 
+Environment variables:
+
+| Variable | Meaning |
+| --- | --- |
+| `HF_ENDPOINT` | Hugging Face endpoint root used for whichllm's own model metadata API calls. Example: `https://huggingface.co` or a compatible mirror root |
+
 `--fit any` is the default. It can include full-GPU, partial-offload, and
 CPU-only candidates when they are runnable. `--fit gpu`, `--fit full-gpu`, and
 `--gpu-only` keep only rows whose `fit_type` is `full_gpu`.

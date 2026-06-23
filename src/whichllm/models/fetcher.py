@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
 import statistics
 
@@ -15,7 +16,7 @@ from whichllm.models.types import GGUFVariant, ModelInfo
 
 logger = logging.getLogger(__name__)
 
-HF_API_BASE = "https://huggingface.co/api"
+_DEFAULT_HF_ENDPOINT = "https://huggingface.co"
 _GGUF_SPLIT_RE = re.compile(r"-(\d{5})-of-(\d{5})\.gguf$", re.IGNORECASE)
 _GENERAL_EVAL_KEYWORDS = (
     "mmlu",
@@ -29,6 +30,17 @@ _GENERAL_EVAL_KEYWORDS = (
     "ceval",
     "cmmlu",
 )
+
+
+def _hf_api_url(path: str) -> str:
+    raw_endpoint = os.environ.get("HF_ENDPOINT")
+    endpoint = _DEFAULT_HF_ENDPOINT if raw_endpoint is None else raw_endpoint.strip()
+    if not endpoint:
+        raise ValueError("HF_ENDPOINT must not be empty")
+    if not endpoint.startswith(("http://", "https://")):
+        raise ValueError("HF_ENDPOINT must start with http:// or https://")
+    endpoint = endpoint.rstrip("/")
+    return f"{endpoint}/api/{path.lstrip('/')}"
 
 
 def _extract_published_at(data: dict) -> str | None:
@@ -595,7 +607,7 @@ async def fetch_models(
             ],
         }
         logger.debug(f"Fetching models from HF API (limit={limit})")
-        resp = await get_with_retries(client, f"{HF_API_BASE}/models", params=params)
+        resp = await get_with_retries(client, _hf_api_url("models"), params=params)
         resp.raise_for_status()
         data_list = resp.json()
         for data in data_list:
@@ -619,9 +631,7 @@ async def fetch_models(
             ],
         }
         logger.debug("Fetching GGUF models from HF API")
-        resp = await get_with_retries(
-            client, f"{HF_API_BASE}/models", params=gguf_params
-        )
+        resp = await get_with_retries(client, _hf_api_url("models"), params=gguf_params)
         resp.raise_for_status()
         gguf_data_list = resp.json()
 
@@ -650,7 +660,7 @@ async def fetch_models(
         }
         logger.debug("Fetching recent GGUF models from HF API")
         resp = await get_with_retries(
-            client, f"{HF_API_BASE}/models", params=recent_params
+            client, _hf_api_url("models"), params=recent_params
         )
         resp.raise_for_status()
         recent_data_list = resp.json()
@@ -686,7 +696,7 @@ async def fetch_models(
             )
             try:
                 resp = await get_with_retries(
-                    client, f"{HF_API_BASE}/models", params=trending_params
+                    client, _hf_api_url("models"), params=trending_params
                 )
                 resp.raise_for_status()
                 trending_data_list = resp.json()
@@ -785,7 +795,7 @@ async def fetch_models(
             try:
                 resp = await get_with_retries(
                     client,
-                    f"{HF_API_BASE}/models/{model_id}",
+                    _hf_api_url(f"models/{model_id}"),
                     params={
                         "expand[]": [
                             "config",
@@ -833,7 +843,7 @@ async def fetch_models(
                 }
                 logger.debug(f"Fetching {pipeline_tag} models from HF API")
                 resp = await get_with_retries(
-                    client, f"{HF_API_BASE}/models", params=mm_params
+                    client, _hf_api_url("models"), params=mm_params
                 )
                 resp.raise_for_status()
                 mm_data_list = resp.json()
@@ -939,7 +949,7 @@ async def fetch_model_published_at(model_ids: list[str]) -> dict[str, str]:
     async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
         tasks = [
             client.get(
-                f"{HF_API_BASE}/models/{model_id}",
+                _hf_api_url(f"models/{model_id}"),
                 params={"expand[]": ["createdAt", "lastModified"]},
             )
             for model_id in unique_ids
