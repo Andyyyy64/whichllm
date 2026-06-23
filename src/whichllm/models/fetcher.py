@@ -206,35 +206,6 @@ _SWA_ARCH_ALIASES: dict[str, str] = {
     "cohere2": "cohere2",
 }
 
-# Last-resort fallback keyed by a model-name token, for GGUF-only repos that
-# expose neither an HF config nor GGUF architecture metadata. Matched only as a
-# delimited token in the model name, and only when no *other* base-architecture
-# family is named (to avoid mislabeling merges/finetunes). Kept deliberately
-# small and precise — a false positive here would under-count VRAM.
-_SWA_ID_HINTS: tuple[tuple[str, str], ...] = (
-    ("gemma-3", "gemma3"),
-    ("gemma-2", "gemma2"),
-    ("gpt-oss", "gpt_oss"),
-    ("command-r7b", "cohere2"),
-)
-
-# Other base families that, if named in a model id, make an id-hint match
-# ambiguous (e.g. a "gemma-3 distilled from llama" merge) — bail conservatively.
-_CONFLICTING_ARCH_TOKENS: tuple[str, ...] = (
-    "llama",
-    "qwen",
-    "mistral",
-    "mixtral",
-    "phi",
-    "deepseek",
-    "yi",
-    "falcon",
-    "internlm",
-    "baichuan",
-    "glm",
-)
-
-
 def _swa_key_from_arch(arch: str | None) -> str | None:
     """Resolve an arch string (model_type / class / gguf metadata) to a key."""
     if not arch:
@@ -248,25 +219,15 @@ def _swa_key_from_arch(arch: str | None) -> str | None:
     return None
 
 
-def _swa_key_from_id(model_id: str) -> str | None:
-    """Boundary-aware, conflict-guarded model-id fallback (see _SWA_ID_HINTS)."""
-    name = model_id.split("/")[-1].lower()
-    for hint, key in _SWA_ID_HINTS:
-        if re.search(rf"(?<![a-z0-9]){re.escape(hint)}(?![a-z0-9])", name):
-            family = key.split("_")[0].rstrip("0123456789")  # gemma3 -> gemma
-            if any(tok in name for tok in _CONFLICTING_ARCH_TOKENS if tok != family):
-                return None
-            return key
-    return None
-
-
 def _swa_arch_key(config: dict, model_id: str, gguf_arch: str | None) -> str | None:
     """Identify the SWA architecture key for a model, or None if not honored.
 
-    Prefers authoritative sources — the raw HF config ``model_type``/
+    Relies on authoritative metadata only — the raw HF config ``model_type``/
     ``architectures`` (not the normalized architecture string, which collapses
-    gemma2 and gemma3 into "gemma") and the GGUF metadata architecture — before
-    a narrow, conflict-guarded model-id fallback for config-less GGUF repos.
+    gemma2 and gemma3 into "gemma") and the GGUF metadata architecture. When
+    none of these are present the model is left unhonored (full-context
+    estimate) rather than guessed at from the model id, since a false positive
+    would under-count VRAM.
     """
     model_type = config.get("model_type")
     key = _swa_key_from_arch(model_type if isinstance(model_type, str) else None)
@@ -279,11 +240,7 @@ def _swa_arch_key(config: dict, model_id: str, gguf_arch: str | None) -> str | N
         if key:
             return key
 
-    key = _swa_key_from_arch(gguf_arch)
-    if key:
-        return key
-
-    return _swa_key_from_id(model_id)
+    return _swa_key_from_arch(gguf_arch)
 
 
 def _resolve_sliding_window(

@@ -517,8 +517,13 @@ def test_parse_model_sliding_window_from_gguf_metadata():
     assert parsed.sliding_window_global_ratio == 1.0 / 6.0
 
 
-def test_parse_model_sliding_window_from_id_hint_when_no_metadata():
-    """With neither config nor GGUF arch, fall back to a boundary-matched hint."""
+def test_parse_model_sliding_window_unset_without_metadata():
+    """With neither HF config nor GGUF arch metadata, SWA stays unhonored.
+
+    Detection is limited to authoritative metadata; a GGUF-only repo whose id
+    merely names an SWA family keeps the conservative full-context estimate
+    rather than being guessed at from the id.
+    """
     parsed = _parse_model(
         {
             "id": "TheBloke/gemma-2-9b-it-GGUF",
@@ -530,41 +535,8 @@ def test_parse_model_sliding_window_from_id_hint_when_no_metadata():
         }
     )
     assert parsed is not None
-    assert parsed.sliding_window == 4096
-    assert parsed.sliding_window_global_ratio == 0.5
-
-
-def test_parse_model_id_hint_ignores_merge_with_other_base():
-    """A merge/finetune that names another base arch must NOT get a fake window."""
-    parsed = _parse_model(
-        {
-            "id": "someorg/llama3-gemma-2-distill-merge",
-            "config": {},
-            "gguf": {},
-            "safetensors": {"total": 8_000_000_000},
-            "siblings": [],
-            "cardData": {},
-        }
-    )
-    assert parsed is not None
     assert parsed.sliding_window is None
     assert parsed.sliding_window_global_ratio is None
-
-
-def test_parse_model_id_hint_requires_token_boundary():
-    """A substring buried inside another token must not trigger the hint."""
-    parsed = _parse_model(
-        {
-            "id": "someorg/notagemma-2x-model",
-            "config": {},
-            "gguf": {},
-            "safetensors": {"total": 8_000_000_000},
-            "siblings": [],
-            "cardData": {},
-        }
-    )
-    assert parsed is not None
-    assert parsed.sliding_window is None
 
 
 def test_models_cache_roundtrip_keeps_sliding_window():
