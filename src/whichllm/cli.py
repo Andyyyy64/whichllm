@@ -65,9 +65,7 @@ def _validate_gpu_flags(
         console.print("[red]Error:[/] --cpu-only and --gpu are mutually exclusive.")
         raise typer.Exit(code=1)
     if cpu_only and (vram is not None or bandwidth is not None):
-        console.print(
-            "[red]Error:[/] --cpu-only cannot be used with GPU overrides."
-        )
+        console.print("[red]Error:[/] --cpu-only cannot be used with GPU overrides.")
         raise typer.Exit(code=1)
     if vram is not None and vram <= 0:
         console.print("[red]Error:[/] --vram must be greater than 0.")
