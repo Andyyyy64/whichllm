@@ -123,6 +123,33 @@ def test_ram_budget_caps_shared_memory_gpu_fit_pool():
     assert result.vram_available_bytes == 8 * _GiB
 
 
+def test_shared_memory_manual_vram_override_caps_available_gpu_memory():
+    model = _make_model(8_000_000_000)
+    variant = _make_variant(4_000_000_000)
+    hw = HardwareInfo(
+        gpus=[
+            GPUInfo(
+                name="Intel UHD Graphics",
+                vendor="intel",
+                vram_bytes=1 * _GiB,
+                shared_memory=True,
+                vram_overridden=True,
+            )
+        ],
+        cpu_name="Intel CPU",
+        cpu_cores=8,
+        ram_bytes=32 * _GiB,
+        disk_free_bytes=100 * _GiB,
+        os="linux",
+    )
+
+    result = check_compatibility(model, variant, hw)
+
+    assert result.can_run is True
+    assert result.vram_available_bytes == 1 * _GiB
+    assert result.fit_type == "cpu_only"
+
+
 def test_shared_memory_amd_apu_uses_system_memory_pool():
     model = _make_model(120_000_000_000)
     variant = _make_variant(55_000_000_000)

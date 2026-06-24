@@ -23,6 +23,7 @@ from whichllm.cli import (
     _resolve_speed_filter,
     _search_model,
     _validate_evidence,
+    _validate_gpu_flags,
     app,
 )
 from whichllm.utils import _current_version
@@ -99,6 +100,125 @@ def test_apply_gpu_overrides_accepts_multiple_simulated_gpus():
     assert len(hw.gpus) == 2
     assert all(gpu.vendor == "nvidia" for gpu in hw.gpus)
     assert all(gpu.vram_bytes == 24 * 1024**3 for gpu in hw.gpus)
+
+
+def test_validate_gpu_flags_allows_detected_vram_override():
+    _validate_gpu_flags(cpu_only=False, gpu=None, vram=8.0, bandwidth=None)
+
+
+def test_validate_gpu_flags_rejects_non_positive_overrides():
+    with pytest.raises(Exit):
+        _validate_gpu_flags(cpu_only=False, gpu=None, vram=0, bandwidth=None)
+    with pytest.raises(Exit):
+        _validate_gpu_flags(cpu_only=False, gpu=None, vram=None, bandwidth=-1)
+
+
+def test_validate_gpu_flags_rejects_gpu_index_with_simulated_gpu():
+    with pytest.raises(Exit):
+        _validate_gpu_flags(
+            cpu_only=False,
+            gpu=["RTX 4090"],
+            vram=24.0,
+            bandwidth=None,
+            gpu_index=0,
+        )
+
+
+def test_apply_gpu_overrides_updates_detected_shared_memory_gpu():
+    hw = HardwareInfo(
+        gpus=[
+            GPUInfo(
+                name="Intel UHD Graphics",
+                vendor="intel",
+                vram_bytes=0,
+                shared_memory=True,
+                memory_bandwidth_gbps=None,
+            )
+        ],
+        cpu_name="CPU",
+        cpu_cores=8,
+        ram_bytes=32 * 1024**3,
+        disk_free_bytes=100 * 1024**3,
+        os="linux",
+    )
+
+    _apply_gpu_overrides(hw, cpu_only=False, gpu=None, vram=6.0, bandwidth=88.5)
+
+    assert hw.gpus[0].vram_bytes == 6 * 1024**3
+    assert hw.gpus[0].usable_vram_bytes is None
+    assert hw.gpus[0].memory_bandwidth_gbps == 88.5
+    assert hw.gpus[0].shared_memory is True
+    assert hw.gpus[0].vram_overridden is True
+
+
+def test_apply_gpu_overrides_updates_selected_detected_gpu_only():
+    hw = HardwareInfo(
+        gpus=[
+            GPUInfo(
+                name="NVIDIA RTX 4060",
+                vendor="nvidia",
+                vram_bytes=8 * 1024**3,
+                memory_bandwidth_gbps=272.0,
+            ),
+            GPUInfo(
+                name="Intel UHD Graphics",
+                vendor="intel",
+                vram_bytes=0,
+                shared_memory=True,
+            ),
+        ],
+        cpu_name="CPU",
+        cpu_cores=8,
+        ram_bytes=32 * 1024**3,
+        disk_free_bytes=100 * 1024**3,
+        os="linux",
+    )
+
+    _apply_gpu_overrides(
+        hw, cpu_only=False, gpu=None, vram=4.0, bandwidth=60.0, gpu_index=1
+    )
+
+    assert hw.gpus[0].vram_bytes == 8 * 1024**3
+    assert hw.gpus[0].memory_bandwidth_gbps == 272.0
+    assert hw.gpus[1].vram_bytes == 4 * 1024**3
+    assert hw.gpus[1].memory_bandwidth_gbps == 60.0
+    assert hw.gpus[1].vram_overridden is True
+
+
+def test_apply_gpu_overrides_requires_gpu_index_for_multiple_detected_gpus():
+    hw = HardwareInfo(
+        gpus=[
+            GPUInfo(name="GPU 0", vendor="nvidia", vram_bytes=8 * 1024**3),
+            GPUInfo(name="GPU 1", vendor="intel", vram_bytes=0, shared_memory=True),
+        ],
+        cpu_name="CPU",
+        cpu_cores=8,
+        ram_bytes=32 * 1024**3,
+        disk_free_bytes=100 * 1024**3,
+        os="linux",
+    )
+
+    with pytest.raises(Exit):
+        _apply_gpu_overrides(hw, cpu_only=False, gpu=None, vram=4.0)
+
+
+def test_apply_gpu_overrides_updates_simulated_gpu_bandwidth():
+    hw = HardwareInfo(gpus=[], ram_bytes=32 * 1024**3, os="linux")
+
+    _apply_gpu_overrides(
+        hw, cpu_only=False, gpu=["Unknown GPU"], vram=4.0, bandwidth=72.0
+    )
+
+    assert len(hw.gpus) == 1
+    assert hw.gpus[0].vram_bytes == 4 * 1024**3
+    assert hw.gpus[0].memory_bandwidth_gbps == 72.0
+
+
+def test_apply_gpu_overrides_rejects_override_without_gpu():
+    hw = HardwareInfo(gpus=[], ram_bytes=32 * 1024**3, os="linux")
+
+    with pytest.raises(Exit):
+        _apply_gpu_overrides(hw, cpu_only=False, gpu=None, vram=4.0)
 
 
 def test_include_vision_candidates_by_profile():
