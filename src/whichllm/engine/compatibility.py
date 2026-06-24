@@ -23,7 +23,7 @@ def _gpu_available_memory(
     vram_bytes = (
         gpu.usable_vram_bytes if gpu.usable_vram_bytes is not None else gpu.vram_bytes
     )
-    if gpu.shared_memory and vram_bytes < 2 * _GiB:
+    if gpu.shared_memory and vram_bytes < 2 * _GiB and not gpu.vram_overridden:
         return usable_ram
     if gpu.shared_memory and ram_budget_active:
         return min(vram_bytes, usable_ram)
@@ -31,7 +31,7 @@ def _gpu_available_memory(
 
 
 def _uses_shared_system_pool(gpu: GPUInfo) -> bool:
-    return gpu.shared_memory and gpu.vram_bytes < 2 * _GiB
+    return gpu.shared_memory and gpu.vram_bytes < 2 * _GiB and not gpu.vram_overridden
 
 
 def _is_vulkan_only_gpu(gpu: GPUInfo) -> bool:

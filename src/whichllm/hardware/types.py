@@ -14,6 +14,7 @@ class GPUInfo:
     rocm_version: str | None = None
     memory_bandwidth_gbps: float | None = None  # from lookup table
     shared_memory: bool = False
+    vram_overridden: bool = False
 
 
 @dataclass

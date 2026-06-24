@@ -270,6 +270,7 @@ def create_synthetic_gpu(name: str, vram_override_gb: float | None = None) -> GP
             vram_bytes=int(vram_gb * _GiB),
             memory_bandwidth_gbps=bandwidth,
             shared_memory=True,
+            vram_overridden=vram_override_gb is not None,
         )
 
     spec = _lookup_dbgpu(name)
@@ -315,4 +316,5 @@ def create_synthetic_gpu(name: str, vram_override_gb: float | None = None) -> GP
         compute_capability=compute_cap,
         memory_bandwidth_gbps=bandwidth,
         shared_memory=amd_shared_memory_apu,
+        vram_overridden=vram_override_gb is not None,
     )

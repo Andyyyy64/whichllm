@@ -57,13 +57,32 @@ def _validate_gpu_flags(
     cpu_only: bool,
     gpu: list[str] | None,
     vram: float | None,
+    bandwidth: float | None = None,
+    gpu_index: int | None = None,
 ) -> None:
     """Validate mutual exclusivity of GPU-related flags."""
     if cpu_only and gpu:
         console.print("[red]Error:[/] --cpu-only and --gpu are mutually exclusive.")
         raise typer.Exit(code=1)
-    if vram is not None and not gpu:
-        console.print("[red]Error:[/] --vram requires --gpu.")
+    if cpu_only and (vram is not None or bandwidth is not None):
+        console.print(
+            "[red]Error:[/] --cpu-only cannot be used with GPU overrides."
+        )
+        raise typer.Exit(code=1)
+    if vram is not None and vram <= 0:
+        console.print("[red]Error:[/] --vram must be greater than 0.")
+        raise typer.Exit(code=1)
+    if bandwidth is not None and bandwidth <= 0:
+        console.print("[red]Error:[/] --bandwidth must be greater than 0.")
+        raise typer.Exit(code=1)
+    if gpu_index is not None and gpu_index < 0:
+        console.print("[red]Error:[/] --gpu-index must be 0 or greater.")
+        raise typer.Exit(code=1)
+    if gpu_index is not None and gpu:
+        console.print("[red]Error:[/] --gpu-index only applies to detected GPUs.")
+        raise typer.Exit(code=1)
+    if gpu_index is not None and vram is None and bandwidth is None:
+        console.print("[red]Error:[/] --gpu-index requires --vram or --bandwidth.")
         raise typer.Exit(code=1)
 
 
@@ -262,6 +281,8 @@ def _apply_gpu_overrides(
     cpu_only: bool,
     gpu: list[str] | None,
     vram: float | None,
+    bandwidth: float | None = None,
+    gpu_index: int | None = None,
 ) -> HardwareInfo:
     """Replace hardware.gpus based on CLI flags."""
     if cpu_only:
@@ -274,6 +295,43 @@ def _apply_gpu_overrides(
         except ValueError as e:
             console.print(f"[red]Error:[/] {e}")
             raise typer.Exit(code=1)
+        if bandwidth is not None:
+            if len(hardware.gpus) != 1:
+                console.print(
+                    "[red]Error:[/] --bandwidth currently supports exactly one "
+                    "simulated GPU."
+                )
+                raise typer.Exit(code=1)
+            hardware.gpus[0].memory_bandwidth_gbps = bandwidth
+    elif vram is not None or bandwidth is not None:
+        if not hardware.gpus:
+            console.print(
+                "[red]Error:[/] --vram/--bandwidth requires a detected GPU or --gpu."
+            )
+            raise typer.Exit(code=1)
+        if gpu_index is None:
+            if len(hardware.gpus) > 1:
+                console.print(
+                    "[red]Error:[/] --gpu-index is required when overriding "
+                    "detected hardware with multiple GPUs."
+                )
+                raise typer.Exit(code=1)
+            target_gpu = hardware.gpus[0]
+        else:
+            if gpu_index >= len(hardware.gpus):
+                console.print(
+                    f"[red]Error:[/] --gpu-index {gpu_index} is out of range "
+                    f"for {len(hardware.gpus)} detected GPU(s)."
+                )
+                raise typer.Exit(code=1)
+            target_gpu = hardware.gpus[gpu_index]
+
+        if vram is not None:
+            target_gpu.vram_bytes = int(vram * _GiB)
+            target_gpu.usable_vram_bytes = None
+            target_gpu.vram_overridden = True
+        if bandwidth is not None:
+            target_gpu.memory_bandwidth_gbps = bandwidth
     return hardware
 
 
@@ -451,7 +509,20 @@ def main(
         help="Simulate GPU(s), e.g. 'RTX 4090', '2x RTX 4090', or repeat --gpu",
     ),
     vram: Optional[float] = typer.Option(
-        None, "--vram", help="Override VRAM in GB (requires --gpu)"
+        None,
+        "--vram",
+        help="Override simulated GPU VRAM or detected GPU usable VRAM in GB",
+    ),
+    bandwidth: Optional[float] = typer.Option(
+        None,
+        "--bandwidth",
+        "--ram-bandwidth",
+        help="Override GPU/RAM bandwidth in GB/s",
+    ),
+    gpu_index: Optional[int] = typer.Option(
+        None,
+        "--gpu-index",
+        help="Detected GPU index to override when multiple GPUs are present",
     ),
     vram_headroom: str = typer.Option(
         "auto",
@@ -468,7 +539,7 @@ def main(
     if ctx.invoked_subcommand is not None:
         return
 
-    _validate_gpu_flags(cpu_only, gpu, vram)
+    _validate_gpu_flags(cpu_only, gpu, vram, bandwidth, gpu_index)
     _validate_output_flags(json_output, markdown_output)
     profile = _validate_profile(profile)
     evidence_mode = _resolve_evidence_mode(evidence, direct)
@@ -508,7 +579,7 @@ def main(
         # Step 1: Detect hardware
         task = progress.add_task("Detecting hardware...", total=None)
         hardware = detect_hardware()
-        _apply_gpu_overrides(hardware, cpu_only, gpu, vram)
+        _apply_gpu_overrides(hardware, cpu_only, gpu, vram, bandwidth, gpu_index)
         _apply_memory_budgets(
             hardware, vram_headroom=vram_headroom, ram_budget=ram_budget
         )
@@ -1345,11 +1416,24 @@ def hardware(
         help="Simulate GPU(s), e.g. 'RTX 4090', '2x RTX 4090', or repeat --gpu",
     ),
     vram: Optional[float] = typer.Option(
-        None, "--vram", help="Override VRAM in GB (requires --gpu)"
+        None,
+        "--vram",
+        help="Override simulated GPU VRAM or detected GPU usable VRAM in GB",
+    ),
+    bandwidth: Optional[float] = typer.Option(
+        None,
+        "--bandwidth",
+        "--ram-bandwidth",
+        help="Override GPU/RAM bandwidth in GB/s",
+    ),
+    gpu_index: Optional[int] = typer.Option(
+        None,
+        "--gpu-index",
+        help="Detected GPU index to override when multiple GPUs are present",
     ),
 ):
     """Show detected hardware information only."""
-    _validate_gpu_flags(cpu_only, gpu, vram)
+    _validate_gpu_flags(cpu_only, gpu, vram, bandwidth, gpu_index)
 
     from rich.progress import Progress, SpinnerColumn, TextColumn
 
@@ -1364,7 +1448,7 @@ def hardware(
     ) as progress:
         task = progress.add_task("Detecting hardware...", total=None)
         hw = detect_hardware()
-        _apply_gpu_overrides(hw, cpu_only, gpu, vram)
+        _apply_gpu_overrides(hw, cpu_only, gpu, vram, bandwidth, gpu_index)
         progress.remove_task(task)
 
     console.print()
