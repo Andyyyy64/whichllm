@@ -34,7 +34,9 @@ Common options:
 | `--refresh` | Ignore caches and fetch models/benchmarks again |
 | `--cpu-only` | Ignore GPUs and rank for CPU-only use |
 | `--gpu` | Simulate GPU(s) by name. Accepts repeated flags, comma-separated values, and count shorthand |
-| `--vram` | Override simulated GPU VRAM in GB. Requires `--gpu` |
+| `--vram` | Override simulated GPU VRAM or detected GPU usable VRAM in GB |
+| `--bandwidth`, `--ram-bandwidth` | Override GPU/RAM bandwidth in GB/s |
+| `--gpu-index` | Detected GPU index to override when multiple GPUs are present |
 | `--vram-headroom` | Reserve per-GPU memory for runtime overhead. Default: `auto`. Accepts `none`, byte values like `1.5GB`, or percentages like `10%` |
 | `--ram-budget` | Cap RAM available for partial offload. Accepts `available`, byte values like `8GB`, or percentages like `50%` |
 | `--version` | Print the installed package version |
@@ -59,6 +61,10 @@ and `?` markers still refer to estimate confidence, not speed quality.
 checks, so near-edge recommendations are less likely to overflow in tools such
 as LM Studio. Use `--vram-headroom none` to restore the raw detected VRAM.
 `--ram-budget available` caps offload planning to current available RAM.
+For detected iGPU or unified-memory systems, use `--vram` and
+`--bandwidth` / `--ram-bandwidth` to override the automatically detected
+usable memory and bandwidth. If multiple GPUs are detected, add `--gpu-index`
+with the GPU number from `whichllm hardware`.
 
 Examples:
 
@@ -66,6 +72,8 @@ Examples:
 whichllm
 whichllm --gpu "RTX 4090"
 whichllm --gpu "RTX 5060 Ti" --vram 16
+whichllm --vram 8 --ram-bandwidth 68
+whichllm --gpu-index 1 --vram 8 --bandwidth 68
 whichllm --gpu "2x RTX 4090"
 whichllm --gpu "RTX 4090" --gpu "RTX 3090"
 whichllm --gpu "RTX 4090, RTX 3090"
@@ -121,6 +129,7 @@ whichllm hardware
 whichllm hardware --cpu-only
 whichllm hardware --gpu "Apple M3 Max"
 whichllm hardware --gpu "RTX 3060" --vram 12
+whichllm hardware --vram 8 --bandwidth 68
 whichllm hardware --gpu "4x RTX 4090"
 ```
 

@@ -143,7 +143,21 @@ whichllm --gpu "RTX 5060 Ti" --vram 16
 whichllm hardware --gpu "Unknown GPU" --vram 24
 ```
 
-`--vram` requires `--gpu`.
+For detected integrated or unified-memory GPUs, use `--vram` and
+`--bandwidth` / `--ram-bandwidth` to override the automatically detected usable
+capacity and memory bandwidth:
+
+```bash
+whichllm --vram 8 --ram-bandwidth 68
+whichllm hardware --vram 8 --bandwidth 68
+```
+
+If multiple GPUs are detected, pass `--gpu-index` to choose the GPU shown by
+`whichllm hardware`:
+
+```bash
+whichllm --gpu-index 1 --vram 8 --ram-bandwidth 68
+```
 
 By default, whichllm applies a small automatic VRAM headroom before fit checks.
 This avoids recommending models that only fit on paper but overflow in runtimes

@@ -48,8 +48,19 @@ whichllm --gpu "RTX 4090" --gpu "RTX 3090"
 Use `--vram` when the GPU name has multiple memory variants or is not in the
 database.
 
-`--vram` only applies to a single simulated GPU. For multi-GPU simulation, use
-known GPU names and omit `--vram`.
+For detected iGPU or unified-memory systems, override the usable GPU memory and
+bandwidth directly:
+
+```bash
+whichllm hardware --vram 8 --ram-bandwidth 68
+whichllm --vram 8 --bandwidth 68
+```
+
+If `whichllm hardware` lists multiple GPUs, add `--gpu-index` with the GPU
+number from that output.
+
+`--vram` only applies to one simulated or detected GPU. For multi-GPU
+simulation, use known GPU names and omit `--vram`.
 
 ## `--cpu-only` conflicts with `--gpu`
 
@@ -66,16 +77,17 @@ whichllm --cpu-only
 whichllm --gpu "RTX 4090"
 ```
 
-## `--vram` requires `--gpu`
+## `--vram` / `--bandwidth` needs a GPU
 
-`--vram` is an override for a simulated GPU. It does not change detected
-hardware by itself.
-
-Use:
+These overrides need either a detected GPU or a simulated GPU:
 
 ```bash
+whichllm --vram 8 --ram-bandwidth 68
 whichllm --gpu "RTX 3060" --vram 12
 ```
+
+If no GPU is detected, use `--gpu` to simulate one or check the detection steps
+above.
 
 ## No compatible models found
 

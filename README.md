@@ -56,6 +56,9 @@ whichllm
 # Pretend you have a specific GPU
 whichllm --gpu "RTX 4090"
 
+# Override detected iGPU/unified-memory limits
+whichllm --vram 8 --ram-bandwidth 68
+
 # Only show models that fit fully in GPU VRAM
 whichllm --gpu-only
 whichllm --fit gpu
@@ -232,6 +235,8 @@ whichllm --gpu "RTX 4090"
 whichllm --gpu "RTX 5090"
 # Specify variant
 whichllm --gpu "RTX 5060 16"
+# Override detected iGPU/unified-memory limits
+whichllm --vram 8 --ram-bandwidth 68
 # Simulate multiple GPUs
 whichllm --gpu "2x RTX 4090"
 whichllm --gpu "RTX 4090" --gpu "RTX 3090"
