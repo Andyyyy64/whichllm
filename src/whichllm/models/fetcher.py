@@ -206,6 +206,7 @@ _SWA_ARCH_ALIASES: dict[str, str] = {
     "cohere2": "cohere2",
 }
 
+
 def _swa_key_from_arch(arch: str | None) -> str | None:
     """Resolve an arch string (model_type / class / gguf metadata) to a key."""
     if not arch:
