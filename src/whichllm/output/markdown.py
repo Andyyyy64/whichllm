@@ -58,6 +58,12 @@ def _format_markdown_params(result: CompatibilityResult) -> str:
     return params
 
 
+def _format_markdown_model(result: CompatibilityResult) -> str:
+    if not result.artifact_model:
+        return result.model.id
+    return f"[{result.model.id}](https://huggingface.co/{result.artifact_model.id})"
+
+
 def _markdown_table(headers: list[str], rows: list[list[str]]) -> str:
     lines = [
         "| " + " | ".join(headers) + " |",
@@ -107,7 +113,7 @@ def display_markdown(
         rows = [
             [
                 str(index),
-                result.model.id,
+                _format_markdown_model(result),
                 _format_markdown_params(result),
                 effective_quant_type(result.model, result.gguf_variant),
                 _format_markdown_fit(result.fit_type),
@@ -133,7 +139,7 @@ def display_markdown(
         rows = [
             [
                 str(index),
-                result.model.id,
+                _format_markdown_model(result),
                 _format_markdown_params(result),
                 effective_quant_type(result.model, result.gguf_variant),
                 _format_published_at(result.model.published_at),

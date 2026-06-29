@@ -1268,6 +1268,71 @@ def test_json_output_includes_benchmark_source_and_confidence():
     entry = data["models"][0]
     assert data["hardware"]["ram_budget_bytes"] == 32 * 1024**3
     assert data["hardware"]["budget_notes"] == ["RAM budget: 32.0 GB"]
+    assert entry["artifact_repo_id"] is None
+    assert entry["artifact_filename"] is None
     assert entry["benchmark_status"] == "estimated"
     assert entry["benchmark_source"] == "line_interp"
     assert entry["benchmark_confidence"] == 0.34
+
+
+def test_json_output_includes_resolved_artifact_fields():
+    """display_json should expose the actual GGUF repo/file when resolved."""
+    import json as json_mod
+    from io import StringIO
+
+    from rich.console import Console
+
+    from whichllm.output.display import display_json
+
+    model = ModelInfo(
+        id="Qwen/Qwen3-4B-Thinking-2507",
+        family_id="qwen3-4b-thinking",
+        name="Qwen3-4B-Thinking-2507",
+        parameter_count=4_000_000_000,
+    )
+    artifact = ModelInfo(
+        id="MaziyarPanahi/Qwen3-4B-Thinking-2507-GGUF",
+        family_id="qwen3-4b-thinking",
+        name="Qwen3-4B-Thinking-2507-GGUF",
+        parameter_count=4_000_000_000,
+    )
+    result = CompatibilityResult(
+        model=model,
+        gguf_variant=GGUFVariant(
+            filename="Qwen3-4B-Thinking-2507.Q3_K_M.gguf",
+            quant_type="Q3_K_M",
+            file_size_bytes=2_000_000_000,
+        ),
+        artifact_model=artifact,
+        artifact_variant=GGUFVariant(
+            filename="Qwen3-4B-Thinking-2507-Q3_K_M.gguf",
+            quant_type="Q3_K_M",
+            file_size_bytes=2_000_000_000,
+        ),
+        can_run=True,
+        vram_required_bytes=3_000_000_000,
+        vram_available_bytes=8_000_000_000,
+    )
+    hw = HardwareInfo(
+        gpus=[],
+        cpu_name="Test CPU",
+        cpu_cores=8,
+        ram_bytes=64 * 1024**3,
+        disk_free_bytes=500 * 1024**3,
+        os="linux",
+    )
+
+    buf = StringIO()
+    import whichllm.output._console as console_mod
+
+    orig_console = console_mod.console
+    console_mod.console = Console(file=buf, force_terminal=False)
+    try:
+        display_json([result], hw)
+    finally:
+        console_mod.console = orig_console
+
+    entry = json_mod.loads(buf.getvalue().strip())["models"][0]
+    assert entry["model_id"] == "Qwen/Qwen3-4B-Thinking-2507"
+    assert entry["artifact_repo_id"] == "MaziyarPanahi/Qwen3-4B-Thinking-2507-GGUF"
+    assert entry["artifact_filename"] == "Qwen3-4B-Thinking-2507-Q3_K_M.gguf"

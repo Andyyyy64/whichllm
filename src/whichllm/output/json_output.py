@@ -38,6 +38,10 @@ def display_json(results: list[CompatibilityResult], hardware: HardwareInfo) -> 
             {
                 "rank": i,
                 "model_id": r.model.id,
+                "artifact_repo_id": r.artifact_model.id if r.artifact_model else None,
+                "artifact_filename": (
+                    r.artifact_variant.filename if r.artifact_variant else None
+                ),
                 "parameter_count": r.model.parameter_count,
                 "published_at": r.model.published_at,
                 "downloads": r.model.downloads,

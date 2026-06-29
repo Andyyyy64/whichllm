@@ -12,7 +12,12 @@ from rich.console import Console
 
 from whichllm.constants import _GiB
 from whichllm.hardware.types import HardwareInfo
-from whichllm.models.types import GGUFVariant, ModelInfo
+from whichllm.models.artifacts import (
+    attach_resolved_artifacts,
+    find_gguf_variant,
+    resolve_ranked_gguf_artifact,
+)
+from whichllm.models.types import ModelInfo
 from whichllm.utils import _current_version, CONTEXT_LENGTH
 
 app = typer.Typer(
@@ -22,6 +27,9 @@ app = typer.Typer(
     invoke_without_command=True,
 )
 console = Console()
+
+_find_gguf_variant = find_gguf_variant
+_resolve_ranked_gguf_for_run = resolve_ranked_gguf_artifact
 
 
 def _run_async(coro):
@@ -671,6 +679,7 @@ def main(
 
         # 上位候補の公開日時が欠けている場合のみ補完して表示品質を上げる
         if results:
+            attach_resolved_artifacts(results, all_models, quant_filter=quant)
             try:
                 if _fill_missing_published_at(
                     all_models, results, fetch_model_published_at
@@ -1073,81 +1082,6 @@ def _pick_gguf_variant(model, quant_filter: str | None = None):
     return model.gguf_variants[0]
 
 
-def _find_gguf_variant(model: ModelInfo, quant_type: str) -> GGUFVariant | None:
-    for variant in model.gguf_variants:
-        if variant.quant_type.upper() == quant_type.upper():
-            return variant
-    return None
-
-
-def _is_same_model_family(candidate: ModelInfo, selected: ModelInfo) -> bool:
-    if candidate.id == selected.id:
-        return True
-    if candidate.family_id and selected.family_id:
-        if candidate.family_id == selected.family_id:
-            return True
-    if candidate.base_model and candidate.base_model == selected.id:
-        return True
-    if selected.base_model and selected.base_model == candidate.id:
-        return True
-    if candidate.base_model and selected.base_model:
-        return candidate.base_model == selected.base_model
-    return False
-
-
-def _has_compatible_parameter_count(candidate: ModelInfo, selected: ModelInfo) -> bool:
-    if candidate.parameter_count <= 0 or selected.parameter_count <= 0:
-        return True
-    smaller = min(candidate.parameter_count, selected.parameter_count)
-    larger = max(candidate.parameter_count, selected.parameter_count)
-    return (larger / smaller) <= 2.0
-
-
-def _resolve_ranked_gguf_for_run(
-    selected_model: ModelInfo,
-    selected_variant: GGUFVariant,
-    models: list[ModelInfo],
-    quant_filter: str | None = None,
-) -> tuple[ModelInfo, GGUFVariant] | None:
-    """Resolve a ranked GGUF candidate to a real GGUF repo/file for `run`.
-
-    The ranker may synthesize GGUF variants for official safetensors-only repos
-    so they can be scored realistically. `run` cannot execute those synthetic
-    files directly, so it must find a real GGUF sibling before launching.
-    """
-    desired_quant = quant_filter or selected_variant.quant_type
-
-    if selected_model.gguf_variants:
-        variant = _find_gguf_variant(selected_model, desired_quant)
-        return (selected_model, variant) if variant else None
-
-    candidates: list[tuple[bool, int, int, ModelInfo, GGUFVariant]] = []
-    for model in models:
-        if not model.gguf_variants or not _is_same_model_family(model, selected_model):
-            continue
-        if not _has_compatible_parameter_count(model, selected_model):
-            continue
-        variant = _find_gguf_variant(model, desired_quant)
-        if not variant:
-            continue
-        explicit_base = model.base_model == selected_model.id
-        candidates.append(
-            (
-                explicit_base,
-                model.downloads,
-                model.likes,
-                model,
-                variant,
-            )
-        )
-
-    if not candidates:
-        return None
-
-    _, _, _, model, variant = max(candidates, key=lambda item: item[:3])
-    return model, variant
-
-
 def _resolve_model_deps(model, variant) -> tuple[list[str], str]:
     """Determine pip dependencies and script type for a model.
 
@@ -1350,7 +1284,7 @@ def run(
         model = None
         for ranked in results:
             if ranked.gguf_variant:
-                resolved = _resolve_ranked_gguf_for_run(
+                resolved = resolve_ranked_gguf_artifact(
                     ranked.model,
                     ranked.gguf_variant,
                     all_models,

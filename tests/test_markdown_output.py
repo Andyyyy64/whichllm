@@ -127,6 +127,35 @@ def test_display_markdown_details_table_uses_metadata_columns():
     )
 
 
+def test_display_markdown_links_to_resolved_artifact_repo():
+    result = _result(1)
+    result.model.id = "Qwen/Qwen3-4B-Thinking-2507"
+    result.gguf_variant = GGUFVariant(
+        filename="Qwen3-4B-Thinking-2507.Q3_K_M.gguf",
+        quant_type="Q3_K_M",
+        file_size_bytes=2 * 1024**3,
+    )
+    result.artifact_model = ModelInfo(
+        id="MaziyarPanahi/Qwen3-4B-Thinking-2507-GGUF",
+        family_id=result.model.family_id,
+        name="Qwen3-4B-Thinking-2507-GGUF",
+        parameter_count=result.model.parameter_count,
+    )
+    result.artifact_variant = GGUFVariant(
+        filename="Qwen3-4B-Thinking-2507-Q3_K_M.gguf",
+        quant_type="Q3_K_M",
+        file_size_bytes=2 * 1024**3,
+    )
+
+    output = _capture_markdown([result], _hardware(), show_status=False)
+
+    assert (
+        "[Qwen/Qwen3-4B-Thinking-2507]"
+        "(https://huggingface.co/MaziyarPanahi/Qwen3-4B-Thinking-2507-GGUF)" in output
+    )
+    assert "Q3_K_M" in output
+
+
 def test_display_markdown_empty_results():
     output = _capture_markdown(
         [],

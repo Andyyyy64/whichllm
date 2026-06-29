@@ -26,3 +26,5 @@ class CompatibilityResult:
     context_fits: bool = True  # False when known model max context < requested
     uses_multi_gpu: bool = False
     multi_gpu_effective_vram_bytes: int | None = None
+    artifact_model: ModelInfo | None = None
+    artifact_variant: GGUFVariant | None = None

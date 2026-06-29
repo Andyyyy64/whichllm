@@ -38,6 +38,12 @@ def _detect_specializations(model_id: str) -> list[str]:
     return tags
 
 
+def _artifact_model_id(result: CompatibilityResult) -> str:
+    if result.artifact_model:
+        return result.artifact_model.id
+    return result.model.id
+
+
 def _top_pick_confidence(results: list[CompatibilityResult]) -> tuple[str, str]:
     """Return confidence level and explanation for top pick."""
     top = results[0]
@@ -227,7 +233,7 @@ def display_ranking(
             params_str += f" ({_format_params(r.model.parameter_count_active)}a)"
 
         model_link = Text(r.model.id, style="cyan")
-        model_link.stylize(f"link https://huggingface.co/{r.model.id}")
+        model_link.stylize(f"link https://huggingface.co/{_artifact_model_id(r)}")
         if show_status:
             model_link.append(f"\n{params_str}", style="dim")
 
