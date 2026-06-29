@@ -19,6 +19,7 @@ from whichllm.models.benchmark_sources.aa_index import (
     _canonical_name,
     _decode_rsc_blob,
     _extract_aa_pairs_from_html,
+    _normalize_aa_index,
     fetch_aa_index_scores,
     get_aa_curated_fallback,
 )
@@ -112,3 +113,25 @@ def test_fetch_maps_canonical_names_and_merges_over_fallback():
 def test_fetch_raises_when_no_records_found():
     with pytest.raises(ExtractionFailed):
         _run_fetch("<html><body>nothing to see</body></html>")
+
+
+def test_live_normalization_anchors_on_reworked_scale():
+    # Retuned bounds keep the calibration: the top mapped open model lands ~95
+    # and an 8B-class model lands ~40, on AA's reworked (compressed) raw scale.
+    assert _normalize_aa_index(44.3) == pytest.approx(95, abs=0.5)  # top open model
+    assert _normalize_aa_index(7.4) == pytest.approx(40, abs=0.5)  # 8B-class
+    # Values below the floor clamp at 0 (raw is always positive in practice).
+    assert _normalize_aa_index(-100.0) == 0.0
+    assert _normalize_aa_index(60.0) == 100.0
+
+
+def test_curated_fallback_normalizes_refreshed_snapshot():
+    # The snapshot holds refreshed raw AA values; get_aa_curated_fallback maps
+    # them onto the 0-100 scale with the retuned bounds.
+    fb = get_aa_curated_fallback()
+    assert fb["deepseek-ai/DeepSeek-V4-Pro"] == pytest.approx(95, abs=0.5)
+    assert fb["Qwen/Qwen3-8B"] == 40.0
+    assert fb["XiaomiMiMo/MiMo-V2.5-Pro"] == pytest.approx(92, abs=0.5)
+    # Reworked scale ranks the strong 8B above the small/old peers.
+    assert fb["Qwen/Qwen3-8B"] > fb["Qwen/Qwen3-0.6B"]
+    assert all(0.0 < v <= 100.0 for v in fb.values())

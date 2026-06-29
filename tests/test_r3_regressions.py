@@ -21,7 +21,7 @@ from whichllm.engine.ranker import rank_models
 from whichllm.hardware.gpu_simulator import create_synthetic_gpu
 from whichllm.hardware.types import GPUInfo, HardwareInfo
 from whichllm.models.benchmark import _params_compatible
-from whichllm.models.benchmark_sources.aa_index import AA_INDEX_FALLBACK_2026_05_14
+from whichllm.models.benchmark_sources.aa_index import AA_INDEX_FALLBACK_2026_06_29
 from whichllm.models.benchmark_sources.livebench import LIVEBENCH_RAW_DATA
 from whichllm.models.benchmark_sources.vision import VISION_FALLBACK_2026_05
 from whichllm.models.grouper import group_models
@@ -269,7 +269,7 @@ class TestReasoningSurface:
 
     def test_qwq32b_has_curated_benchmarks(self):
         assert "Qwen/QwQ-32B" in LIVEBENCH_RAW_DATA
-        assert "Qwen/QwQ-32B" in AA_INDEX_FALLBACK_2026_05_14
+        assert "Qwen/QwQ-32B" in AA_INDEX_FALLBACK_2026_06_29
 
     def test_r1_distill_family_has_curated_benchmarks(self):
         for mid in (
@@ -278,7 +278,7 @@ class TestReasoningSurface:
             "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
         ):
             assert mid in LIVEBENCH_RAW_DATA, f"{mid} missing in LB"
-            assert mid in AA_INDEX_FALLBACK_2026_05_14, f"{mid} missing in AA"
+            assert mid in AA_INDEX_FALLBACK_2026_06_29, f"{mid} missing in AA"
 
     def test_qwq32b_surfaces_with_curated_score(self):
         qwq = ModelInfo(

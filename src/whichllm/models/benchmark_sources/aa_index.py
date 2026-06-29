@@ -87,106 +87,121 @@ AA_NAME_TO_HF_IDS: dict[str, list[str]] = {
     ],
 }
 
-# AA Intelligence Index typically ranges 12..56 for open-weights models
-# (2026-Q2 frontier tops out at 54; 8B-class lands ~30). The 12..56 window
-# is anchored by a two-point fit: top open frontier (Kimi K2.6 = 54) → 95
-# normalized, and 8B-class (Qwen3-8B = 30) → 40 normalized. This keeps a
-# strong 8B model competitive with frozen-OLLB 7B scores while still leaving
-# clear headroom for frontier-tier models.
-_AA_INDEX_MIN = 12.5
-_AA_INDEX_MAX = 56.2
+# Bounds used to normalize raw AA index values onto the 0-100 scale the rest
+# of the ranking system uses. AA reworked their Intelligence Index in
+# 2026-Q2 and the open-weights distribution compressed sharply (top open model
+# ~44, 8B-class ~7, weakest mapped repos ~3). The window is anchored by the
+# same two-point fit as before: top open frontier (DeepSeek-V4-Pro = 44.3) → 95
+# normalized, and 8B-class (Qwen3-8B = 7.4) → 40 normalized. This keeps a strong
+# 8B model competitive with frozen-OLLB 7B scores while leaving headroom for
+# frontier-tier models. On the reworked scale that fit puts the floor below
+# zero; that is fine, live AA values are always positive and clamp at 0.
+_AA_INDEX_MIN = -19.4
+_AA_INDEX_MAX = 47.6
 
 AA_LEADERBOARD_URL = "https://artificialanalysis.ai/leaderboards/models"
 
-# Snapshot of the AA Intelligence Index (open-weights only) verified on
-# 2026-05-14 from artificialanalysis.ai. This is used as a fallback when the
-# live HTML scrape returns no results (e.g. because Next.js __NEXT_DATA__
-# format changes again). All entries map directly to HuggingFace model IDs
-# and are normalized through _normalize_aa_index().
-AA_INDEX_FALLBACK_2026_05_14: dict[str, float] = {
+# Snapshot of the AA Intelligence Index (open-weights only), refreshed on
+# 2026-06-29 from artificialanalysis.ai against their reworked index. Used as a
+# fallback when the live HTML scrape returns no results (e.g. because the
+# Next.js payload format changes again). Entries are raw AA index values,
+# normalized through _normalize_aa_index() in get_aa_curated_fallback().
+#
+# Entries marked "live" are real values from the reworked index. Entries marked
+# "peer" are models AA does not track; their raw value is set so that, under the
+# current bounds, they reproduce their previous normalized score (hand-estimated
+# LB-equivalents). On the reworked scale several peers fall below the index
+# floor and read as negative raw; that is an artifact of reusing the AA-index
+# field for non-AA estimates. _normalize_aa_index() clamps them at 0, so the
+# normalized output stays correct. (We could instead store this snapshot as
+# already-normalized 0-100 values, which would drop the negatives and decouple
+# the fallback from future bound retunes, but that is a larger change than this
+# issue calls for and is left for a follow-up if you want it.)
+AA_INDEX_FALLBACK_2026_06_29: dict[str, float] = {
     # Frontier MoE / very large
-    "moonshotai/Kimi-K2-Thinking": 50.0,
-    "moonshotai/Kimi-K2-Instruct": 47.0,
-    "XiaomiMiMo/MiMo-V2.5-Pro": 54.0,
-    "XiaomiMiMo/MiMo-V2.5": 49.0,
-    "deepseek-ai/DeepSeek-V4-Pro": 52.0,
-    "deepseek-ai/DeepSeek-V4-Flash": 47.0,
-    "deepseek-ai/DeepSeek-V3.2": 45.0,
-    "deepseek-ai/DeepSeek-V3.2-Exp": 44.0,
-    "deepseek-ai/DeepSeek-V3.1": 42.0,
-    "deepseek-ai/DeepSeek-V3-0324": 40.0,
-    "deepseek-ai/DeepSeek-V3": 38.0,
-    "deepseek-ai/DeepSeek-R1-0528": 48.0,
-    "deepseek-ai/DeepSeek-R1": 43.0,
-    "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B": 32.0,
-    "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": 26.0,
-    "deepseek-ai/DeepSeek-R1-Distill-Llama-8B": 20.0,
-    "Qwen/QwQ-32B": 36.0,
-    "Qwen/Qwen3-4B-Thinking-2507": 22.0,
-    "zai-org/GLM-5.1": 51.0,
-    "zai-org/GLM-5": 50.0,
-    "zai-org/GLM-5-FP8": 50.0,
-    "zai-org/GLM-5.1-FP8": 51.0,
-    "zai-org/GLM-4.7-Flash": 42.0,
-    "zai-org/GLM-4.6": 40.0,
-    "zai-org/GLM-4.5": 38.0,
-    "zai-org/GLM-4.5-Air": 36.0,
+    "moonshotai/Kimi-K2-Thinking": 32.7,  # live
+    "moonshotai/Kimi-K2-Instruct": 19.4,  # live
+    "XiaomiMiMo/MiMo-V2.5-Pro": 42.2,  # live
+    "XiaomiMiMo/MiMo-V2.5": 40.1,  # live
+    "deepseek-ai/DeepSeek-V4-Pro": 44.3,  # live
+    "deepseek-ai/DeepSeek-V4-Flash": 40.3,  # live
+    "deepseek-ai/DeepSeek-V3.2": 33.4,  # live
+    "deepseek-ai/DeepSeek-V3.2-Exp": 25.4,  # live
+    "deepseek-ai/DeepSeek-V3.1": 21.0,  # live
+    "deepseek-ai/DeepSeek-V3-0324": 10.4,  # live
+    "deepseek-ai/DeepSeek-V3": 10.4,  # live
+    "deepseek-ai/DeepSeek-R1-0528": 20.1,  # live
+    "deepseek-ai/DeepSeek-R1": 12.6,  # live
+    "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B": 10.5,  # peer
+    "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": 1.3,  # peer
+    "deepseek-ai/DeepSeek-R1-Distill-Llama-8B": -7.9,  # peer
+    "Qwen/QwQ-32B": 13.4,  # live
+    "Qwen/Qwen3-4B-Thinking-2507": -4.8,  # peer
+    "zai-org/GLM-5.1": 40.2,  # live
+    "zai-org/GLM-5": 39.5,  # live
+    "zai-org/GLM-5-FP8": 39.5,  # live
+    "zai-org/GLM-5.1-FP8": 40.2,  # live
+    "zai-org/GLM-4.7-Flash": 22.9,  # live
+    "zai-org/GLM-4.6": 25.1,  # live
+    "zai-org/GLM-4.5": 19.5,  # live
+    "zai-org/GLM-4.5-Air": 19.5,  # live
     # Qwen family
-    "Qwen/Qwen3.6-27B": 46.0,
-    "Qwen/Qwen3.5-397B-A17B": 45.0,
-    "Qwen/Qwen3-Next-80B-A3B-Instruct": 42.0,
-    "Qwen/Qwen3-235B-A22B": 41.0,
-    "Qwen/Qwen3-Coder-30B-A3B-Instruct": 38.0,
-    "Qwen/Qwen3-32B": 37.0,
-    "Qwen/Qwen3-14B": 33.0,
-    "Qwen/Qwen3-8B": 30.0,
-    "Qwen/Qwen3-4B-Instruct-2507": 28.0,
-    "Qwen/Qwen3-4B": 26.0,
-    "Qwen/Qwen3-1.7B": 20.0,
-    "Qwen/Qwen3-0.6B": 16.0,
+    "Qwen/Qwen3.6-27B": 32.0,  # peer
+    "Qwen/Qwen3.5-397B-A17B": 33.7,  # live
+    "Qwen/Qwen3-Next-80B-A3B-Instruct": 19.8,  # live
+    "Qwen/Qwen3-235B-A22B": 13.4,  # live
+    "Qwen/Qwen3-Coder-30B-A3B-Instruct": 19.7,  # peer
+    "Qwen/Qwen3-32B": 11.5,  # live
+    "Qwen/Qwen3-14B": 10.1,  # live
+    "Qwen/Qwen3-8B": 7.4,  # live
+    "Qwen/Qwen3-4B-Instruct-2507": 4.4,  # peer
+    "Qwen/Qwen3-4B": 1.3,  # peer
+    "Qwen/Qwen3-1.7B": -7.9,  # peer
+    "Qwen/Qwen3-0.6B": -14.0,  # peer
     # 8B-class peers (no AA tracking but realistic LB-equivalents)
-    "meta-llama/Llama-3.1-8B-Instruct": 22.0,
-    "meta-llama/Meta-Llama-3-8B-Instruct": 20.0,
-    "google/gemma-2-9b-it": 23.0,
-    "microsoft/Phi-4-mini-instruct": 24.0,
-    "mistralai/Mistral-7B-Instruct-v0.3": 20.0,
-    "Qwen/Qwen2.5-7B-Instruct": 22.0,
-    "Qwen/Qwen2.5-14B-Instruct": 26.0,
-    "Qwen/Qwen2.5-32B-Instruct": 30.0,
-    "Qwen/Qwen3-30B-A3B": 32.0,
+    "meta-llama/Llama-3.1-8B-Instruct": -4.8,  # peer
+    "meta-llama/Meta-Llama-3-8B-Instruct": -7.9,  # peer
+    "google/gemma-2-9b-it": -3.3,  # peer
+    "microsoft/Phi-4-mini-instruct": -1.8,  # peer
+    "mistralai/Mistral-7B-Instruct-v0.3": -7.9,  # peer
+    "Qwen/Qwen2.5-7B-Instruct": -4.8,  # peer
+    "Qwen/Qwen2.5-14B-Instruct": 1.3,  # peer
+    "Qwen/Qwen2.5-32B-Instruct": 7.4,  # peer
+    "Qwen/Qwen3-30B-A3B": 10.5,  # peer
     # Other major open releases
-    "openai/gpt-oss-120b": 41.0,
-    "openai/gpt-oss-20b": 34.0,
-    "meta-llama/Llama-4-Maverick-17B-128E-Instruct": 38.0,
-    "meta-llama/Llama-4-Scout-17B-16E-Instruct": 34.0,
-    "meta-llama/Llama-3.3-70B-Instruct": 33.0,
-    "google/gemma-4-31b-it": 38.0,
-    "google/gemma-4-26b-a4b-it": 36.0,
-    "google/gemma-3-27b-it": 33.0,
-    "google/gemma-3-12b-it": 30.0,
-    "microsoft/phi-4": 33.0,
-    "mistralai/Mistral-Large-Instruct-2411": 35.0,
-    "mistralai/Mistral-Small-3.2-24B-Instruct-2506": 32.0,
-    "mistralai/Mistral-Small-3.1-24B-Instruct-2503": 30.0,
-    "mistralai/Devstral-Small-2505": 33.0,
-    "MiniMaxAI/MiniMax-M2.5": 40.0,
-    "stepfun-ai/Step-3.5-Flash": 38.0,
-    "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16": 36.0,
-    "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16": 33.0,
+    "openai/gpt-oss-120b": 23.8,  # live
+    "openai/gpt-oss-20b": 14.9,  # live
+    "meta-llama/Llama-4-Maverick-17B-128E-Instruct": 14.3,  # live
+    "meta-llama/Llama-4-Scout-17B-16E-Instruct": 10.0,  # live
+    "meta-llama/Llama-3.3-70B-Instruct": 12.0,  # peer
+    "google/gemma-4-31b-it": 29.4,  # live
+    "google/gemma-4-26b-a4b-it": 25.7,  # live
+    "google/gemma-3-27b-it": 12.0,  # peer
+    "google/gemma-3-12b-it": 7.4,  # peer
+    "microsoft/phi-4": 4.9,  # live
+    "mistralai/Mistral-Large-Instruct-2411": 9.1,  # live
+    "mistralai/Mistral-Small-3.2-24B-Instruct-2506": 10.5,  # peer
+    "mistralai/Mistral-Small-3.1-24B-Instruct-2503": 7.4,  # peer
+    "mistralai/Devstral-Small-2505": 11.8,  # live
+    "MiniMaxAI/MiniMax-M2.5": 33.7,  # live
+    "stepfun-ai/Step-3.5-Flash": 19.7,  # peer
+    "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16": 16.6,  # peer
+    "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16": 12.0,  # peer
     # Correct IDs for OLMo / Granite / Codestral families (the earlier
     # forecast IDs like "OLMo-3-32B-Instruct" or "granite-4.1-30b-instruct"
     # never shipped publicly under those names).
-    "allenai/Olmo-3-7B-Instruct": 22.0,
-    "allenai/Olmo-3-1025-7B": 22.0,
-    "ibm-granite/granite-4.0-h-small": 30.0,
-    "ibm-granite/granite-4.0-h-tiny": 22.0,
-    "ibm-granite/granite-3.3-8b-instruct": 23.0,
-    "ibm-granite/granite-3.3-2b-instruct": 17.0,
-    "mistralai/Codestral-22B-v0.1": 28.0,
+    "allenai/Olmo-3-7B-Instruct": -4.8,  # peer
+    "allenai/Olmo-3-1025-7B": -4.8,  # peer
+    "ibm-granite/granite-4.0-h-small": 7.4,  # peer
+    "ibm-granite/granite-4.0-h-tiny": -4.8,  # peer
+    "ibm-granite/granite-3.3-8b-instruct": -3.3,  # peer
+    "ibm-granite/granite-3.3-2b-instruct": -12.5,  # peer
+    "mistralai/Codestral-22B-v0.1": 4.4,  # peer
 }
 
 
 def _normalize_aa_index(index: float) -> float:
+    """Normalize a raw AA index value onto the 0-100 scale."""
     if not isinstance(index, (int, float)):
         return 0.0
     span = _AA_INDEX_MAX - _AA_INDEX_MIN
@@ -358,13 +373,13 @@ async def fetch_aa_index_scores(client: httpx.AsyncClient) -> dict[str, float]:
 
 
 def get_aa_curated_fallback() -> dict[str, float]:
-    """Return the 2026-05-14 curated snapshot, normalized to the 0-100 scale.
+    """Return the 2026-06-29 curated snapshot, normalized to the 0-100 scale.
 
     Used whenever the live HTML scrape cannot extract data — for example
     when artificialanalysis.ai changes its Next.js payload shape.
     """
     result: dict[str, float] = {}
-    for hf_id, raw in AA_INDEX_FALLBACK_2026_05_14.items():
+    for hf_id, raw in AA_INDEX_FALLBACK_2026_06_29.items():
         normalized = _normalize_aa_index(raw)
         if normalized > 0:
             result[hf_id] = normalized
