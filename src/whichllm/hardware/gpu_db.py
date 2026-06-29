@@ -93,7 +93,11 @@ def _static_bandwidth(name: str) -> float | None:
     if not name:
         return None
     if "/" not in name:
-        return _substring_bandwidth(name)
+        bandwidth = _substring_bandwidth(name)
+        if bandwidth is not None:
+            return bandwidth
+        normalized = _normalize_detected_name(name)
+        return _substring_bandwidth(normalized) if normalized != name else None
     bracket = _BRACKET_RE.search(name)
     raw = bracket.group(1) if bracket else name
     for seg in raw.split("/"):

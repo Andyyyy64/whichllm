@@ -14,7 +14,13 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from dbgpu import GPUSpecification
 
-from whichllm.constants import AMD_SHARED_MEMORY_APU_MARKERS, GPU_BANDWIDTH, _GiB
+from whichllm.constants import (
+    AMD_SHARED_MEMORY_APU_MARKERS,
+    CURATED_GPU_SPECS,
+    GPU_BANDWIDTH,
+    CuratedGPUSpec,
+    _GiB,
+)
 from whichllm.hardware.types import GPUInfo
 
 logger = logging.getLogger(__name__)
@@ -102,6 +108,14 @@ def _lookup_static_bandwidth(name: str) -> float | None:
     for key in sorted(GPU_BANDWIDTH, key=len, reverse=True):
         if key.upper() in name_upper:
             return GPU_BANDWIDTH[key]
+    return None
+
+
+def _lookup_curated_spec(name: str) -> CuratedGPUSpec | None:
+    name_upper = name.upper()
+    for key in sorted(CURATED_GPU_SPECS, key=len, reverse=True):
+        if key.upper() in name_upper:
+            return CURATED_GPU_SPECS[key]
     return None
 
 
@@ -257,6 +271,7 @@ def create_synthetic_gpu(name: str, vram_override_gb: float | None = None) -> GP
     _last_suggestions.clear()
 
     amd_shared_memory_apu = _is_amd_shared_memory_apu(name)
+    curated = _lookup_curated_spec(name)
 
     # Apple Silicon short-circuit: dbgpu has no Apple entries, so we check
     # first to avoid fuzzy-matching "M1" against "Rage Mobility-M1".
@@ -280,6 +295,8 @@ def create_synthetic_gpu(name: str, vram_override_gb: float | None = None) -> GP
         vram_bytes = int(vram_override_gb * _GiB)
     elif spec is not None and spec.memory_size_gb:
         vram_bytes = int(spec.memory_size_gb * _GiB)
+    elif curated is not None:
+        vram_bytes = int(curated.vram_gb * _GiB)
     else:
         msg = f"Unknown GPU '{name}'."
         if _last_suggestions:
@@ -292,6 +309,8 @@ def create_synthetic_gpu(name: str, vram_override_gb: float | None = None) -> GP
     bandwidth: float | None = None
     if spec is not None and spec.memory_bandwidth_gb_s:
         bandwidth = spec.memory_bandwidth_gb_s
+    if bandwidth is None and curated is not None:
+        bandwidth = curated.memory_bandwidth_gbps
     if bandwidth is None:
         bandwidth = _lookup_static_bandwidth(name)
 
@@ -304,10 +323,17 @@ def create_synthetic_gpu(name: str, vram_override_gb: float | None = None) -> GP
     vendor = "nvidia"
     if spec is not None:
         vendor = _MANUFACTURER_TO_VENDOR.get(spec.manufacturer, "nvidia")
+    elif curated is not None:
+        vendor = curated.vendor
     elif amd_shared_memory_apu:
         vendor = "amd"
 
-    display_name = spec.name if spec is not None else name
+    if spec is not None:
+        display_name = spec.name
+    elif curated is not None:
+        display_name = curated.name
+    else:
+        display_name = name
 
     return GPUInfo(
         name=f"{display_name} (simulated)",
@@ -315,6 +341,6 @@ def create_synthetic_gpu(name: str, vram_override_gb: float | None = None) -> GP
         vram_bytes=vram_bytes,
         compute_capability=compute_cap,
         memory_bandwidth_gbps=bandwidth,
-        shared_memory=amd_shared_memory_apu,
+        shared_memory=curated.shared_memory if curated else amd_shared_memory_apu,
         vram_overridden=vram_override_gb is not None,
     )

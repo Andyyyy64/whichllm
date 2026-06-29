@@ -86,9 +86,9 @@ def test_resolve_variant_qualifier_is_preserved():
     assert 200 < bw < 400
 
 
-def test_resolve_unknown_gpu_returns_none_not_wrong_guess():
-    # Arc Pro B70 is not in dbgpu yet: better None than a fuzzy mismatch.
-    assert resolve_detected_bandwidth("Intel(R) Arc(TM) Pro B70 Graphics") is None
+def test_resolve_arc_pro_b70_uses_curated_value():
+    assert resolve_detected_bandwidth("Intel(R) Arc(TM) Pro B70 Graphics") == 608.0
+    assert resolve_detected_bandwidth("Battlemage G31 [Intel Graphics]") == 608.0
 
 
 def test_resolve_empty_name_returns_none():

@@ -1,12 +1,36 @@
 """Tests for benchmark lookup direct/inherited semantics."""
 
+import asyncio
+
+import whichllm.models.benchmark_sources as benchmark_sources
 from whichllm.models.benchmark import (
     _lineage_recency_factor,
     build_line_bucket_index,
     build_score_index,
+    fetch_benchmark_scores,
     lookup_benchmark,
     lookup_benchmark_evidence,
 )
+
+
+def test_fetch_benchmark_scores_disables_brotli_accept_encoding(monkeypatch):
+    encodings: list[str] = []
+
+    async def fake_source(client):
+        encodings.append(client.headers["accept-encoding"])
+        return {}
+
+    monkeypatch.setattr(
+        benchmark_sources, "fetch_leaderboard_with_fallback", fake_source
+    )
+    monkeypatch.setattr(benchmark_sources, "fetch_arena_scores", fake_source)
+    monkeypatch.setattr(benchmark_sources, "fetch_aa_index_scores", fake_source)
+    monkeypatch.setattr(benchmark_sources, "fetch_aider_polyglot_scores", fake_source)
+    monkeypatch.setattr(benchmark_sources, "fetch_vision_scores", fake_source)
+    monkeypatch.setattr(benchmark_sources, "get_livebench_data", lambda: {})
+
+    assert asyncio.run(fetch_benchmark_scores()) == {}
+    assert set(encodings) == {"gzip, deflate"}
 
 
 def test_lookup_benchmark_model_id_match_is_direct():

@@ -99,6 +99,14 @@ class TestKnownGPULookup:
         assert gpu.vendor == "nvidia"
         assert "(simulated)" in gpu.name
 
+    def test_intel_arc_pro_b70_curated_spec(self):
+        gpu = create_synthetic_gpu("Arc Pro B70")
+        assert gpu.name == "Intel Arc Pro B70 (simulated)"
+        assert gpu.vram_bytes == 32 * _GiB
+        assert gpu.vendor == "intel"
+        assert gpu.memory_bandwidth_gbps == 608.0
+        assert gpu.shared_memory is False
+
 
 class TestAppleSiliconAliases:
     @pytest.mark.parametrize(

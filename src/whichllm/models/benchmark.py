@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 import httpx
 
+from whichllm.models.http import DEFAULT_ACCEPT_ENCODING
 from whichllm.utils import _cache_dir, _current_version
 
 logger = logging.getLogger(__name__)
@@ -153,8 +154,14 @@ async def fetch_benchmark_scores() -> dict[str, float]:
         get_livebench_data,
     )
 
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-        client.headers["User-Agent"] = f"whichllm/{_current_version()}"
+    async with httpx.AsyncClient(
+        timeout=30.0,
+        follow_redirects=True,
+        headers={
+            "Accept-Encoding": DEFAULT_ACCEPT_ENCODING,
+            "User-Agent": f"whichllm/{_current_version()}",
+        },
+    ) as client:
         leaderboard_task = asyncio.create_task(fetch_leaderboard_with_fallback(client))
         arena_task = asyncio.create_task(fetch_arena_scores(client))
         aa_task = asyncio.create_task(fetch_aa_index_scores(client))

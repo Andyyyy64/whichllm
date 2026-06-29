@@ -62,9 +62,11 @@ def test_hf_api_url_rejects_endpoint_without_scheme(monkeypatch):
 def test_fetch_models_respects_hf_endpoint(monkeypatch):
     monkeypatch.setenv("HF_ENDPOINT", "https://hf-mirror.example")
     urls: list[str] = []
+    encodings: list[str] = []
 
     async def fake_get_with_retries(client, url: str, **kwargs):
         urls.append(url)
+        encodings.append(client.headers["accept-encoding"])
         request = httpx.Request("GET", url)
         if "/models/" in url:
             return httpx.Response(404, request=request)
@@ -79,14 +81,17 @@ def test_fetch_models_respects_hf_endpoint(monkeypatch):
     assert all(url.startswith("https://hf-mirror.example/api/") for url in urls)
     assert "https://hf-mirror.example/api/models" in urls
     assert not any(url.startswith("https://huggingface.co/api/") for url in urls)
+    assert set(encodings) == {"gzip, deflate"}
 
 
 def test_fetch_model_published_at_respects_hf_endpoint(monkeypatch):
     monkeypatch.setenv("HF_ENDPOINT", "https://hf-mirror.example")
     urls: list[str] = []
+    encodings: list[str] = []
 
     async def fake_get(self, url: str, **kwargs):
         urls.append(url)
+        encodings.append(self.headers["accept-encoding"])
         return httpx.Response(
             200,
             json={"createdAt": "2026-06-22T00:00:00.000Z"},
@@ -99,6 +104,7 @@ def test_fetch_model_published_at_respects_hf_endpoint(monkeypatch):
 
     assert result == {"Qwen/Qwen3-8B": "2026-06-22T00:00:00.000Z"}
     assert urls == ["https://hf-mirror.example/api/models/Qwen/Qwen3-8B"]
+    assert encodings == ["gzip, deflate"]
 
 
 def test_normalize_param_count_for_quantized_repo_uses_size_hint():

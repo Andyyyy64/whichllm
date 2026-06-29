@@ -1,6 +1,21 @@
-"""GPU bandwidth, NVIDIA compute capability, and AMD shared-memory APU markers."""
+"""GPU bandwidth, VRAM, NVIDIA compute capability, and GPU markers."""
+
+from __future__ import annotations
+
+from typing import NamedTuple
 
 _GiB = 1024**3
+
+
+class CuratedGPUSpec(NamedTuple):
+    """Small curated spec for GPUs missing or ambiguous in dbgpu."""
+
+    name: str
+    vendor: str
+    vram_gb: float
+    memory_bandwidth_gbps: float
+    shared_memory: bool = False
+
 
 AMD_SHARED_MEMORY_APU_MARKERS: tuple[str, ...] = (
     "STRIX HALO",
@@ -141,6 +156,9 @@ GPU_BANDWIDTH: dict[str, float] = {
     "MI300X": 5300.0,
     "MI250X": 3276.0,
     "MI210": 1638.0,
+    # Intel discrete GPUs
+    "Arc Pro B70": 608.0,
+    "Battlemage G31": 608.0,
     # Apple Silicon (unified memory bandwidth)
     "M1 Ultra": 800.0,
     "M1 Max": 400.0,
@@ -161,6 +179,25 @@ GPU_BANDWIDTH: dict[str, float] = {
     "M5 Max": 614.0,
     "M5 Pro": 307.0,
     "M5": 153.0,
+}
+
+CURATED_GPU_SPECS: dict[str, CuratedGPUSpec] = {
+    "Arc Pro B70": CuratedGPUSpec(
+        name="Intel Arc Pro B70",
+        vendor="intel",
+        vram_gb=32.0,
+        memory_bandwidth_gbps=608.0,
+    ),
+    "Battlemage G31": CuratedGPUSpec(
+        name="Battlemage G31 [Intel Graphics]",
+        vendor="intel",
+        vram_gb=32.0,
+        memory_bandwidth_gbps=608.0,
+    ),
+}
+
+INTEL_PCI_DEVICE_NAMES: dict[str, str] = {
+    "0xe223": "Battlemage G31 [Intel Graphics]",
 }
 
 # NVIDIA GPU compute capability lookup (substring match, case-insensitive)

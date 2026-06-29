@@ -13,8 +13,11 @@ from whichllm.data.framework import (
 from whichllm.data.gpu import (
     _GiB,
     AMD_SHARED_MEMORY_APU_MARKERS,
+    CURATED_GPU_SPECS,
+    CuratedGPUSpec,
     GPU_BANDWIDTH,
     GPU_MEMORY_CLOCK_VARIANTS,
+    INTEL_PCI_DEVICE_NAMES,
     NVIDIA_COMPUTE_CAPABILITY,
     VULKAN_ONLY_GPUS,
 )
@@ -32,9 +35,12 @@ from whichllm.data.quantization import (
 __all__ = [
     "_GiB",
     "AMD_SHARED_MEMORY_APU_MARKERS",
+    "CURATED_GPU_SPECS",
+    "CuratedGPUSpec",
     "FRAMEWORK_OVERHEAD_BYTES",
     "GPU_BANDWIDTH",
     "GPU_MEMORY_CLOCK_VARIANTS",
+    "INTEL_PCI_DEVICE_NAMES",
     "MIN_COMPUTE_CAPABILITY_OLLAMA",
     "MIN_COMPUTE_CAPABILITY_VLLM",
     "MODEL_GENERATION_BONUS_MAX",

@@ -11,7 +11,7 @@ import statistics
 import httpx
 
 from whichllm.constants import QUANT_BYTES_PER_WEIGHT
-from whichllm.models.http import get_with_retries
+from whichllm.models.http import DEFAULT_ACCEPT_ENCODING, get_with_retries
 from whichllm.models.types import GGUFVariant, ModelInfo
 
 logger = logging.getLogger(__name__)
@@ -717,7 +717,11 @@ async def fetch_models(
     """Fetch popular models from HuggingFace Hub."""
     models: list[ModelInfo] = []
 
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+    async with httpx.AsyncClient(
+        timeout=30.0,
+        follow_redirects=True,
+        headers={"Accept-Encoding": DEFAULT_ACCEPT_ENCODING},
+    ) as client:
         # Fetch top text-generation models
         params = {
             "pipeline_tag": "text-generation",
@@ -1076,7 +1080,11 @@ async def fetch_model_published_at(model_ids: list[str]) -> dict[str, str]:
     if not unique_ids:
         return {}
 
-    async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+    async with httpx.AsyncClient(
+        timeout=20.0,
+        follow_redirects=True,
+        headers={"Accept-Encoding": DEFAULT_ACCEPT_ENCODING},
+    ) as client:
         tasks = [
             client.get(
                 _hf_api_url(f"models/{model_id}"),

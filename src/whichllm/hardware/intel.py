@@ -6,6 +6,12 @@ import logging
 import subprocess
 from pathlib import Path
 
+from whichllm.constants import (
+    CURATED_GPU_SPECS,
+    INTEL_PCI_DEVICE_NAMES,
+    CuratedGPUSpec,
+    _GiB,
+)
 from whichllm.hardware.types import GPUInfo
 
 logger = logging.getLogger(__name__)
@@ -74,9 +80,19 @@ def _detect_from_sysfs(drm_path: Path = Path("/sys/class/drm")) -> list[str]:
             continue
 
         name = "Intel Integrated Graphics"
+        known_device = False
+        try:
+            device_id = (device / "device").read_text().strip().lower()
+            mapped_name = INTEL_PCI_DEVICE_NAMES.get(device_id)
+            if mapped_name:
+                name = mapped_name
+                known_device = True
+        except OSError:
+            pass
+
         try:
             product_name = (device / "product_name").read_text().strip()
-            if product_name:
+            if product_name and not known_device:
                 name = product_name
         except OSError:
             pass
@@ -87,16 +103,34 @@ def _detect_from_sysfs(drm_path: Path = Path("/sys/class/drm")) -> list[str]:
     return names
 
 
+def _lookup_curated_spec(name: str) -> CuratedGPUSpec | None:
+    name_upper = name.upper()
+    for key in sorted(CURATED_GPU_SPECS, key=len, reverse=True):
+        if key.upper() in name_upper:
+            return CURATED_GPU_SPECS[key]
+    return None
+
+
+def _gpu_info_from_name(name: str) -> GPUInfo:
+    curated = _lookup_curated_spec(name)
+    if curated is not None:
+        return GPUInfo(
+            name=name,
+            vendor=curated.vendor,
+            vram_bytes=int(curated.vram_gb * _GiB),
+            memory_bandwidth_gbps=curated.memory_bandwidth_gbps,
+            shared_memory=curated.shared_memory,
+        )
+    return GPUInfo(
+        name=name,
+        vendor="intel",
+        vram_bytes=0,
+        shared_memory=True,
+    )
+
+
 def detect_intel_gpus() -> list[GPUInfo]:
     """Detect Linux Intel iGPUs. Returns empty list on failure."""
     names = _detect_from_lspci() or _detect_from_sysfs()
 
-    return [
-        GPUInfo(
-            name=name,
-            vendor="intel",
-            vram_bytes=0,
-            shared_memory=True,
-        )
-        for name in names
-    ]
+    return [_gpu_info_from_name(name) for name in names]

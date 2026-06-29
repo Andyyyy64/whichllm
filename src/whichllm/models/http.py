@@ -6,6 +6,7 @@ import random
 import httpx
 
 RETRYABLE_STATUS_CODES = {408, 429, 500, 502, 503, 504}
+DEFAULT_ACCEPT_ENCODING = "gzip, deflate"
 
 
 async def get_with_retries(
