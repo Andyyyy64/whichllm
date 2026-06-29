@@ -151,8 +151,7 @@ def test_display_markdown_links_to_resolved_artifact_repo():
 
     assert (
         "[Qwen/Qwen3-4B-Thinking-2507]"
-        "(https://huggingface.co/MaziyarPanahi/Qwen3-4B-Thinking-2507-GGUF)"
-        in output
+        "(https://huggingface.co/MaziyarPanahi/Qwen3-4B-Thinking-2507-GGUF)" in output
     )
     assert "Q3_K_M" in output
 
