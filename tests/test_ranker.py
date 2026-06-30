@@ -190,6 +190,45 @@ def test_cpu_only_backend_filters_out_non_gguf_models():
     assert results[0].model.id == "Qwen/Qwen3-8B-GGUF"
 
 
+def _gguf_model(model_id: str, family_id: str, downloads: int) -> ModelInfo:
+    return ModelInfo(
+        id=model_id,
+        family_id=family_id,
+        name=model_id.split("/")[-1],
+        parameter_count=7_000_000_000,
+        downloads=downloads,
+        likes=downloads // 10,
+        gguf_variants=[
+            GGUFVariant(
+                filename=f"{family_id}-Q4_K_M.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=4_500_000_000,
+            ),
+        ],
+    )
+
+
+def test_rank_models_clamps_non_positive_top_n():
+    # Several distinct families so the full ranking has multiple entries; only
+    # then is the slice hazard observable.
+    hw = _make_hardware(vram_gb=24, bandwidth_gbps=300.0)
+    models = [
+        _gguf_model("org/Alpha-7B-GGUF", "alpha-7b", 1000),
+        _gguf_model("org/Beta-7B-GGUF", "beta-7b", 900),
+        _gguf_model("org/Gamma-7B-GGUF", "gamma-7b", 800),
+    ]
+
+    full = rank_models(models, hw, top_n=10)
+    assert len(full) >= 2  # guard is only meaningful with several results
+
+    # 0 and negative requests must yield nothing, never a slice-from-the-end
+    # subset: ``results[:-1]`` would otherwise return all-but-last.
+    assert rank_models(models, hw, top_n=0) == []
+    assert rank_models(models, hw, top_n=-1) == []
+    # Positive requests are unaffected.
+    assert len(rank_models(models, hw, top_n=2)) == 2
+
+
 def test_popularity_has_no_effect_with_direct_benchmark():
     model_low_pop = ModelInfo(
         id="Qwen/test-8b-lowpop",

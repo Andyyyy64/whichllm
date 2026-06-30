@@ -91,6 +91,32 @@ def _validate_output_flags(json_output: bool, markdown_output: bool) -> None:
         raise typer.Exit(code=1)
 
 
+def _validate_ranking_flags(
+    top: int,
+    min_speed: float | None,
+    min_params: float | None,
+) -> None:
+    """Validate ranking/filter flags that otherwise silently distort output.
+
+    Without these guards a non-positive ``--top`` reaches ``results[:top_n]`` in
+    :func:`whichllm.engine.ranker.rank_models`: ``--top 0`` returns no
+    recommendations at all, and a negative value slices from the end
+    (``results[:-5]``), silently returning a truncated, unrequested subset
+    instead of the count the user asked for. Negative ``--min-speed`` /
+    ``--min-params`` thresholds are likewise meaningless. Fail fast with a clear
+    message instead of producing misleading results.
+    """
+    if top < 1:
+        console.print("[red]Error:[/] --top must be 1 or greater.")
+        raise typer.Exit(code=1)
+    if min_speed is not None and min_speed < 0:
+        console.print("[red]Error:[/] --min-speed must be 0 or greater.")
+        raise typer.Exit(code=1)
+    if min_params is not None and min_params < 0:
+        console.print("[red]Error:[/] --min-params must be 0 or greater.")
+        raise typer.Exit(code=1)
+
+
 def _validate_profile(profile: str) -> str:
     """Validate ranking profile option."""
     valid = {"general", "coding", "vision", "math", "any"}
@@ -539,6 +565,7 @@ def main(
 
     _validate_gpu_flags(cpu_only, gpu, vram, bandwidth, gpu_index)
     _validate_output_flags(json_output, markdown_output)
+    _validate_ranking_flags(top, min_speed, min_params)
     profile = _validate_profile(profile)
     evidence_mode = _resolve_evidence_mode(evidence, direct)
     fit_filter = _resolve_fit_filter(fit, gpu_only)
@@ -815,6 +842,7 @@ def upgrade(
     from whichllm.output.display import display_upgrade, display_upgrade_json
 
     profile = _validate_profile(profile)
+    _validate_ranking_flags(top, None, None)
 
     with Progress(
         SpinnerColumn(),

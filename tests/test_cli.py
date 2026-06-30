@@ -581,6 +581,49 @@ def test_main_json_and_markdown_are_mutually_exclusive():
     assert "--json and --markdown are mutually exclusive" in result.stdout
 
 
+def test_main_top_zero_rejected():
+    result = CliRunner().invoke(app, ["--top", "0"])
+
+    assert result.exit_code == 1
+    assert "--top must be 1 or greater" in result.stdout
+
+
+def test_main_top_negative_rejected():
+    # ``results[:-5]`` would silently drop the best-ranked models.
+    result = CliRunner().invoke(app, ["--top=-5"])
+
+    assert result.exit_code == 1
+    assert "--top must be 1 or greater" in result.stdout
+
+
+def test_main_negative_min_speed_rejected():
+    result = CliRunner().invoke(app, ["--min-speed=-1"])
+
+    assert result.exit_code == 1
+    assert "--min-speed must be 0 or greater" in result.stdout
+
+
+def test_main_negative_min_params_rejected():
+    result = CliRunner().invoke(app, ["--min-params=-2"])
+
+    assert result.exit_code == 1
+    assert "--min-params must be 0 or greater" in result.stdout
+
+
+def test_validate_ranking_flags_accepts_valid_values():
+    # A valid combination must not raise (no recommendations are dropped).
+    cli_mod._validate_ranking_flags(top=10, min_speed=0.0, min_params=None)
+    cli_mod._validate_ranking_flags(top=1, min_speed=None, min_params=7.0)
+
+
+def test_upgrade_top_zero_rejected():
+    # The upgrade command shares the same --top -> results[:top_n] hazard.
+    result = CliRunner().invoke(app, ["upgrade", "RTX 4090", "--top", "0"])
+
+    assert result.exit_code == 1
+    assert "--top must be 1 or greater" in result.stdout
+
+
 def test_main_empty_gpu_only_result_shows_fit_message(monkeypatch):
     captured: dict[str, object] = {}
 
