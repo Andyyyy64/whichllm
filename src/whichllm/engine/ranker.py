@@ -877,4 +877,9 @@ def rank_models(
     if any(r.estimated_tok_per_sec >= 5.0 for r in results):
         results = [r for r in results if r.estimated_tok_per_sec >= 1.5]
 
-    return results[:top_n]
+    # Clamp top_n: a negative value would slice from the end
+    # (``results[:-5]``) and silently return a truncated, unrequested subset,
+    # while 0 legitimately yields an empty list. The CLI rejects non-positive
+    # --top, but guard here too so direct callers of this public helper never
+    # get a truncated ranking from a stray negative count.
+    return results[: max(top_n, 0)]
