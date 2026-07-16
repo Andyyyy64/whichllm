@@ -12,7 +12,13 @@ from whichllm.hardware.types import GPUInfo
 
 logger = logging.getLogger(__name__)
 
-_NVIDIA_UNIFIED_MEMORY_MARKERS = ("GB10", "DGX SPARK")
+_NVIDIA_UNIFIED_MEMORY_MARKERS = (
+    "GB10",           # Jetson Orin (32/64/128GB)
+    "DGX SPARK",      # Jetson Orin Nano/Nova
+    "JETSON AGX XAVIER",
+    "JETSON XAVIER NX",
+    "XAVIER",         # Catch-all for any Xavier variant
+)
 
 
 def _lookup_compute_capability(name: str) -> tuple[int, int] | None:
