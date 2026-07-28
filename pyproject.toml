@@ -48,11 +48,15 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/whichllm"]
 
+[tool.uv]
+required-version = "==0.11.33"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
 [dependency-groups]
 dev = [
+    "pyarrow>=23.0.1",
     "pytest>=8.0",
- "pyarrow>=23.0.1",
+    "ruff==0.15.22",
 ]
