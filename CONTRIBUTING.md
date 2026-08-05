@@ -7,13 +7,15 @@ Thanks for your interest in contributing! Here's how you can help.
 ```bash
 git clone https://github.com/Andyyyy64/whichllm.git
 cd whichllm
-uv sync --dev
+uv sync --locked --dev
 ```
 
-## Running Tests
+## Running Checks
 
 ```bash
-uv run pytest
+uv run --locked ruff check .
+uv run --locked ruff format --check .
+uv run --locked pytest
 ```
 
 ## How to Contribute
@@ -32,7 +34,7 @@ Open an issue describing the feature and why it would be useful.
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/your-feature`)
 3. Make your changes
-4. Run tests (`uv run pytest`)
+4. Run the checks above
 5. Submit a PR
 
 ### AI-assisted Contributions
