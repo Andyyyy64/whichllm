@@ -1140,15 +1140,25 @@ def test_resolve_ranked_synthetic_gguf_rejects_size_mismatch():
 # --------------- run/snippet command tests ---------------
 
 
-def test_run_exits_gracefully():
-    """run should fail gracefully (uv missing, or no model found)."""
+def test_run_requires_uv(monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda _: None)
+
     runner = CliRunner()
     result = runner.invoke(app, ["run", "some-model"])
-    if result.exit_code != 0:
-        assert any(
-            msg in result.stdout
-            for msg in ("uv is required", "No model found", "llama-cpp-python")
-        )
+
+    assert result.exit_code == 1
+    assert "uv is required" in result.stdout
+
+
+def test_run_no_model_found_exits_gracefully(monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/uv")
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [])
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["run", "some-model"])
+
+    assert result.exit_code == 1
+    assert "No model found" in result.stdout
 
 
 def test_transformers_chat_script_passes_tokenizer_mapping_to_generate():
