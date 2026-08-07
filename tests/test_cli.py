@@ -1,5 +1,7 @@
 """Tests for CLI helper logic."""
 
+import ast
+
 import httpx
 import pytest
 from typer import Exit
@@ -1140,15 +1142,25 @@ def test_resolve_ranked_synthetic_gguf_rejects_size_mismatch():
 # --------------- run/snippet command tests ---------------
 
 
-def test_run_exits_gracefully():
-    """run should fail gracefully (uv missing, or no model found)."""
+def test_run_requires_uv(monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda _: None)
+
     runner = CliRunner()
     result = runner.invoke(app, ["run", "some-model"])
-    if result.exit_code != 0:
-        assert any(
-            msg in result.stdout
-            for msg in ("uv is required", "No model found", "llama-cpp-python")
-        )
+
+    assert result.exit_code == 1
+    assert "uv is required" in result.stdout
+
+
+def test_run_no_model_found_exits_gracefully(monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/uv")
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [])
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["run", "some-model"])
+
+    assert result.exit_code == 1
+    assert "No model found" in result.stdout
 
 
 def test_transformers_chat_script_passes_tokenizer_mapping_to_generate():
@@ -1173,6 +1185,53 @@ def test_transformers_chat_script_provides_disk_offload_folder():
     assert 'tempfile.mkdtemp(prefix="whichllm_transformers_offload_")' in script
     assert "offload_folder=offload_folder" in script
     assert "shutil.rmtree(offload_folder, ignore_errors=True)" in script
+
+
+def test_gguf_chat_script_treats_hf_metadata_as_literals():
+    model = _make_model(model_id="org/Test-7B")
+    filename = 'weights-Q4_K_M.gguf"); print("injected"); #.gguf'
+    variant = GGUFVariant(
+        filename=filename,
+        quant_type="Q4_K_M",
+        file_size_bytes=1,
+    )
+
+    tree = ast.parse(
+        _generate_chat_script(model, variant, context_length=4096, cpu_only=False)
+    )
+    assignments = {
+        node.targets[0].id: ast.literal_eval(node.value)
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id in {"model_id", "filename", "quant_type"}
+    }
+
+    assert assignments == {
+        "model_id": model.id,
+        "filename": filename,
+        "quant_type": variant.quant_type,
+    }
+
+
+def test_snippet_treats_hf_metadata_as_literals(monkeypatch):
+    filename = 'weights-Q4_K_M.gguf"); print("injected"); #.gguf'
+    model = _make_model(model_id="org/Test-7B")
+    model.gguf_variants = [
+        GGUFVariant(
+            filename=filename,
+            quant_type="Q4_K_M",
+            file_size_bytes=1,
+        )
+    ]
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [model])
+
+    result = CliRunner().invoke(app, ["snippet", "Test-7B"])
+
+    assert result.exit_code == 0
+    assert f"repo_id={model.id!r}" in result.stdout
+    assert f"filename={filename!r}" in result.stdout
 
 
 def test_run_auto_pick_resolves_ranked_gguf_before_launch(monkeypatch):

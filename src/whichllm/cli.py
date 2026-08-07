@@ -1133,12 +1133,15 @@ def _generate_chat_script(model, variant, context_length: int, cpu_only: bool) -
     """Generate a self-contained Python chat script for any model type."""
     if variant:
         n_gpu = 0 if cpu_only else -1
-        return f'''\
+        return f"""\
 from huggingface_hub import hf_hub_download
 from llama_cpp import Llama
 
-print("Downloading {model.id} ({variant.quant_type})...")
-model_path = hf_hub_download(repo_id="{model.id}", filename="{variant.filename}")
+model_id = {model.id!r}
+filename = {variant.filename!r}
+quant_type = {variant.quant_type!r}
+print(f"Downloading {{model_id}} ({{quant_type}})...")
+model_path = hf_hub_download(repo_id=model_id, filename=filename)
 print("Loading model...")
 llm = Llama(
     model_path=model_path,
@@ -1169,18 +1172,18 @@ while True:
     print()
     messages.append({{"role": "assistant", "content": full}})
 print("\\nBye!")
-'''
+"""
 
     device_map = '"cpu"' if cpu_only else '"auto"'
     dtype = "torch.float32" if cpu_only else '"auto"'
-    return f'''\
+    return f"""\
 import shutil
 import tempfile
 import torch
 from threading import Thread
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
 
-model_id = "{model.id}"
+model_id = {model.id!r}
 offload_folder = tempfile.mkdtemp(prefix="whichllm_transformers_offload_")
 try:
     print(f"Loading {{model_id}}...")
@@ -1232,7 +1235,7 @@ finally:
     except NameError:
         pass
     shutil.rmtree(offload_folder, ignore_errors=True)
-'''
+"""
 
 
 @app.command()
@@ -1414,12 +1417,12 @@ def snippet(
     deps, _ = _resolve_model_deps(model, variant)
 
     if variant:
-        code = f'''\
+        code = f"""\
 from llama_cpp import Llama
 
 llm = Llama.from_pretrained(
-    repo_id="{model.id}",
-    filename="{variant.filename}",
+    repo_id={model.id!r},
+    filename={variant.filename!r},
     n_ctx=4096,
     n_gpu_layers=-1,  # -1 = all layers on GPU, 0 = CPU only
     verbose=False,
@@ -1429,12 +1432,12 @@ output = llm.create_chat_completion(
     messages=[{{"role": "user", "content": "Hello!"}}],
 )
 print(output["choices"][0]["message"]["content"])
-'''
+"""
     else:
-        code = f'''\
+        code = f"""\
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-model_id = "{model.id}"
+model_id = {model.id!r}
 tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
 model = AutoModelForCausalLM.from_pretrained(
     model_id, device_map="auto", torch_dtype="auto", trust_remote_code=True,
@@ -1443,7 +1446,7 @@ model = AutoModelForCausalLM.from_pretrained(
 inputs = tokenizer("Hello!", return_tensors="pt").to(model.device)
 outputs = model.generate(**inputs, max_new_tokens=256)
 print(tokenizer.decode(outputs[0], skip_special_tokens=True))
-'''
+"""
 
     dep_str = " ".join(f"--with {d}" for d in deps)
     console.print(f"\n[bold]{model.id}[/]")
