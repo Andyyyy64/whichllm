@@ -72,6 +72,52 @@ def test_detect_strix_halo_rocm_smi_does_not_treat_aperture_as_vram(monkeypatch)
     assert gpus[0].memory_bandwidth_gbps == 256.0
 
 
+def test_detect_strix_halo_generic_pci_id_from_lspci(monkeypatch):
+    aperture = 512 * 1024**2
+    output = (
+        'c6:00.0 "Display controller [0380]" "Advanced Micro Devices, Inc. '
+        '[AMD/ATI] [1002]" "Device [1586]" -rc1 -p00 '
+        '"Advanced Micro Devices, Inc. [AMD/ATI] [1002]" "Device [0124]"\n'
+    )
+
+    def fake_run(args, **kwargs):
+        if args[0] == "rocm-smi":
+            raise FileNotFoundError
+        return subprocess.CompletedProcess(args, 0, stdout=output, stderr="")
+
+    monkeypatch.setattr(amd.subprocess, "run", fake_run)
+    monkeypatch.setattr(amd, "_detect_from_sysfs", lambda: [])
+    monkeypatch.setattr(amd, "_read_sysfs_amd_vram", lambda: [aperture])
+
+    gpus = amd.detect_amd_gpus()
+
+    assert len(gpus) == 1
+    assert gpus[0].name == "Strix Halo [Radeon 8060S]"
+    assert gpus[0].shared_memory is True
+    assert gpus[0].vram_bytes == 0
+    assert gpus[0].memory_bandwidth_gbps == 256.0
+
+
+def test_detect_strix_halo_pci_id_from_sysfs(monkeypatch, tmp_path):
+    card = tmp_path / "card0" / "device"
+    card.mkdir(parents=True)
+    (card / "vendor").write_text("0x1002\n")
+    (card / "device").write_text("0x1586\n")
+    (card / "mem_info_vram_total").write_text(str(512 * 1024**2))
+
+    monkeypatch.setattr(amd, "_detect_from_lspci", lambda: [])
+    original_sysfs = amd._detect_from_sysfs
+    monkeypatch.setattr(amd, "_detect_from_sysfs", lambda: original_sysfs(tmp_path))
+
+    gpus = amd._detect_amd_gpus_fallback()
+
+    assert len(gpus) == 1
+    assert gpus[0].name == "Strix Halo [Radeon 8060S]"
+    assert gpus[0].shared_memory is True
+    assert gpus[0].vram_bytes == 0
+    assert gpus[0].memory_bandwidth_gbps == 256.0
+
+
 def test_detect_amd_gpu_ignores_intel_only_lspci(monkeypatch):
     """Regression: an Intel VGA row must not be reported as AMD just
     because 'Intel Corporation' contains the substring 'ati'."""

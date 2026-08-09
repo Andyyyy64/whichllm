@@ -37,6 +37,10 @@ AMD_SHARED_MEMORY_APU_MARKERS: tuple[str, ...] = (
     "RYZEN AI MAX",
 )
 
+AMD_PCI_DEVICE_NAMES: dict[str, str] = {
+    "0x1586": "Strix Halo [Radeon 8060S]",
+}
+
 # GPU memory bandwidth in GB/s (theoretical peak)
 # Key: substring matched against GPU name (case-insensitive)
 GPU_BANDWIDTH: dict[str, float] = {
