@@ -90,6 +90,24 @@ GPU_BANDWIDTH: dict[str, float] = {
     "H200": 4800.0,
     "DGX Spark": 273.0,
     "GB10": 273.0,
+    # NVIDIA Jetson Orin — unified LPDDR, theoretical peak like every other
+    # entry here. Modules are identified from the device-tree part number (see
+    # hardware/jetson.py) because every module of a generation reports the same
+    # generic GPU name and Tegra supports neither nvmlDeviceGetMemoryInfo nor
+    # clocks.max.memory. Values are from the NVIDIA module data sheets.
+    #
+    # Orin NX 16GB is the one measured here (p3767-0000, JetPack 6.2.3 / L4T
+    # R36.5.0, MAXN): four Q4_K_M models from 4.44 to 8.38 GiB decode within
+    # 1.6% of what 102.4 GB/s predicts, and no other candidate value tried came
+    # within 32%. See tests/test_jetson_detection.py for the numbers.
+    "Jetson AGX Orin": 204.8,
+    "Jetson Orin NX 16GB": 102.4,
+    "Jetson Orin NX 8GB": 102.4,
+    # Orin Nano base values. JetPack 6.2 "Super Mode" raises these to 102 and
+    # 51 GB/s under the higher nvpmodel profile, with no hardware change; the
+    # conservative value is kept and --ram-bandwidth covers the Super case.
+    "Jetson Orin Nano 8GB": 68.0,
+    "Jetson Orin Nano 4GB": 34.0,
     "A100 80GB": 2039.0,
     "A100 40GB": 1555.0,
     "A100": 1555.0,
@@ -235,6 +253,9 @@ NVIDIA_COMPUTE_CAPABILITY: dict[str, tuple[int, int]] = {
     "H200": (9, 0),
     "DGX Spark": (12, 1),
     "GB10": (12, 1),
+    # Jetson Orin. A bare generation name, because the AGX module puts a word
+    # in between ("Jetson AGX Orin").
+    "Orin": (8, 7),  # Ampere
     "A100": (8, 0),
     "RTX A3000 Laptop": (8, 6),
     "A6000": (8, 6),

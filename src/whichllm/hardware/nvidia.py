@@ -8,6 +8,7 @@ import subprocess
 
 from whichllm.constants import NVIDIA_COMPUTE_CAPABILITY, _GiB
 from whichllm.hardware.gpu_db import _static_bandwidth, resolve_detected_bandwidth
+from whichllm.hardware.jetson import detect_jetson_module, is_tegra_gpu_name
 from whichllm.hardware.types import GPUInfo
 
 logger = logging.getLogger(__name__)
@@ -31,7 +32,13 @@ def _lookup_bandwidth(name: str) -> float | None:
 
 def _is_unified_memory_nvidia_gpu(name: str) -> bool:
     name_upper = name.upper()
-    return any(marker in name_upper for marker in _NVIDIA_UNIFIED_MEMORY_MARKERS)
+    if any(marker in name_upper for marker in _NVIDIA_UNIFIED_MEMORY_MARKERS):
+        return True
+    # Tegra is a unified-memory SoC: the integrated GPU has no dedicated VRAM,
+    # so the driver reports NVML_ERROR_NOT_SUPPORTED for the memory queries and
+    # "[N/A]" through nvidia-smi. The "(nvgpu)" suffix identifies that GPU from
+    # the driver name alone.
+    return is_tegra_gpu_name(name)
 
 
 def _system_memory_bytes() -> int:
@@ -49,7 +56,19 @@ def _make_nvidia_gpu(
     cuda_version: str | None = None,
     mem_clock_mhz: float | None = None,
 ) -> GPUInfo:
+    # Computed from the driver-reported name, before the substitution below.
     shared_memory = _is_unified_memory_nvidia_gpu(name)
+
+    # NVML reports one generic name per Tegra generation ("Orin (nvgpu)") that
+    # cannot distinguish a 4 GB Orin Nano from a 64 GB AGX Orin — a 6x
+    # bandwidth spread. Substitute the module name resolved from the device
+    # tree so the curated tables can identify the actual board. An
+    # unrecognised module keeps the generic name and resolves no bandwidth.
+    if shared_memory and is_tegra_gpu_name(name):
+        module = detect_jetson_module()
+        if module is not None:
+            name = module.name
+
     if shared_memory and (vram_bytes is None or vram_bytes <= 0):
         vram_bytes = _system_memory_bytes()
     elif vram_bytes is None:
