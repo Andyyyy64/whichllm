@@ -49,7 +49,7 @@ build-backend = "hatchling.build"
 packages = ["src/whichllm"]
 
 [tool.uv]
-required-version = "==0.11.33"
+required-version = ">=0.11.21"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
