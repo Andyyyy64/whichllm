@@ -194,6 +194,7 @@ whichllm is built to get right.
 - **Speed-aware filtering** — `--speed usable|fast` hides slow rows by threshold
 - **Markdown output** — `--markdown` / `-m` prints pasteable GFM tables
 - **Runtime memory budgets** — `--vram-headroom` and `--ram-budget` avoid edge fits
+- **LM Studio detection** — Marks exact, complete GGUF artifacts already installed
 - **Hardware planning** — Reverse lookup: `whichllm plan "llama 3 70b"`
 - **Upgrade planning** — Compare your current machine with candidate GPUs
 - **JSON output** — Pipe-friendly: `whichllm --json`
