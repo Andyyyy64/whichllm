@@ -129,6 +129,7 @@ def test_display_markdown_details_table_uses_metadata_columns():
 
 def test_display_markdown_links_to_resolved_artifact_repo():
     result = _result(1)
+    result.local_path = "/models/Qwen3-4B-Thinking-2507-Q3_K_M.gguf"
     result.model.id = "Qwen/Qwen3-4B-Thinking-2507"
     result.gguf_variant = GGUFVariant(
         filename="Qwen3-4B-Thinking-2507.Q3_K_M.gguf",
@@ -154,6 +155,7 @@ def test_display_markdown_links_to_resolved_artifact_repo():
         "(https://huggingface.co/MaziyarPanahi/Qwen3-4B-Thinking-2507-GGUF)" in output
     )
     assert "Q3_K_M" in output
+    assert "(Installed)" in output
 
 
 def test_display_markdown_empty_results():

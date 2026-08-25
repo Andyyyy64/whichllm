@@ -39,6 +39,7 @@ Common options:
 | `--gpu-index` | Detected GPU index to override when multiple GPUs are present |
 | `--vram-headroom` | Reserve per-GPU memory for runtime overhead. Default: `auto`. Accepts `none`, byte values like `1.5GB`, or percentages like `10%` |
 | `--ram-budget` | Cap RAM available for partial offload. Accepts `available`, byte values like `8GB`, or percentages like `50%` |
+| `--lm-studio-path` | Scan an additional LM Studio model library. Repeat the option for multiple custom locations |
 | `--version` | Print the installed package version |
 
 Environment variables:
@@ -66,6 +67,13 @@ For detected iGPU or unified-memory systems, use `--vram` and
 usable memory and bandwidth. If multiple GPUs are detected, add `--gpu-index`
 with the GPU number from `whichllm hardware`.
 
+whichllm scans `~/.lmstudio/models` and the legacy
+`~/.cache/lm-studio/models` directory for GGUF files. A recommendation is
+marked `Installed` when its resolved Hugging Face repository and quantization
+match a local LM Studio artifact. Libraries are only read; whichllm does not
+move, modify, or delete LM Studio files. Use `--lm-studio-path` when the model
+library is stored elsewhere.
+
 Examples:
 
 ```bash
@@ -87,6 +95,7 @@ whichllm --min-speed 4
 whichllm --markdown
 whichllm --vram-headroom 1.5GB
 whichllm --ram-budget available
+whichllm --lm-studio-path /mnt/models/lm-studio
 whichllm --details
 whichllm --evidence strict
 whichllm --json | jq '.models[0]'
@@ -111,6 +120,8 @@ Ranking JSON model rows include:
 | `benchmark_status` | Display marker category for benchmark evidence |
 | `benchmark_source` | How benchmark evidence was matched: `direct`, `variant`, `base_model`, `line_interp`, `self_reported`, or `none` |
 | `benchmark_confidence` | Confidence in the benchmark match, `0.0`–`1.0` |
+| `local_match` | Whether a matching GGUF was found in an LM Studio library |
+| `local_path` | Absolute path to the matching local GGUF, or `null` |
 
 The top-level `hardware` object also includes `usable_vram_bytes` per GPU,
 `ram_budget_bytes`, and `budget_notes` when memory budgets are active.
