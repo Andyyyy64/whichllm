@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import ctypes
+import ctypes.util
 import json
 import logging
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 from whichllm.constants import GPU_BANDWIDTH
@@ -46,6 +49,49 @@ def _detect_iogpu_wired_limit_bytes() -> int | None:
     return limit_mb * _MiB if limit_mb > 0 else None
 
 
+def _detect_metal_recommended_working_set_bytes() -> int | None:
+    """Return Metal's ``recommendedMaxWorkingSetSize`` for the default device.
+
+    This is the GPU budget macOS actually enforces on Apple Silicon. It is well
+    below total physical memory (0.74x on a stock 16 GB machine), and it is not
+    exposed through ``sysctl`` or ``system_profiler`` — the Metal API is the
+    only way to read it. Uses ``ctypes`` against the system Metal and objc
+    libraries, so it adds no dependency.
+
+    Returns ``None`` on non-macOS hosts or if the frameworks cannot be reached.
+    """
+    if sys.platform != "darwin":
+        return None
+
+    try:
+        metal_path = ctypes.util.find_library("Metal")
+        objc_path = ctypes.util.find_library("objc")
+        if not metal_path or not objc_path:
+            return None
+
+        metal = ctypes.CDLL(metal_path)
+        objc = ctypes.CDLL(objc_path)
+
+        metal.MTLCreateSystemDefaultDevice.restype = ctypes.c_void_p
+        device = metal.MTLCreateSystemDefaultDevice()
+        if not device:
+            return None
+
+        objc.sel_registerName.restype = ctypes.c_void_p
+        objc.sel_registerName.argtypes = [ctypes.c_char_p]
+        selector = objc.sel_registerName(b"recommendedMaxWorkingSetSize")
+
+        send = objc.objc_msgSend
+        send.restype = ctypes.c_uint64
+        send.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        working_set = send(device, selector)
+    except (OSError, AttributeError, ValueError) as e:
+        logger.debug(f"Metal working set size unavailable: {e}")
+        return None
+
+    return working_set if working_set > 0 else None
+
+
 def detect_apple_gpu() -> list[GPUInfo]:
     """Detect Apple Silicon GPU. Returns empty list on non-macOS or failure."""
     try:
@@ -81,7 +127,15 @@ def detect_apple_gpu() -> list[GPUInfo]:
         unified_memory = mem_value * multiplier
         wired_limit = _detect_iogpu_wired_limit_bytes()
         if wired_limit is not None:
+            # The user raised or set iogpu.wired_limit_mb explicitly: honour it.
             unified_memory = min(unified_memory, wired_limit)
+        else:
+            # Stock machine (iogpu.wired_limit_mb == 0). The GPU still cannot
+            # address all of physical memory, so fall back to the budget Metal
+            # reports rather than assuming 100% of RAM is usable.
+            metal_working_set = _detect_metal_recommended_working_set_bytes()
+            if metal_working_set is not None:
+                unified_memory = min(unified_memory, metal_working_set)
 
         return [
             GPUInfo(
