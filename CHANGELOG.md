@@ -30,6 +30,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Replaced the hand-estimated curated index values for `Qwen/Qwen3.6-27B` and
   `Qwen/Qwen3-Coder-30B-A3B-Instruct` with their measured ones. Both were off by
   enough to reorder neighbouring models offline. (#24)
+- Live Artificial Analysis scores replace stored AA scores even when lower or
+  zero. Models absent from the live response retain their stored AA scores.
+  Use `--refresh` to bypass an existing benchmark cache. (#101)
+
 
 ## [0.5.16] - 2026-08-14
 
