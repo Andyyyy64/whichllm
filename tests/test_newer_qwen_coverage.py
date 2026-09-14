@@ -13,7 +13,7 @@ from whichllm.engine.ranker import rank_models
 from whichllm.engine.ranking_filters import _generation_bonus, _matches_profile
 from whichllm.hardware.types import GPUInfo, HardwareInfo
 from whichllm.models.benchmark_sources.aa_index import (
-    AA_INDEX_FALLBACK_2026_06_29,
+    AA_INDEX_FALLBACK_2026_09_14,
     AA_NAME_TO_HF_IDS,
     get_aa_curated_fallback,
 )
@@ -102,7 +102,7 @@ class TestNewerQwenMetadata:
 class TestNewerQwenBenchmarkEvidence:
     def test_curated_snapshot_covers_newer_releases(self):
         for model_id in _NEWER_QWEN:
-            assert model_id in AA_INDEX_FALLBACK_2026_06_29, f"{model_id} missing"
+            assert model_id in AA_INDEX_FALLBACK_2026_09_14, f"{model_id} missing"
 
     def test_live_aa_names_map_to_newer_releases(self):
         mapped = {i for ids in AA_NAME_TO_HF_IDS.values() for i in ids}
@@ -112,7 +112,8 @@ class TestNewerQwenBenchmarkEvidence:
     def test_newer_generations_outrank_older_ones(self):
         fallback = get_aa_curated_fallback()
         assert fallback["Qwen/Qwen3.8-27B"] > fallback["Qwen/Qwen3.6-27B"]
-        assert fallback["Qwen/Qwen3.6-27B"] > fallback["Qwen/Qwen3.5-27B"]
+        # AA v4.3 ranks Qwen3.6-27B just below Qwen3.5-27B, so no 3.6 > 3.5 check.
+        assert fallback["Qwen/Qwen3.8-27B"] > fallback["Qwen/Qwen3.5-27B"]
         assert fallback["Qwen/Qwen3.6-35B-A3B"] > fallback["Qwen/Qwen3-30B-A3B"]
         assert fallback["Qwen/Qwen3.5-9B"] > fallback["Qwen/Qwen3-8B"]
         assert (
