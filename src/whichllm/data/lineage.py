@@ -13,6 +13,7 @@
 MODEL_LINEAGE_VERSIONS: dict[str, list[tuple[str, int]]] = {
     "qwen": [
         # ordered newest -> oldest so the bonus reflects the strongest claim
+        (r"qwen3\.8", 8),
         (r"qwen3\.6", 7),
         (r"qwen3\.5", 6),
         (r"qwen3-next", 6),
