@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.5.17] - 2026-09-15
+
+### Fixed
+
+- Non-UTF-8 model and benchmark caches are treated as cache misses instead of
+  crashing during decoding. (#160, #161)
+- Apple Silicon GPU memory budgets respect the configured
+  `iogpu.wired_limit_mb` value. (#152, #153)
+- RTX Ada Generation laptop workstation GPUs resolve bandwidth from the GPU
+  catalog without confusing mobile and desktop variants. (#144)
+
+### Changed
+
+- Split ranking orchestration, scoring, filters, and variant selection into
+  focused modules. (#41, #145)
+- Keep cache-directory tests portable across platforms. (#149)
+
 ## [0.5.16] - 2026-08-14
 
 ### Changed
