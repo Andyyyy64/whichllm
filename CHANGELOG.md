@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed
+
+- Live Artificial Analysis scores replace stored AA scores even when lower or
+  zero. Models absent from the live response retain their stored AA scores.
+  Use `--refresh` to bypass an existing benchmark cache. (#101)
+
 ## [0.5.16] - 2026-08-14
 
 ### Changed
