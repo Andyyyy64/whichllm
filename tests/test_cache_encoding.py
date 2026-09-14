@@ -62,6 +62,43 @@ def test_model_cache_rejects_missing_provenance_schema(monkeypatch):
     assert cache_mod.load_cache() is None
 
 
+def _write_non_utf8_cache(path, payload):
+    """Write a cache file the way a pre-0.5.12 Windows install left it.
+
+    Those versions wrote with ensure_ascii=False through the locale
+    codepage, so a cached model id containing non-ASCII lands on disk as
+    cp1252 bytes that are not valid UTF-8.
+    """
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="cp1252")
+    return path
+
+
+def test_model_cache_survives_non_utf8_file(monkeypatch, tmp_path):
+    """A cache file that is not valid UTF-8 is a cache miss, not a crash."""
+    cache_file = _write_non_utf8_cache(
+        tmp_path / "models.json",
+        {
+            "schema_version": cache_mod.CACHE_SCHEMA_VERSION,
+            "cached_at": time.time(),
+            "models": [{"id": "test/Café-Münster"}],
+        },
+    )
+    monkeypatch.setattr(cache_mod, "CACHE_FILE", cache_file)
+
+    assert cache_mod.load_cache() is None
+
+
+def test_benchmark_cache_survives_non_utf8_file(monkeypatch, tmp_path):
+    """Same for the benchmark cache, which has its own loader."""
+    cache_file = _write_non_utf8_cache(
+        tmp_path / "benchmarks.json",
+        {"cached_at": time.time(), "scores": {"test/Café-Münster": 1.0}},
+    )
+    monkeypatch.setattr(benchmark_mod, "BENCHMARK_CACHE", cache_file)
+
+    assert benchmark_mod.load_benchmark_cache() is None
+
+
 def test_benchmark_cache_reads_and_writes_utf8(monkeypatch, tmp_path):
     reader = _ReadableCacheFile(
         {"cached_at": time.time(), "scores": {"test/Omega-Ω": 1.0}}
