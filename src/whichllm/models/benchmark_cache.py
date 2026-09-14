@@ -26,7 +26,7 @@ def load_benchmark_cache() -> dict[str, float] | None:
             logger.debug("Benchmark cache expired")
             return None
         return data.get("scores", {})
-    except (json.JSONDecodeError, KeyError) as e:
+    except (json.JSONDecodeError, UnicodeDecodeError, KeyError) as e:
         logger.debug(f"Benchmark cache corrupted: {e}")
         return None
 
