@@ -266,5 +266,5 @@ The ranker detects specialization from repository names.
 | `general` | Excludes coding, vision, and math-specialized names |
 | `coding` | Keeps coding-specialized names |
 | `vision` | Keeps vision or multimodal names and includes VLM candidates |
-| `math` | Keeps math-specialized names |
+| `math` | Keeps math-specialized names plus general reasoning models (excludes coding and vision names) |
 | `any` | Keeps all recognized model types and includes VLM candidates |
