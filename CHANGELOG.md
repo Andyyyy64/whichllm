@@ -12,6 +12,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   (`Qwen3-Coder-Next`, `Qwen3-Coder-480B-A35B-Instruct`), map them to their
   Artificial Analysis leaderboard names, and add curated index entries so they
   rank with real benchmark evidence instead of dropping out. (#24)
+- Recommendations now detect matching GGUF models in current and legacy LM
+  Studio libraries, with repeatable `--lm-studio-path` overrides for custom
+  locations. Local libraries remain read-only. (#20)
 
 ### Changed
 

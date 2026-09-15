@@ -497,6 +497,71 @@ def test_main_passes_speed_preset_and_default_runtime_columns(monkeypatch):
     assert captured["show_status"] is True
 
 
+def test_main_passes_repeatable_lm_studio_paths(monkeypatch, tmp_path):
+    model = ModelInfo(
+        id="org/Test-7B-GGUF",
+        family_id="test-7b",
+        name="Test-7B-GGUF",
+        parameter_count=7_000_000_000,
+        published_at="2026-01-01T00:00:00.000Z",
+    )
+    variant = GGUFVariant(
+        filename="Test-7B-Q4_K_M.gguf",
+        quant_type="Q4_K_M",
+        file_size_bytes=4 * 1024**3,
+    )
+    result = CompatibilityResult(
+        model=model,
+        gguf_variant=variant,
+        can_run=True,
+        vram_required_bytes=5 * 1024**3,
+        vram_available_bytes=8 * 1024**3,
+    )
+    captured: dict[str, object] = {}
+
+    def fake_discover(paths):
+        captured["paths"] = [str(path) for path in paths]
+        return []
+
+    def fake_attach(results, local_models):
+        captured["attached"] = results == [result] and local_models == []
+
+    monkeypatch.setattr(
+        "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
+    )
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
+    monkeypatch.setattr(
+        "whichllm.engine.ranker.rank_models", lambda *args, **kwargs: [result]
+    )
+    monkeypatch.setattr(
+        "whichllm.models.lmstudio.discover_lmstudio_ggufs", fake_discover
+    )
+    monkeypatch.setattr("whichllm.models.lmstudio.attach_local_matches", fake_attach)
+    monkeypatch.setattr(
+        "whichllm.output.display.display_hardware", lambda hardware: None
+    )
+    monkeypatch.setattr(
+        "whichllm.output.display.display_ranking", lambda results, **kwargs: None
+    )
+
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    cli_result = CliRunner().invoke(
+        app,
+        [
+            "--lm-studio-path",
+            str(first),
+            "--lm-studio-path",
+            str(second),
+        ],
+    )
+
+    assert cli_result.exit_code == 0
+    assert captured["paths"] == [str(first), str(second)]
+    assert captured["attached"] is True
+
+
 def test_main_details_flag_restores_metadata_columns(monkeypatch):
     captured: dict[str, object] = {}
 
@@ -1642,6 +1707,8 @@ def test_json_output_includes_benchmark_source_and_confidence():
     assert data["hardware"]["budget_notes"] == ["RAM budget: 32.0 GB"]
     assert entry["artifact_repo_id"] is None
     assert entry["artifact_filename"] is None
+    assert entry["local_match"] is False
+    assert entry["local_path"] is None
     assert entry["benchmark_status"] == "estimated"
     assert entry["benchmark_source"] == "line_interp"
     assert entry["benchmark_confidence"] == 0.34
@@ -1681,6 +1748,7 @@ def test_json_output_includes_resolved_artifact_fields():
             quant_type="Q3_K_M",
             file_size_bytes=2_000_000_000,
         ),
+        local_path="/models/Qwen3-4B-Thinking-2507-Q3_K_M.gguf",
         can_run=True,
         vram_required_bytes=3_000_000_000,
         vram_available_bytes=8_000_000_000,
@@ -1708,3 +1776,5 @@ def test_json_output_includes_resolved_artifact_fields():
     assert entry["model_id"] == "Qwen/Qwen3-4B-Thinking-2507"
     assert entry["artifact_repo_id"] == "MaziyarPanahi/Qwen3-4B-Thinking-2507-GGUF"
     assert entry["artifact_filename"] == "Qwen3-4B-Thinking-2507-Q3_K_M.gguf"
+    assert entry["local_match"] is True
+    assert entry["local_path"] == "/models/Qwen3-4B-Thinking-2507-Q3_K_M.gguf"

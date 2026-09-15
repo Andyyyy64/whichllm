@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import re
 import sys
+from pathlib import Path
 from typing import Optional
 
 import typer
@@ -566,6 +567,11 @@ def main(
         "--ram-budget",
         help="RAM budget for offload: available | 8GB | 50%",
     ),
+    lm_studio_path: Optional[list[Path]] = typer.Option(
+        None,
+        "--lm-studio-path",
+        help="Additional LM Studio model library path (repeatable)",
+    ),
 ):
     """Detect hardware and recommend the best local LLMs."""
     if ctx.invoked_subcommand is not None:
@@ -707,6 +713,15 @@ def main(
         # 上位候補の公開日時が欠けている場合のみ補完して表示品質を上げる
         if results:
             attach_resolved_artifacts(results, all_models, quant_filter=quant)
+            from whichllm.models.lmstudio import (
+                attach_local_matches,
+                discover_lmstudio_ggufs,
+            )
+
+            attach_local_matches(
+                results,
+                discover_lmstudio_ggufs(lm_studio_path or ()),
+            )
             try:
                 if _fill_missing_published_at(
                     all_models, results, fetch_model_published_at
