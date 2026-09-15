@@ -459,6 +459,7 @@ def main(
     show_version: bool = typer.Option(
         False,
         "--version",
+        "-v",
         help="Show version and exit",
         callback=_print_version,
         is_eager=True,
