@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import shlex
 import subprocess
 from pathlib import Path
 
-from whichllm.constants import AMD_SHARED_MEMORY_APU_MARKERS, _GiB
+from whichllm.constants import AMD_PCI_DEVICE_NAMES, AMD_SHARED_MEMORY_APU_MARKERS, _GiB
 from whichllm.hardware.gpu_db import _static_bandwidth, resolve_detected_bandwidth
 from whichllm.hardware.types import GPUInfo
 
@@ -70,10 +71,19 @@ def _vendor_is_amd(vendor: str) -> bool:
     return any(marker in vendor_lower for marker in _AMD_VENDOR_MARKERS)
 
 
+def _map_generic_pci_name(name: str) -> str:
+    if not name.strip().lower().startswith("device"):
+        return name
+    match = re.search(r"\[([0-9a-fA-F]{4})\]\s*$", name)
+    if not match:
+        return name
+    return AMD_PCI_DEVICE_NAMES.get(f"0x{match.group(1).lower()}", name)
+
+
 def _detect_from_lspci() -> list[str]:
     try:
         result = subprocess.run(
-            ["lspci", "-mm"],
+            ["lspci", "-mm", "-nn"],
             capture_output=True,
             text=True,
             timeout=5,
@@ -100,11 +110,12 @@ def _detect_from_lspci() -> list[str]:
         if len(tokens) < 4:
             continue
         device_class, vendor, device = tokens[1], tokens[2], tokens[3]
-        if device_class.lower() not in _DISPLAY_CLASSES:
+        normalized_class = device_class.split(" [", 1)[0].lower()
+        if normalized_class not in _DISPLAY_CLASSES:
             continue
         if not _vendor_is_amd(vendor):
             continue
-        name = device.strip() or "AMD Graphics"
+        name = _map_generic_pci_name(device.strip()) or "AMD Graphics"
         if name not in seen:
             names.append(name)
             seen.add(name)
@@ -140,9 +151,19 @@ def _detect_from_sysfs(drm_path: Path = Path("/sys/class/drm")) -> list[GPUInfo]
             continue
 
         name = "AMD Graphics"
+        known_device = False
+        try:
+            device_id = (device / "device").read_text().strip().lower()
+            mapped_name = AMD_PCI_DEVICE_NAMES.get(device_id)
+            if mapped_name:
+                name = mapped_name
+                known_device = True
+        except OSError:
+            pass
+
         try:
             product_name = (device / "product_name").read_text().strip()
-            if product_name:
+            if product_name and not known_device:
                 name = product_name
         except OSError:
             pass
