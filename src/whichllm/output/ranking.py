@@ -9,7 +9,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from whichllm.engine.quantization import effective_quant_type
+from whichllm.engine.quantization import effective_quant_type, estimate_weight_bytes
 from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.types import HardwareInfo
 from whichllm.output import _console
@@ -176,6 +176,7 @@ def display_ranking(
     table.add_column("Model", style="cyan", min_width=14, overflow="fold")
     table.add_column("Quant", justify="center", width=6)
     if show_status:
+        table.add_column("Disk", justify="right", width=8)
         table.add_column(f"Fit / {mem_label}", justify="center", width=8)
         table.add_column("Speed", justify="right", width=12)
         table.add_column("Published", justify="center", width=10)
@@ -243,8 +244,15 @@ def display_ranking(
             quant,
         ]
         if show_status:
+            disk_bytes = estimate_weight_bytes(r.model, r.gguf_variant)
+            disk_str = _format_bytes(disk_bytes)
             row_cells.extend(
-                [f"{fit_str}\n[dim]{vram_str}[/dim]", speed_str, published_str]
+                [
+                    disk_str,
+                    f"{fit_str}\n[dim]{vram_str}[/dim]",
+                    speed_str,
+                    published_str,
+                ]
             )
         else:
             row_cells.append(params_str)
