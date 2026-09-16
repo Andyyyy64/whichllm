@@ -6,29 +6,31 @@ import httpx
 import pytest
 from typer import Exit
 
-import whichllm.cli as cli_mod
 import whichllm.__main__ as main_mod
-from whichllm.cli import (
+from whichllm.cli import app
+from whichllm.cli_models import (
+    _extract_id_size_b,
+    _generate_chat_script,
+    _pick_gguf_variant,
+    _search_model,
+)
+from whichllm.cli_shared import _format_fetch_error
+from whichllm.cli_validation import (
     _apply_memory_budgets,
     _apply_gpu_overrides,
     _auto_min_params_for_profile,
-    _extract_id_size_b,
     _fill_missing_published_at,
-    _format_fetch_error,
-    _generate_chat_script,
     _include_vision_candidates,
     _merge_model_eval_benchmarks,
     _parse_memory_amount,
-    _pick_gguf_variant,
-    _resolve_ranked_gguf_for_run,
     _resolve_evidence_mode,
     _resolve_fit_filter,
     _resolve_speed_filter,
-    _search_model,
     _validate_evidence,
     _validate_gpu_flags,
-    app,
+    _validate_ranking_flags,
 )
+from whichllm.models.artifacts import resolve_ranked_gguf_artifact
 from whichllm.utils import _current_version
 from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.types import GPUInfo, HardwareInfo
@@ -614,8 +616,8 @@ def test_main_negative_min_params_rejected():
 
 def test_validate_ranking_flags_accepts_valid_values():
     # A valid combination must not raise (no recommendations are dropped).
-    cli_mod._validate_ranking_flags(top=10, min_speed=0.0, min_params=None)
-    cli_mod._validate_ranking_flags(top=1, min_speed=None, min_params=7.0)
+    _validate_ranking_flags(top=10, min_speed=0.0, min_params=None)
+    _validate_ranking_flags(top=1, min_speed=None, min_params=7.0)
 
 
 def test_upgrade_top_zero_rejected():
@@ -986,7 +988,7 @@ def test_resolve_ranked_synthetic_gguf_to_real_repo():
         file_size_bytes=16_000_000_000,
     )
 
-    resolved = _resolve_ranked_gguf_for_run(selected, synthetic, [selected, real_gguf])
+    resolved = resolve_ranked_gguf_artifact(selected, synthetic, [selected, real_gguf])
 
     assert resolved is not None
     model, variant = resolved
@@ -1024,7 +1026,7 @@ def test_resolve_ranked_synthetic_gguf_rejects_finetuned_repo():
         file_size_bytes=16_000_000_000,
     )
 
-    resolved = _resolve_ranked_gguf_for_run(
+    resolved = resolve_ranked_gguf_artifact(
         selected,
         synthetic,
         [selected, finetuned_gguf],
@@ -1061,7 +1063,7 @@ def test_resolve_ranked_synthetic_gguf_rejects_unproven_base_relation():
         file_size_bytes=19_000_000_000,
     )
 
-    resolved = _resolve_ranked_gguf_for_run(
+    resolved = resolve_ranked_gguf_artifact(
         selected,
         synthetic,
         [selected, unproven_gguf],
@@ -1099,7 +1101,7 @@ def test_resolve_ranked_synthetic_gguf_rejects_other_quantized_checkpoint():
         file_size_bytes=16_000_000_000,
     )
 
-    resolved = _resolve_ranked_gguf_for_run(
+    resolved = resolve_ranked_gguf_artifact(
         selected,
         synthetic,
         [selected, other_checkpoint],
@@ -1143,7 +1145,7 @@ def test_resolve_ranked_synthetic_gguf_rejects_renamed_merge_claiming_quantized(
         file_size_bytes=19_000_000_000,
     )
 
-    resolved = _resolve_ranked_gguf_for_run(
+    resolved = resolve_ranked_gguf_artifact(
         selected,
         synthetic,
         [selected, merged_gguf],
@@ -1186,7 +1188,7 @@ def test_resolve_ranked_synthetic_gguf_rejects_conflicting_base_relations():
     )
 
     assert (
-        _resolve_ranked_gguf_for_run(
+        resolve_ranked_gguf_artifact(
             selected,
             synthetic,
             [selected, merged_gguf],
@@ -1210,7 +1212,7 @@ def test_resolve_ranked_existing_gguf_repo_does_not_require_base_relation():
         ],
     )
 
-    resolved = _resolve_ranked_gguf_for_run(
+    resolved = resolve_ranked_gguf_artifact(
         direct_gguf,
         direct_gguf.gguf_variants[0],
         [direct_gguf],
@@ -1248,7 +1250,7 @@ def test_resolve_ranked_synthetic_gguf_accepts_owner_prefixed_conversion_name():
         file_size_bytes=16_000_000_000,
     )
 
-    resolved = _resolve_ranked_gguf_for_run(
+    resolved = resolve_ranked_gguf_artifact(
         selected,
         synthetic,
         [selected, direct_gguf],
@@ -1301,7 +1303,7 @@ def test_resolve_ranked_synthetic_gguf_prefers_exact_quant():
         file_size_bytes=16_000_000_000,
     )
 
-    resolved = _resolve_ranked_gguf_for_run(
+    resolved = resolve_ranked_gguf_artifact(
         selected,
         synthetic,
         [selected, q5_only, q4_match],
@@ -1340,7 +1342,7 @@ def test_resolve_ranked_synthetic_gguf_rejects_quant_mismatch():
         file_size_bytes=16_000_000_000,
     )
 
-    resolved = _resolve_ranked_gguf_for_run(selected, synthetic, [selected, q5_only])
+    resolved = resolve_ranked_gguf_artifact(selected, synthetic, [selected, q5_only])
 
     assert resolved is None
 
@@ -1372,7 +1374,7 @@ def test_resolve_ranked_synthetic_gguf_without_real_repo_returns_none():
     )
 
     assert (
-        _resolve_ranked_gguf_for_run(selected, synthetic, [selected, unrelated]) is None
+        resolve_ranked_gguf_artifact(selected, synthetic, [selected, unrelated]) is None
     )
 
 
@@ -1402,7 +1404,7 @@ def test_resolve_ranked_synthetic_gguf_rejects_size_mismatch():
         file_size_bytes=90_000_000_000,
     )
 
-    resolved = _resolve_ranked_gguf_for_run(selected, synthetic, [selected, mtp_head])
+    resolved = resolve_ranked_gguf_artifact(selected, synthetic, [selected, mtp_head])
 
     assert resolved is None
 
@@ -1422,7 +1424,7 @@ def test_run_requires_uv(monkeypatch):
 
 def test_run_no_model_found_exits_gracefully(monkeypatch):
     monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/uv")
-    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [])
+    monkeypatch.setattr("whichllm.cli_commands._load_models", lambda refresh: [])
 
     runner = CliRunner()
     result = runner.invoke(app, ["run", "some-model"])
@@ -1493,7 +1495,7 @@ def test_snippet_treats_hf_metadata_as_literals(monkeypatch):
             file_size_bytes=1,
         )
     ]
-    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [model])
+    monkeypatch.setattr("whichllm.cli_commands._load_models", lambda refresh: [model])
 
     result = CliRunner().invoke(app, ["snippet", "Test-7B"])
 
@@ -1560,13 +1562,17 @@ def test_run_auto_pick_resolves_ranked_gguf_before_launch(monkeypatch):
         return Completed()
 
     monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/uv")
-    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [selected, real_gguf])
+    monkeypatch.setattr(
+        "whichllm.cli_commands._load_models", lambda refresh: [selected, real_gguf]
+    )
     monkeypatch.setattr(
         "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
     )
     monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
     monkeypatch.setattr("whichllm.engine.ranker.rank_models", fake_rank_models)
-    monkeypatch.setattr(cli_mod, "_generate_chat_script", fake_generate_chat_script)
+    monkeypatch.setattr(
+        "whichllm.cli_commands._generate_chat_script", fake_generate_chat_script
+    )
     monkeypatch.setattr("subprocess.run", fake_run)
 
     result = CliRunner().invoke(app, ["run", "--quant", "Q4_K_M"])
@@ -1580,7 +1586,7 @@ def test_run_auto_pick_resolves_ranked_gguf_before_launch(monkeypatch):
 
 
 def test_snippet_no_model_found(monkeypatch):
-    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [])
+    monkeypatch.setattr("whichllm.cli_commands._load_models", lambda refresh: [])
     runner = CliRunner()
     result = runner.invoke(app, ["snippet", "nonexistent_model_xyz_999"])
     assert result.exit_code != 0

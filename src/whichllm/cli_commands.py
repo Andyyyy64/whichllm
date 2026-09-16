@@ -11,8 +11,11 @@ import tempfile
 import typer
 
 from whichllm.cli_models import (
+    _generate_chat_script,
+    _load_models,
     _pick_gguf_variant,
     _resolve_model_deps,
+    _search_model,
 )
 from whichllm.cli_shared import _format_fetch_error, _run_async, console
 from whichllm.cli_validation import (
@@ -232,8 +235,6 @@ def plan_command(
     quant: str | None,
     json_output: bool,
     refresh: bool,
-    load_models,
-    search_model,
 ) -> None:
     """Show what GPU you need to run a specific model."""
     from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -247,10 +248,10 @@ def plan_command(
         transient=True,
     ) as progress:
         task = progress.add_task("Loading models...", total=None)
-        models = load_models(refresh)
+        models = _load_models(refresh)
         progress.remove_task(task)
 
-    model = search_model(models, model_name)
+    model = _search_model(models, model_name)
     target_quant = quant.upper() if quant else "Q4_K_M"
 
     if json_output:
@@ -395,9 +396,6 @@ def run_command(
     quant: str | None,
     refresh: bool,
     cpu_only: bool,
-    load_models,
-    search_model,
-    generate_chat_script,
 ) -> None:
     """Download and chat with a model. Picks the best one if none specified."""
     if not shutil.which("uv"):
@@ -416,12 +414,12 @@ def run_command(
         transient=True,
     ) as progress:
         task = progress.add_task("Loading models...", total=None)
-        models = load_models(refresh)
+        models = _load_models(refresh)
         progress.remove_task(task)
 
     variant = None
     if model_name:
-        model = search_model(models, model_name)
+        model = _search_model(models, model_name)
     else:
         from whichllm.engine.ranker import rank_models
         from whichllm.hardware.detector import detect_hardware
@@ -498,7 +496,7 @@ def run_command(
     if variant is None:
         variant = _pick_gguf_variant(model, quant)
     deps, script_type = _resolve_model_deps(model, variant)
-    script = generate_chat_script(model, variant, context_length, cpu_only)
+    script = _generate_chat_script(model, variant, context_length, cpu_only)
 
     fmt = variant.quant_type if variant else script_type.upper()
     console.print(f"\n[bold green]Running {model.id}[/] [dim]({fmt})[/]")
@@ -523,8 +521,6 @@ def snippet_command(
     model_name: str | None,
     quant: str | None,
     refresh: bool,
-    load_models,
-    search_model,
 ) -> None:
     """Print a ready-to-run Python script for a model."""
     from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -537,11 +533,11 @@ def snippet_command(
         transient=True,
     ) as progress:
         task = progress.add_task("Loading models...", total=None)
-        models = load_models(refresh)
+        models = _load_models(refresh)
         progress.remove_task(task)
 
     if model_name:
-        model = search_model(models, model_name)
+        model = _search_model(models, model_name)
     else:
         gguf_models = [m for m in models if m.gguf_variants]
         if not gguf_models:

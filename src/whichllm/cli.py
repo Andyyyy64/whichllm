@@ -7,7 +7,7 @@ The CLI implementation is split by responsibility:
 - ``cli_models`` for model loading, lookup, dependency, and script helpers
 - ``cli_commands`` for command execution bodies
 
-Existing imports from ``whichllm.cli`` are re-exported here.
+This module only defines the Typer app and command signatures.
 """
 
 from __future__ import annotations
@@ -24,46 +24,7 @@ from whichllm.cli_commands import (
     snippet_command,
     upgrade_command,
 )
-from whichllm.cli_models import (
-    _extract_id_size_b,
-    _generate_chat_script,
-    _load_models,
-    _parse_size_tokens,
-    _pick_gguf_variant,
-    _resolve_model_deps,
-    _search_model,
-    _size_compatible,
-)
-from whichllm.cli_shared import (
-    _format_fetch_error,
-    _print_version,
-    _run_async,
-    console,
-)
-from whichllm.cli_validation import (
-    _apply_gpu_overrides,
-    _apply_memory_budgets,
-    _auto_min_params_for_profile,
-    _auto_vram_headroom,
-    _fill_missing_published_at,
-    _format_budget_bytes,
-    _include_vision_candidates,
-    _merge_model_eval_benchmarks,
-    _parse_memory_amount,
-    _parse_vram_headroom,
-    _resolve_evidence_mode,
-    _resolve_fit_filter,
-    _resolve_speed_filter,
-    _validate_evidence,
-    _validate_gpu_flags,
-    _validate_output_flags,
-    _validate_profile,
-    _validate_ranking_flags,
-)
-from whichllm.models.artifacts import (
-    find_gguf_variant,
-    resolve_ranked_gguf_artifact,
-)
+from whichllm.cli_shared import _print_version
 from whichllm.utils import CONTEXT_LENGTH
 
 app = typer.Typer(
@@ -72,9 +33,6 @@ app = typer.Typer(
     no_args_is_help=False,
     invoke_without_command=True,
 )
-
-_find_gguf_variant = find_gguf_variant
-_resolve_ranked_gguf_for_run = resolve_ranked_gguf_artifact
 
 
 @app.callback(invoke_without_command=True)
@@ -245,8 +203,6 @@ def plan(
         quant=quant,
         json_output=json_output,
         refresh=refresh,
-        load_models=_load_models,
-        search_model=_search_model,
     )
 
 
@@ -271,7 +227,14 @@ def upgrade(
     json_output: bool = typer.Option(False, "--json"),
     refresh: bool = typer.Option(False, "--refresh"),
 ):
-    """Compare the current machine against potential GPU upgrades."""
+    """Compare the current machine against potential GPU upgrades.
+
+    For each GPU passed on the command line, simulate a system with the same
+    CPU/RAM but that GPU, run the ranker, and show the best-N models you'd
+    be able to run. Useful for answering "is upgrading from a 3090 to a 4090
+    worth it?" — the table shows the quality jump and the speed jump for
+    each option.
+    """
     return upgrade_command(
         target_gpus=target_gpus,
         context_length=context_length,
@@ -308,9 +271,6 @@ def run(
         quant=quant,
         refresh=refresh,
         cpu_only=cpu_only,
-        load_models=_load_models,
-        search_model=_search_model,
-        generate_chat_script=_generate_chat_script,
     )
 
 
@@ -329,8 +289,6 @@ def snippet(
         model_name=model_name,
         quant=quant,
         refresh=refresh,
-        load_models=_load_models,
-        search_model=_search_model,
     )
 
 
@@ -372,39 +330,7 @@ def hardware(
 
 
 __all__ = [
-    "_apply_gpu_overrides",
-    "_apply_memory_budgets",
-    "_auto_min_params_for_profile",
-    "_auto_vram_headroom",
-    "_extract_id_size_b",
-    "_fill_missing_published_at",
-    "_find_gguf_variant",
-    "_format_budget_bytes",
-    "_format_fetch_error",
-    "_generate_chat_script",
-    "_include_vision_candidates",
-    "_load_models",
-    "_merge_model_eval_benchmarks",
-    "_parse_memory_amount",
-    "_parse_size_tokens",
-    "_parse_vram_headroom",
-    "_pick_gguf_variant",
-    "_print_version",
-    "_resolve_evidence_mode",
-    "_resolve_fit_filter",
-    "_resolve_model_deps",
-    "_resolve_ranked_gguf_for_run",
-    "_resolve_speed_filter",
-    "_run_async",
-    "_search_model",
-    "_size_compatible",
-    "_validate_evidence",
-    "_validate_gpu_flags",
-    "_validate_output_flags",
-    "_validate_profile",
-    "_validate_ranking_flags",
     "app",
-    "console",
     "hardware",
     "main",
     "plan",
