@@ -9,7 +9,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from whichllm.engine.quantization import effective_quant_type
+from whichllm.engine.quantization import effective_quant_type, estimate_weight_bytes
 from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.types import HardwareInfo
 from whichllm.output import _console
@@ -176,6 +176,7 @@ def display_ranking(
     table.add_column("Model", style="cyan", min_width=14, overflow="fold")
     table.add_column("Quant", justify="center", width=6)
     if show_status:
+        table.add_column("Weights", justify="right", width=8)
         table.add_column(f"Fit / {mem_label}", justify="center", width=8)
         table.add_column("Speed", justify="right", width=12)
         table.add_column("Published", justify="center", width=10)
@@ -243,8 +244,18 @@ def display_ranking(
             quant,
         ]
         if show_status:
+            if r.gguf_variant and r.gguf_variant.file_size_bytes:
+                weights_str = _format_bytes(r.gguf_variant.file_size_bytes)
+            else:
+                disk_bytes = estimate_weight_bytes(r.model, r.gguf_variant)
+                weights_str = f"~{_format_bytes(disk_bytes)}"
             row_cells.extend(
-                [f"{fit_str}\n[dim]{vram_str}[/dim]", speed_str, published_str]
+                [
+                    weights_str,
+                    f"{fit_str}\n[dim]{vram_str}[/dim]",
+                    speed_str,
+                    published_str,
+                ]
             )
         else:
             row_cells.append(params_str)
@@ -253,6 +264,15 @@ def display_ranking(
         table.add_row(*row_cells)
 
     _console.console.print(table)
+
+    if show_status:
+        has_estimated_weights = any(
+            not (r.gguf_variant and r.gguf_variant.file_size_bytes) for r in results
+        )
+        if has_estimated_weights:
+            _console.console.print(
+                "  [dim]Weights:[/dim]  [yellow]~[/yellow] = estimated size"
+            )
 
     has_estimated = any(r.benchmark_status == "estimated" for r in results)
     has_self = any(r.benchmark_status == "self_reported" for r in results)
