@@ -133,12 +133,17 @@ would otherwise borrow a larger base model's score.
 
 `models/grouper.py` groups related repos by:
 
-1. `cardData.base_model`, when available.
+1. `cardData.base_model`, when the relationship is explicitly `quantized`.
 2. Normalized repository names.
 
-The normalizer removes common suffixes such as `-GGUF`, `-AWQ`, `-GPTQ`,
-`-Instruct`, `-Chat`, `-FP16`, and date suffixes. It also handles versioned
-model lines such as Qwen, Llama, Mistral, and DeepSeek.
+The normalizer removes packaging and quantization suffixes such as `-GGUF`,
+`-AWQ`, `-GPTQ`, and `-FP16`. It preserves minor versions, checkpoint dates,
+and instruction/chat suffixes. Models that reference a base without an explicit
+quantization relationship keep their own repository identity. Quantizations of
+those derived models stay with the derived checkpoint rather than its ancestor.
+
+`family_id` reflects these checkpoint distinctions and is recomputed during
+grouping, including for models loaded from an existing cache.
 
 Within a family, the ranker evaluates all members and variants but keeps only
 the best result for the final table.

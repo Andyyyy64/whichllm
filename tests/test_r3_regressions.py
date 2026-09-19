@@ -213,6 +213,7 @@ class TestGrouperUpstreamBase:
             parameter_count=4_000_000_000,
             downloads=1_300_000,  # more than the official base
             base_model="Qwen/Qwen3-4B-Thinking-2507",
+            base_model_relation="finetune",
         )
         gguf_fork = ModelInfo(
             id="MaziyarPanahi/Qwen3-4B-Thinking-2507-GGUF",
@@ -222,11 +223,12 @@ class TestGrouperUpstreamBase:
             downloads=26_000,
             base_model="Qwen/Qwen3-4B-Thinking-2507",
             gguf_variants=[_gguf("Q4_K_M", 2.4)],
+            base_model_relation="quantized",
         )
         families = group_models([popular_fork, official, gguf_fork])
-        # All three collapse into one family.
-        assert len(families) == 1
-        fam = families[0]
+        # The fine-tune is independent; the quantization retains its upstream.
+        assert len(families) == 2
+        fam = next(f for f in families if f.base_model.id == official.id)
         assert fam.base_model.id == "Qwen/Qwen3-4B-Thinking-2507", (
             f"family base is {fam.base_model.id!r}; the popular fork "
             "overrode the official upstream (regression R3-3)"
@@ -234,7 +236,8 @@ class TestGrouperUpstreamBase:
         # Every member must carry the upstream-derived family_id.
         all_ids = {fam.base_model.id} | {v.id for v in fam.variants}
         assert "Qwen/Qwen3-4B-Thinking-2507" in all_ids
-        for m in [official, popular_fork, gguf_fork]:
+        assert popular_fork.family_id != official.family_id
+        for m in [official, gguf_fork]:
             assert m.family_id == official.family_id
             assert "rio" not in m.family_id
 
