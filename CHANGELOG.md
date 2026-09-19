@@ -6,6 +6,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.5.17] - 2026-09-19
+
+### Added
+
+- Fetch the Qwen3.5 / Qwen3.6 / Qwen3.8 releases and the current coder line
+  (`Qwen3-Coder-Next`, `Qwen3-Coder-480B-A35B-Instruct`), map them to their
+  Artificial Analysis leaderboard names, and add curated index entries so they
+  rank with real benchmark evidence instead of dropping out. (#24)
+
+### Changed
+
+- `--profile math` now keeps general reasoning models alongside math-specialized
+  repos, instead of only repos with "math" in the name. (#24)
+- Split ranking orchestration, scoring, filters, and variant selection into
+  focused modules. (#41, #145)
+- Keep cache-directory tests portable across platforms. (#149)
+
+### Fixed
+
+- `Qwen/Qwen3-Coder-Next` no longer reports ~33B active parameters: its 512
+  expert / top-10 config fell through to the generic expert-fraction estimate,
+  so VRAM and speed were computed for a much denser model than the 3B-active
+  one the model card describes. (#24)
+- Qwen3.8 repositories are no longer demoted as an older generation: they had no
+  lineage entry, so they fell through to the generic `qwen3` pattern and scored
+  a smaller generation bonus than Qwen3.5 and Qwen3.6. (#24)
+- Replaced the hand-estimated curated index values for `Qwen/Qwen3.6-27B` and
+  `Qwen/Qwen3-Coder-30B-A3B-Instruct` with their measured ones. Both were off by
+  enough to reorder neighbouring models offline. (#24)
+- Non-UTF-8 model and benchmark caches are treated as cache misses instead of
+  crashing during decoding. (#160, #161)
+- Apple Silicon GPU memory budgets respect the configured
+  `iogpu.wired_limit_mb` value. (#152, #153)
+- RTX Ada Generation laptop workstation GPUs resolve bandwidth from the GPU
+  catalog without confusing mobile and desktop variants. (#144)
+- Restore the README star-history chart. (#166)
+
 ## [0.5.16] - 2026-08-14
 
 ### Changed
