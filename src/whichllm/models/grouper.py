@@ -50,7 +50,7 @@ def group_models(models: list[ModelInfo]) -> list[ModelFamily]:
     for model in models:
         key = keys[model.id.lower()]
         if model.base_model and model.base_model_relation == "quantized":
-            key = keys.get(model.base_model.lower(), _normalize_name(model.base_model))
+            key = keys.get(model.base_model.lower(), model.base_model.lower())
         groups.setdefault(key, []).append(model)
 
     # Build families

@@ -107,6 +107,12 @@ def test_quantization_keeps_its_referenced_namespace_with_or_without_base():
         }
         assert quant.family_id != unrelated.family_id
 
+    unrelated = _make_model("org/Model-7B")
+    quant = _make_model("converter/Model-7B-GGUF", "org/Model-7B-FP16")
+    group_models([unrelated, quant])
+    assert quant.family_id == "org/model-7b-fp16"
+    assert quant.family_id != unrelated.family_id
+
 
 def test_family_id_set():
     base = _make_model("meta/Llama-3-8B", downloads=1000)
