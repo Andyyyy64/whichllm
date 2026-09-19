@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed
+
+- AMD shared-memory detection uses a recognized ROCm product SKU even when
+  `Card Series` contains a generic name, preserving the reported display name
+  and avoiding a 512 MB aperture being treated as dedicated VRAM. (#36)
+
 ## [0.5.17] - 2026-09-19
 
 ### Added
