@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.5.19] - 2026-09-20
+
+### Added
+
+- `-v` as a short alias for `--version`. (#159)
+
 ## [0.5.18] - 2026-09-19
 
 ### Fixed
