@@ -91,7 +91,7 @@ async def fetch_benchmark_scores() -> dict[str, float]:
         aa_result = benchmark_sources.get_aa_curated_fallback()
 
     for k, v in aa_result.items():
-        if current.get(k, 0.0) < v:
+        if k not in current or current[k] < v:
             current[k] = v
     logger.debug(f"AA Index: {len(aa_result)} scores (current)")
 

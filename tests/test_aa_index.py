@@ -19,6 +19,7 @@ from whichllm.models.benchmark_sources.aa_index import (
     _canonical_name,
     _decode_rsc_blob,
     _extract_aa_pairs_from_html,
+    _extract_aa_pairs,
     _normalize_aa_index,
     fetch_aa_index_scores,
     get_aa_curated_fallback,
@@ -97,22 +98,38 @@ def _run_fetch(html: str) -> dict[str, float]:
     return asyncio.run(go())
 
 
-def test_fetch_maps_canonical_names_and_merges_over_fallback():
+@pytest.mark.parametrize("raw_score", [55.0, 10.1, 5.0, 0.0, -19.4])
+def test_fetch_maps_canonical_names_and_merges_over_fallback(raw_score):
     # "Qwen3 14B (Reasoning)" canonicalizes onto the "Qwen3 14B" table entry
-    # -> Qwen/Qwen3-14B, and a high live value must override the snapshot.
-    page = _rsc_page([{"name": "Qwen3 14B (Reasoning)", "index": 55.0}])
+    # -> Qwen/Qwen3-14B. A mapped live value must override the snapshot.
+    page = _rsc_page([{"name": "Qwen3 14B (Reasoning)", "index": raw_score}])
     scores = _run_fetch(page)
 
     fallback = get_aa_curated_fallback()
     # Coverage never shrinks below the curated snapshot ...
     assert set(fallback).issubset(set(scores))
-    # ... and the live number wins where it is higher.
-    assert scores["Qwen/Qwen3-14B"] > fallback["Qwen/Qwen3-14B"]
+    # Live scores replace the snapshot even when lower or normalized to zero.
+    assert scores["Qwen/Qwen3-14B"] == _normalize_aa_index(raw_score)
+    assert {k: v for k, v in scores.items() if k != "Qwen/Qwen3-14B"} == {
+        k: v for k, v in fallback.items() if k != "Qwen/Qwen3-14B"
+    }
 
 
 def test_fetch_raises_when_no_records_found():
     with pytest.raises(ExtractionFailed):
         _run_fetch("<html><body>nothing to see</body></html>")
+
+
+@pytest.mark.parametrize("score", [0.0, -19.4, 10.1])
+def test_payload_preserves_finite_scores(score):
+    assert _extract_aa_pairs({"name": "Qwen3 14B", "intelligenceIndex": score}) == [
+        ("Qwen3 14B", score)
+    ]
+
+
+@pytest.mark.parametrize("score", [None, True, float("nan"), float("inf")])
+def test_payload_rejects_missing_or_invalid_scores(score):
+    assert _extract_aa_pairs({"name": "Qwen3 14B", "intelligenceIndex": score}) == []
 
 
 def test_live_normalization_anchors_on_reworked_scale():

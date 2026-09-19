@@ -2,6 +2,8 @@
 
 import asyncio
 
+import pytest
+
 import whichllm.models.benchmark_sources as benchmark_sources
 from whichllm.models.benchmark import (
     _lineage_recency_factor,
@@ -11,6 +13,64 @@ from whichllm.models.benchmark import (
     lookup_benchmark,
     lookup_benchmark_evidence,
 )
+
+
+@pytest.mark.parametrize(
+    "other_score,frozen_score,aa_fails,expected",
+    [
+        (None, None, False, 0.0),
+        (40.0, None, False, 40.0),
+        (None, 70.0, False, 0.0),
+        (None, None, True, 35.0),
+    ],
+)
+def test_aa_zero_survives_aggregation_cache_and_lookup(
+    monkeypatch, tmp_path, other_score, frozen_score, aa_fails, expected
+):
+    from whichllm.models import benchmark_cache
+
+    model_id = "org/Example-7B"
+
+    async def empty_source(client):
+        return {}
+
+    async def frozen_source(client):
+        return {} if frozen_score is None else {model_id: frozen_score}
+
+    async def aa_source(client):
+        if aa_fails:
+            raise ValueError("invalid upstream payload")
+        return {model_id: 0.0}
+
+    for name in (
+        "fetch_arena_scores",
+        "fetch_aider_polyglot_scores",
+        "fetch_vision_scores",
+    ):
+        monkeypatch.setattr(benchmark_sources, name, empty_source)
+    monkeypatch.setattr(
+        benchmark_sources, "fetch_leaderboard_with_fallback", frozen_source
+    )
+    monkeypatch.setattr(benchmark_sources, "fetch_aa_index_scores", aa_source)
+    monkeypatch.setattr(
+        benchmark_sources, "get_aa_curated_fallback", lambda: {model_id: 35.0}
+    )
+    monkeypatch.setattr(
+        benchmark_sources,
+        "get_livebench_data",
+        lambda: {} if other_score is None else {model_id: other_score},
+    )
+    monkeypatch.setattr(benchmark_cache, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(benchmark_cache, "BENCHMARK_CACHE", tmp_path / "benchmark.json")
+
+    scores = asyncio.run(fetch_benchmark_scores())
+    assert scores[model_id] == expected
+    benchmark_cache.save_benchmark_cache(scores)
+    restored = benchmark_cache.load_benchmark_cache()
+    assert restored == scores
+    evidence = lookup_benchmark_evidence(model_id, None, restored)
+    assert evidence.score == expected
+    assert evidence.source == "direct"
 
 
 def test_fetch_benchmark_scores_disables_brotli_accept_encoding(monkeypatch):

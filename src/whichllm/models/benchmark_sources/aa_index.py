@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 
 import httpx
@@ -303,7 +304,7 @@ def _extract_aa_pairs_from_html(html: str) -> list[tuple[str, float]]:
             score = float(m.group("idx"))
         except (ValueError, json.JSONDecodeError):
             continue
-        if name and score > 0:
+        if name and math.isfinite(score):
             pairs.append((name, score))
     return pairs
 
@@ -329,10 +330,10 @@ def _extract_aa_pairs(payload: dict) -> list[tuple[str, float]]:
             "score",
         ):
             v = node.get(score_key)
-            if isinstance(v, (int, float)):
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
                 score = float(v)
                 break
-        if name and score is not None and score > 0:
+        if name and score is not None and math.isfinite(score):
             pairs.append((name, score))
     return pairs
 
@@ -380,10 +381,8 @@ async def fetch_aa_index_scores(client: httpx.AsyncClient) -> dict[str, float]:
         if not hf_ids:
             continue
         normalized = _normalize_aa_index(score)
-        if normalized <= 0:
-            continue
         for hf_id in hf_ids:
-            if normalized > live.get(hf_id, 0.0):
+            if hf_id not in live or normalized > live[hf_id]:
                 live[hf_id] = normalized
     if not live:
         raise ExtractionFailed("AA index: live fetch returned 0 mapped scores")
@@ -393,9 +392,7 @@ async def fetch_aa_index_scores(client: httpx.AsyncClient) -> dict[str, float]:
     # numbers win wherever both exist; the snapshot fills the long tail of
     # models AA labels in a way we can't map (or no longer tracks).
     scores = get_aa_curated_fallback()
-    for hf_id, normalized in live.items():
-        if normalized > scores.get(hf_id, 0.0):
-            scores[hf_id] = normalized
+    scores.update(live)
     logger.debug(f"AA index: {len(live)} live + {len(scores)} merged scores")
     return scores
 
