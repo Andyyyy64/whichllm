@@ -35,7 +35,7 @@ def load_cache() -> list[dict] | None:
             logger.debug("Cache expired")
             return None
         return data.get("models", [])
-    except (json.JSONDecodeError, KeyError) as e:
+    except (json.JSONDecodeError, UnicodeDecodeError, KeyError) as e:
         logger.debug(f"Cache corrupted: {e}")
         return None
 

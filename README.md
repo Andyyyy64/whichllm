@@ -500,7 +500,7 @@ know what it picked for your rig. Drop it in [Issues](https://github.com/Andyyyy
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Andyyyy64/whichllm&type=Date)](https://www.star-history.com/#Andyyyy64/whichllm&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=Andyyyy64/whichllm&type=Date)](https://star-history.dera.page/#Andyyyy64/whichllm&Date)
 
 ## Requirements
 

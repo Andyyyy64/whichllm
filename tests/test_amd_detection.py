@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import subprocess
+import json
 from io import StringIO
+
+import pytest
 
 from rich.console import Console
 
@@ -34,20 +37,48 @@ def test_detect_amd_gpu_from_lspci_when_rocm_smi_missing(monkeypatch):
     assert "Radeon 8060S" in gpus[0].name
 
 
-def test_detect_strix_halo_rocm_smi_does_not_treat_aperture_as_vram(monkeypatch):
+@pytest.mark.parametrize(
+    "product",
+    [
+        {"Card SKU": "STRXLGEN"},
+        {
+            "Card Series": "AMD Radeon Graphics",
+            "Card Model": "0x1586",
+            "Card SKU": "STRXLGEN",
+        },
+        {"Card Series": "AMD Radeon Graphics"},
+        {"Card Series": "AMD Radeon Graphics", "Card SKU": None},
+    ],
+)
+def test_detect_strix_halo_rocm_smi_does_not_treat_aperture_as_vram(
+    monkeypatch, product
+):
     def fake_run(args, **kwargs):
         if args[:2] == ["rocm-smi", "--showproductname"]:
             return subprocess.CompletedProcess(
                 args,
                 0,
-                stdout='{"card0": {"Card SKU": "STRXLGEN"}}',
+                stdout=json.dumps(
+                    {
+                        "card0": product,
+                        "card1": {
+                            "Card Series": "AMD Radeon RX 7900 XTX",
+                            "Card SKU": "unknown",
+                        },
+                    }
+                ),
                 stderr="",
             )
         if args[:3] == ["rocm-smi", "--showmeminfo", "vram"]:
             return subprocess.CompletedProcess(
                 args,
                 0,
-                stdout='{"card0": {"VRAM Total Memory (B)": "536870912"}}',
+                stdout=json.dumps(
+                    {
+                        "card0": {"VRAM Total Memory (B)": "536870912"},
+                        "card1": {"VRAM Total Memory (B)": str(24 * 1024**3)},
+                    }
+                ),
                 stderr="",
             )
         if args[:2] == ["rocm-smi", "--showdriverversion"]:
@@ -63,13 +94,18 @@ def test_detect_strix_halo_rocm_smi_does_not_treat_aperture_as_vram(monkeypatch)
 
     gpus = amd.detect_amd_gpus()
 
-    assert len(gpus) == 1
-    assert gpus[0].name == "STRXLGEN"
+    assert len(gpus) == 2
+    assert gpus[0].name == product.get("Card Series", "STRXLGEN")
     assert gpus[0].vendor == "amd"
-    assert gpus[0].shared_memory is True
-    assert gpus[0].vram_bytes == 0
+    shared = product.get("Card SKU") == "STRXLGEN"
+    assert gpus[0].shared_memory is shared
+    assert gpus[0].vram_bytes == (0 if shared else 536870912)
     assert gpus[0].rocm_version == "7.0.3"
-    assert gpus[0].memory_bandwidth_gbps == 256.0
+    if shared:
+        assert gpus[0].memory_bandwidth_gbps == 256.0
+    assert gpus[1].name == "AMD Radeon RX 7900 XTX"
+    assert gpus[1].shared_memory is False
+    assert gpus[1].vram_bytes == 24 * 1024**3
 
 
 def test_detect_amd_gpu_ignores_intel_only_lspci(monkeypatch):

@@ -572,7 +572,7 @@ wheels = [
 
 [[package]]
 name = "whichllm"
-version = "0.5.16"
+version = "0.5.18"
 source = { editable = "." }
 dependencies = [
     { name = "dbgpu", extra = ["fuzz"] },

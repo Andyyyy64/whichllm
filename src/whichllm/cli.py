@@ -771,6 +771,7 @@ def plan(
 
     from whichllm.models.cache import load_cache, save_cache
     from whichllm.models.fetcher import dicts_to_models, fetch_models, models_to_dicts
+    from whichllm.models.hf import fetch_model_by_id
     from whichllm.output.display import display_plan, display_plan_json
 
     with Progress(
@@ -781,9 +782,23 @@ def plan(
     ) as progress:
         task = progress.add_task("Loading models...", total=None)
         cached_data = None if refresh else load_cache()
-        if cached_data is not None:
-            models = dicts_to_models(cached_data)
-        else:
+        models = dicts_to_models(cached_data) if cached_data is not None else []
+        query_lower = model_name.lower()
+        model = next((m for m in models if m.id.lower() == query_lower), None)
+
+        if model is None and _looks_like_hf_repo_id(model_name):
+            progress.update(task, description="Fetching repository from HuggingFace...")
+            try:
+                model = _run_async(fetch_model_by_id(model_name))
+            except Exception as e:
+                _raise_repo_fetch_error(model_name, e)
+            if model is None:
+                console.print(
+                    f"[red]Hugging Face repository '{model_name}' does not expose "
+                    "enough model metadata to estimate memory.[/]"
+                )
+                raise typer.Exit(code=1)
+        elif cached_data is None:
             progress.update(task, description="Fetching models from HuggingFace...")
             try:
                 models = _run_async(fetch_models(include_vision=True))
@@ -794,7 +809,8 @@ def plan(
                 )
                 sys.exit(1)
 
-    model = _search_model(models, model_name)
+    if model is None:
+        model = _search_model(models, model_name)
 
     target_quant = quant.upper() if quant else "Q4_K_M"
 
@@ -1026,6 +1042,72 @@ def _size_compatible(model: ModelInfo, size_b: float) -> bool:
     actual_b = model.parameter_count / 1e9
     ratio = actual_b / size_b
     return 0.7 <= ratio <= 1.5
+
+
+_HF_REPO_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+# Hugging Face answers 401 with these messages both for repositories that do
+# not exist and for private ones it will not reveal, so they cannot be told
+# apart from the response alone.
+_HF_MISSING_REPO_MESSAGES = (
+    "invalid username or password",
+    "invalid credentials",
+    "repository not found",
+)
+
+
+def _looks_like_hf_repo_id(value: str) -> bool:
+    """Return whether a CLI value has the shape of a Hugging Face repo ID."""
+    return _HF_REPO_ID_RE.fullmatch(value) is not None
+
+
+def _hf_error_message(error: Exception) -> str:
+    """Return the Hugging Face error message from a failed response, if any."""
+    response = getattr(error, "response", None)
+    if response is None:
+        return ""
+    try:
+        payload = response.json()
+    except Exception:
+        payload = None
+    if isinstance(payload, dict):
+        for key in ("error", "message"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    try:
+        text = response.text
+    except Exception:
+        return ""
+    return text.strip() if isinstance(text, str) else ""
+
+
+def _hf_reports_missing_repo(error: Exception) -> bool:
+    """Whether Hugging Face refused the request because the repo is not visible."""
+    message = _hf_error_message(error).casefold()
+    return any(marker in message for marker in _HF_MISSING_REPO_MESSAGES)
+
+
+def _raise_repo_fetch_error(model_id: str, error: Exception) -> None:
+    """Print a repository-specific fetch error and exit the CLI."""
+    response = getattr(error, "response", None)
+    status_code = getattr(response, "status_code", None)
+    if status_code == 404 or _hf_reports_missing_repo(error):
+        console.print(
+            f"[red]Repository not found on Hugging Face:[/] {model_id} "
+            "(it does not exist, or it is private or gated)."
+        )
+    elif status_code in {401, 403}:
+        console.print(
+            f"[red]Cannot access Hugging Face repository:[/] {model_id} "
+            "(it may be private or gated)."
+        )
+    else:
+        console.print(
+            f"[red]Error fetching Hugging Face repository '{model_id}':[/] "
+            f"{_format_fetch_error(error)}"
+        )
+    raise typer.Exit(code=1)
 
 
 def _search_model(models: list, model_name: str):
