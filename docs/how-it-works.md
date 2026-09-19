@@ -137,7 +137,7 @@ would otherwise borrow a larger base model's score.
 2. Normalized repository names.
 
 The normalizer removes packaging and quantization suffixes such as `-GGUF`,
-`-AWQ`, `-GPTQ`, and `-FP16`. It preserves minor versions, checkpoint dates,
+`-AWQ`, `-GPTQ`, and `-FP16`. It preserves organization namespaces, minor versions, checkpoint dates,
 and instruction/chat suffixes. Models that reference a base without an explicit
 quantization relationship keep their own repository identity. Quantizations of
 those derived models stay with the derived checkpoint rather than its ancestor.

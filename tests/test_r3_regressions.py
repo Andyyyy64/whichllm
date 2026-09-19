@@ -241,9 +241,7 @@ class TestGrouperUpstreamBase:
             assert m.family_id == official.family_id
             assert "rio" not in m.family_id
 
-    def test_falls_back_to_downloads_without_upstream_reference(self):
-        # No member references another's base_model → keep the prior
-        # "most downloads, no GGUF" behaviour.
+    def test_different_orgs_without_upstream_reference_stay_separate(self):
         a = ModelInfo(
             id="orgA/Model-7B",
             family_id="",
@@ -259,8 +257,8 @@ class TestGrouperUpstreamBase:
             downloads=5000,
         )
         families = group_models([a, b])
-        assert len(families) == 1
-        assert families[0].base_model.id == "orgB/Model-7B"
+        assert len(families) == 2
+        assert a.family_id != b.family_id
 
 
 # --------------------------------------------------------------- R3-4/5

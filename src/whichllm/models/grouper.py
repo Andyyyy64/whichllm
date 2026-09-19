@@ -8,11 +8,8 @@ from whichllm.models.types import ModelFamily, ModelInfo
 
 
 def _normalize_name(model_id: str) -> str:
-    """Normalize model ID for grouping by removing org prefix and packaging/quantization suffixes."""
-    name = model_id.lower()
-    # Strip org prefix (e.g. "bartowski/Meta-Llama-3.1" -> "meta-llama-3.1")
-    if "/" in name:
-        name = name.split("/", 1)[1]
+    """Remove packaging suffixes while preserving the checkpoint namespace."""
+    owner, separator, name = model_id.lower().rpartition("/")
     # Strip common org prefixes in model names (e.g. "qwen_qwen3-8b" -> "qwen3-8b")
     name = re.sub(r"^(qwen_|meta-llama_|google_)", "", name)
     # Remove common suffixes (applied repeatedly to handle stacked suffixes)
@@ -35,7 +32,7 @@ def _normalize_name(model_id: str) -> str:
         if name == prev:
             break
 
-    return name
+    return f"{owner}/{name}" if separator else name
 
 
 def group_models(models: list[ModelInfo]) -> list[ModelFamily]:

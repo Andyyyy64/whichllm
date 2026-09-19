@@ -94,6 +94,20 @@ def test_cached_old_family_ids_are_recomputed():
     assert len({model.family_id for model in restored}) == 3
 
 
+def test_quantization_keeps_its_referenced_namespace_with_or_without_base():
+    for include_base in [False, True]:
+        unrelated = _make_model("org/Model-7B")
+        referenced = _make_model("tuner/Model-7B")
+        quant = _make_model("converter/Model-7B-GGUF", referenced.id)
+        models = [unrelated, quant] + ([referenced] if include_base else [])
+        families = group_models(models)
+        assert {family.family_id for family in families} == {
+            "org/model-7b",
+            "tuner/model-7b",
+        }
+        assert quant.family_id != unrelated.family_id
+
+
 def test_family_id_set():
     base = _make_model("meta/Llama-3-8B", downloads=1000)
     gguf = _make_model(
