@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.5.17] - 2026-09-19
+
 ### Added
 
 - Fetch the Qwen3.5 / Qwen3.6 / Qwen3.8 releases and the current coder line
@@ -17,6 +19,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 - `--profile math` now keeps general reasoning models alongside math-specialized
   repos, instead of only repos with "math" in the name. (#24)
+- Split ranking orchestration, scoring, filters, and variant selection into
+  focused modules. (#41, #145)
+- Keep cache-directory tests portable across platforms. (#149)
 
 ### Fixed
 
@@ -30,6 +35,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Replaced the hand-estimated curated index values for `Qwen/Qwen3.6-27B` and
   `Qwen/Qwen3-Coder-30B-A3B-Instruct` with their measured ones. Both were off by
   enough to reorder neighbouring models offline. (#24)
+- Non-UTF-8 model and benchmark caches are treated as cache misses instead of
+  crashing during decoding. (#160, #161)
+- Apple Silicon GPU memory budgets respect the configured
+  `iogpu.wired_limit_mb` value. (#152, #153)
+- RTX Ada Generation laptop workstation GPUs resolve bandwidth from the GPU
+  catalog without confusing mobile and desktop variants. (#144)
+- Restore the README star-history chart. (#166)
 
 ## [0.5.16] - 2026-08-14
 
