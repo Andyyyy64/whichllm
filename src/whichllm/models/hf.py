@@ -195,6 +195,22 @@ async def _fetch_frontier_models(
             seen_ids.add(model.id)
 
 
+async def fetch_model_by_id(model_id: str) -> ModelInfo | None:
+    """Fetch and parse one exact Hugging Face repository."""
+    async with httpx.AsyncClient(
+        timeout=30.0,
+        follow_redirects=True,
+        headers={"Accept-Encoding": DEFAULT_ACCEPT_ENCODING},
+    ) as client:
+        resp = await get_with_retries(
+            client,
+            _hf_api_url(f"models/{model_id}"),
+            params={"expand[]": _MODEL_DETAIL_EXPANDS},
+        )
+        resp.raise_for_status()
+        return _parse_model(resp.json())
+
+
 async def fetch_models(
     limit: int = 300, include_vision: bool = True
 ) -> list[ModelInfo]:

@@ -8,9 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- Model grouping preserves minor versions, checkpoint dates, and instruction/chat
+  variants. Only explicit quantizations follow a referenced base model; other
+  derivatives keep their own identity. Ranking and JSON `family_id` values now
+  distinguish these checkpoints, including when loading an existing cache. (#171)
 - AMD shared-memory detection uses a recognized ROCm product SKU even when
   `Card Series` contains a generic name, preserving the reported display name
   and avoiding a 512 MB aperture being treated as dedicated VRAM. (#36)
+
 
 ## [0.5.17] - 2026-09-19
 
