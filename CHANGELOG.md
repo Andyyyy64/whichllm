@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed
+
+- Model grouping preserves minor versions, checkpoint dates, and instruction/chat
+  variants. Only explicit quantizations follow a referenced base model; other
+  derivatives keep their own identity. Ranking and JSON `family_id` values now
+  distinguish these checkpoints, including when loading an existing cache. (#171)
+
 ## [0.5.17] - 2026-09-19
 
 ### Added
