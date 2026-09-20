@@ -9,7 +9,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from whichllm.engine.quantization import effective_quant_type, estimate_weight_bytes
+from whichllm.engine.quantization import effective_quant_type
 from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.types import HardwareInfo
 from whichllm.output import _console
@@ -20,6 +20,7 @@ from whichllm.output.formatting import (
     _format_params,
     _format_published_at,
     _format_speed,
+    _format_weights,
     _parse_published_at,
     _published_style,
 )
@@ -244,11 +245,7 @@ def display_ranking(
             quant,
         ]
         if show_status:
-            if r.gguf_variant and r.gguf_variant.file_size_bytes:
-                weights_str = _format_bytes(r.gguf_variant.file_size_bytes)
-            else:
-                disk_bytes = estimate_weight_bytes(r.model, r.gguf_variant)
-                weights_str = f"~{_format_bytes(disk_bytes)}"
+            weights_str, _ = _format_weights(r)
             row_cells.extend(
                 [
                     weights_str,
@@ -266,9 +263,7 @@ def display_ranking(
     _console.console.print(table)
 
     if show_status:
-        has_estimated_weights = any(
-            not (r.gguf_variant and r.gguf_variant.file_size_bytes) for r in results
-        )
+        has_estimated_weights = any(_format_weights(r)[1] for r in results)
         if has_estimated_weights:
             _console.console.print(
                 "  [dim]Weights:[/dim]  [yellow]~[/yellow] = estimated size"
