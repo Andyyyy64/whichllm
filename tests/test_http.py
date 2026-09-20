@@ -40,6 +40,42 @@ def test_get_with_retries_retries_429_then_returns_response(monkeypatch):
     assert sleeps == [0.01, 0.02]
 
 
+def test_get_with_retries_honors_retry_after(monkeypatch):
+    calls = 0
+    sleeps: list[float] = []
+
+    async def fake_sleep(delay: float) -> None:
+        sleeps.append(delay)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(
+                429,
+                headers={"Retry-After": "3"},
+                request=request,
+            )
+        return httpx.Response(200, request=request)
+
+    async def run() -> httpx.Response:
+        monkeypatch.setattr("whichllm.models.http.asyncio.sleep", fake_sleep)
+        transport = httpx.MockTransport(handler)
+        async with httpx.AsyncClient(transport=transport) as client:
+            return await get_with_retries(
+                client,
+                "https://example.test/models",
+                max_delay=10.0,
+                jitter=0,
+            )
+
+    response = asyncio.run(run())
+
+    assert response.status_code == 200
+    assert calls == 2
+    assert sleeps == [3.0]
+
+
 def test_benchmark_source_retries_429_before_final_failure(monkeypatch):
     calls = 0
 
