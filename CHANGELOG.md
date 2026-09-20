@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+
+- Recommendations now detect exact GGUF artifacts in the current LM Studio
+  library, with repeatable `--lm-studio-path` overrides for legacy or custom
+  locations. Local libraries remain read-only. (#20)
+
 ## [0.5.19] - 2026-09-20
 
 ### Added
@@ -41,7 +47,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   (`Qwen3-Coder-Next`, `Qwen3-Coder-480B-A35B-Instruct`), map them to their
   Artificial Analysis leaderboard names, and add curated index entries so they
   rank with real benchmark evidence instead of dropping out. (#24)
-
 ### Changed
 
 - `--profile math` now keeps general reasoning models alongside math-specialized

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import re
 import sys
+from pathlib import Path
 from typing import Optional
 
 import typer
@@ -97,6 +98,20 @@ def _validate_output_flags(json_output: bool, markdown_output: bool) -> None:
     if json_output and markdown_output:
         console.print("[red]Error:[/] --json and --markdown are mutually exclusive.")
         raise typer.Exit(code=1)
+
+
+def _validate_lmstudio_path_flags(paths: list[Path] | None) -> None:
+    """Validate explicit LM Studio libraries before doing network work."""
+    if not paths:
+        return
+
+    from whichllm.models.lmstudio import LMStudioPathError, validate_lmstudio_paths
+
+    try:
+        validate_lmstudio_paths(paths)
+    except LMStudioPathError as error:
+        console.print(f"[red]Error:[/] {error}")
+        raise typer.Exit(code=1) from error
 
 
 def _validate_ranking_flags(
@@ -567,6 +582,11 @@ def main(
         "--ram-budget",
         help="RAM budget for offload: available | 8GB | 50%",
     ),
+    lm_studio_path: Optional[list[Path]] = typer.Option(
+        None,
+        "--lm-studio-path",
+        help="Additional LM Studio model library path (repeatable)",
+    ),
 ):
     """Detect hardware and recommend the best local LLMs."""
     if ctx.invoked_subcommand is not None:
@@ -574,6 +594,7 @@ def main(
 
     _validate_gpu_flags(cpu_only, gpu, vram, bandwidth, gpu_index)
     _validate_output_flags(json_output, markdown_output)
+    _validate_lmstudio_path_flags(lm_studio_path)
     _validate_ranking_flags(top, min_speed, min_params)
     profile = _validate_profile(profile)
     evidence_mode = _resolve_evidence_mode(evidence, direct)
@@ -708,6 +729,18 @@ def main(
         # 上位候補の公開日時が欠けている場合のみ補完して表示品質を上げる
         if results:
             attach_resolved_artifacts(results, all_models, quant_filter=quant)
+            from whichllm.models.lmstudio import (
+                attach_local_matches,
+                discover_lmstudio_ggufs,
+                LMStudioPathError,
+            )
+
+            try:
+                local_models = discover_lmstudio_ggufs(lm_studio_path or ())
+            except LMStudioPathError as error:
+                console.print(f"[red]Error:[/] {error}")
+                raise typer.Exit(code=1) from error
+            attach_local_matches(results, local_models)
             try:
                 if _fill_missing_published_at(
                     all_models, results, fetch_model_published_at
