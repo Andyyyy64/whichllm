@@ -72,13 +72,16 @@ def _extract_gguf_variants(data: dict, param_count: int) -> list[GGUFVariant]:
 
     gguf_variants = []
     for quant, total_size in quant_sizes.items():
+        is_estimated = False
         if total_size <= 0:
             total_size = _estimate_gguf_size(param_count, quant)
+            is_estimated = True
         gguf_variants.append(
             GGUFVariant(
                 filename=quant_first_filename[quant],
                 quant_type=quant,
                 file_size_bytes=total_size,
+                is_estimated=is_estimated,
             )
         )
     return gguf_variants

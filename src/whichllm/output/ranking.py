@@ -20,6 +20,7 @@ from whichllm.output.formatting import (
     _format_params,
     _format_published_at,
     _format_speed,
+    _format_weights,
     _parse_published_at,
     _published_style,
 )
@@ -176,6 +177,7 @@ def display_ranking(
     table.add_column("Model", style="cyan", min_width=14, overflow="fold")
     table.add_column("Quant", justify="center", width=6)
     if show_status:
+        table.add_column("Weights", justify="right", width=8)
         table.add_column(f"Fit / {mem_label}", justify="center", width=8)
         table.add_column("Speed", justify="right", width=12)
         table.add_column("Published", justify="center", width=10)
@@ -243,8 +245,14 @@ def display_ranking(
             quant,
         ]
         if show_status:
+            weights_str, _ = _format_weights(r)
             row_cells.extend(
-                [f"{fit_str}\n[dim]{vram_str}[/dim]", speed_str, published_str]
+                [
+                    weights_str,
+                    f"{fit_str}\n[dim]{vram_str}[/dim]",
+                    speed_str,
+                    published_str,
+                ]
             )
         else:
             row_cells.append(params_str)
@@ -253,6 +261,13 @@ def display_ranking(
         table.add_row(*row_cells)
 
     _console.console.print(table)
+
+    if show_status:
+        has_estimated_weights = any(_format_weights(r)[1] for r in results)
+        if has_estimated_weights:
+            _console.console.print(
+                "  [dim]Weights:[/dim]  [yellow]~[/yellow] = estimated size"
+            )
 
     has_estimated = any(r.benchmark_status == "estimated" for r in results)
     has_self = any(r.benchmark_status == "self_reported" for r in results)
