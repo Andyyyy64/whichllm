@@ -167,13 +167,11 @@ def _has_all_split_parts(
         return False
     prefix = artifact.name[: match.start()]
     expected = {
-        artifact.with_name(f"{prefix}-{part:05d}-of-{total:05d}.gguf")
-        .as_posix()
-        .casefold()
+        artifact.with_name(f"{prefix}-{part:05d}-of-{total:05d}.gguf").as_posix()
         for part in range(1, total + 1)
     }
     available = {
-        local.artifact_path.casefold()
+        local.artifact_path
         for local in local_models
         if local.repo_id is not None
         and local.repo_id.casefold() == repo_id.casefold()
@@ -192,13 +190,13 @@ def _find_local_match(
         return None
 
     repo_id = model.id.casefold()
-    artifact_path = PurePosixPath(variant.filename).as_posix().casefold()
+    artifact_path = PurePosixPath(variant.filename).as_posix()
     for local in local_models:
         if (
             local.repo_id is not None
             and local.repo_id.casefold() == repo_id
             and local.artifact_path is not None
-            and local.artifact_path.casefold() == artifact_path
+            and local.artifact_path == artifact_path
             and _is_readable_file(local.path)
             and _has_all_split_parts(model.id, variant.filename, local_models)
         ):

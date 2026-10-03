@@ -212,6 +212,25 @@ def test_attach_local_match_rejects_exact_filename_in_wrong_repo(tmp_path):
     assert result.local_path is None
 
 
+def test_attach_local_match_rejects_case_different_artifact(tmp_path):
+    result = _result(filename="weights/Model-Q4_K_M.gguf")
+    _add_model_file(tmp_path, "weights/model-Q4_K_M.gguf")
+
+    attach_local_matches([result], discover_lmstudio_ggufs(home=tmp_path))
+
+    assert result.local_path is None
+
+
+def test_attach_local_match_rejects_case_different_split_part(tmp_path):
+    result = _result(filename="weights/Model-Q4_K_M-00002-of-00002.gguf")
+    _add_model_file(tmp_path, "weights/model-Q4_K_M-00001-of-00002.gguf")
+    _add_model_file(tmp_path, result.artifact_variant.filename)
+
+    attach_local_matches([result], discover_lmstudio_ggufs(home=tmp_path))
+
+    assert result.local_path is None
+
+
 def test_attach_local_match_rejects_filename_without_repo(tmp_path):
     result = _result()
     custom = tmp_path / "flat-library"
