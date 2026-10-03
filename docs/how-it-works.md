@@ -108,6 +108,11 @@ whichllm separates sources into two tiers:
 Current sources can use live scrapes when reachable and curated snapshots when
 the upstream page shape changes. The snapshot month is printed below rankings.
 
+Within Artificial Analysis, mapped live scores replace stored AA scores even
+when lower or zero. The stored snapshot supplies models absent from the live
+response. This does not change how scores from different benchmark sources
+are combined. Use `--refresh` to bypass the 24-hour benchmark cache.
+
 Frozen-only scores are demoted by model lineage. This prevents an older model
 with a stale leaderboard score from outranking a newer generation simply because
 the newer model was never added to that frozen leaderboard.
@@ -133,12 +138,17 @@ would otherwise borrow a larger base model's score.
 
 `models/grouper.py` groups related repos by:
 
-1. `cardData.base_model`, when available.
+1. `cardData.base_model`, when the relationship is explicitly `quantized`.
 2. Normalized repository names.
 
-The normalizer removes common suffixes such as `-GGUF`, `-AWQ`, `-GPTQ`,
-`-Instruct`, `-Chat`, `-FP16`, and date suffixes. It also handles versioned
-model lines such as Qwen, Llama, Mistral, and DeepSeek.
+The normalizer removes packaging and quantization suffixes such as `-GGUF`,
+`-AWQ`, `-GPTQ`, and `-FP16`. It preserves organization namespaces, minor versions, checkpoint dates,
+and instruction/chat suffixes. Models that reference a base without an explicit
+quantization relationship keep their own repository identity. Quantizations of
+those derived models stay with the derived checkpoint rather than its ancestor.
+
+`family_id` reflects these checkpoint distinctions and is recomputed during
+grouping, including for models loaded from an existing cache.
 
 Within a family, the ranker evaluates all members and variants but keeps only
 the best result for the final table.

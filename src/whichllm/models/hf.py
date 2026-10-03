@@ -63,14 +63,24 @@ _FRONTIER_MODEL_IDS = (
     "zai-org/GLM-4.5",
     "zai-org/GLM-4.5-Air",
     # Open-weight mid-size frontier
+    "Qwen/Qwen3.8-27B",
     "Qwen/Qwen3.6-27B",
+    "Qwen/Qwen3.6-35B-A3B",
+    "Qwen/Qwen3.5-27B",
+    "Qwen/Qwen3.5-35B-A3B",
+    "Qwen/Qwen3.5-9B",
+    "Qwen/Qwen3.5-4B",
     "Qwen/Qwen3-32B",
     "Qwen/Qwen3-14B",
     "Qwen/Qwen3-8B",
+    "Qwen/Qwen3-Coder-Next",
     "Qwen/Qwen3-Coder-30B-A3B-Instruct",
     "Qwen/Qwen3-Next-80B-A3B-Instruct",
     "Qwen/Qwen3-235B-A22B",
     "Qwen/Qwen3-4B-Instruct-2507",
+    # Large open-weight MoEs (planning / multi-GPU territory)
+    "Qwen/Qwen3.5-122B-A10B",
+    "Qwen/Qwen3-Coder-480B-A35B-Instruct",
     # Reasoning/thinking lines that do not auto-surface via cardinality
     "Qwen/QwQ-32B",
     "Qwen/Qwen3-4B-Thinking-2507",
@@ -183,6 +193,22 @@ async def _fetch_frontier_models(
         if model:
             models.append(model)
             seen_ids.add(model.id)
+
+
+async def fetch_model_by_id(model_id: str) -> ModelInfo | None:
+    """Fetch and parse one exact Hugging Face repository."""
+    async with httpx.AsyncClient(
+        timeout=30.0,
+        follow_redirects=True,
+        headers={"Accept-Encoding": DEFAULT_ACCEPT_ENCODING},
+    ) as client:
+        resp = await get_with_retries(
+            client,
+            _hf_api_url(f"models/{model_id}"),
+            params={"expand[]": _MODEL_DETAIL_EXPANDS},
+        )
+        resp.raise_for_status()
+        return _parse_model(resp.json())
 
 
 async def fetch_models(

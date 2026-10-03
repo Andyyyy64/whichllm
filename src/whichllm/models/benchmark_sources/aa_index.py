@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 
 import httpx
@@ -32,7 +33,8 @@ logger = logging.getLogger(__name__)
 AA_NAME_TO_HF_IDS: dict[str, list[str]] = {
     "Kimi K2": ["moonshotai/Kimi-K2-Instruct", "moonshotai/Kimi-K2-Base"],
     "Kimi K2-Thinking": ["moonshotai/Kimi-K2-Thinking"],
-    "DeepSeek V3": ["deepseek-ai/DeepSeek-V3", "deepseek-ai/DeepSeek-V3-0324"],
+    "DeepSeek V3": ["deepseek-ai/DeepSeek-V3"],
+    "DeepSeek V3 0324": ["deepseek-ai/DeepSeek-V3-0324"],
     "DeepSeek V3.1": ["deepseek-ai/DeepSeek-V3.1"],
     "DeepSeek V3.2": ["deepseek-ai/DeepSeek-V3.2"],
     "DeepSeek V3.2-Exp": ["deepseek-ai/DeepSeek-V3.2-Exp"],
@@ -48,7 +50,8 @@ AA_NAME_TO_HF_IDS: dict[str, list[str]] = {
     "MiMo V2.5": ["XiaomiMiMo/MiMo-V2.5"],
     "MiMo V2.5 Pro": ["XiaomiMiMo/MiMo-V2.5-Pro"],
     "MiMo V2 Flash": ["XiaomiMiMo/MiMo-V2-Flash"],
-    "GLM-4.5": ["zai-org/GLM-4.5", "zai-org/GLM-4.5-Air"],
+    "GLM-4.5": ["zai-org/GLM-4.5"],
+    "GLM-4.5-Air": ["zai-org/GLM-4.5-Air"],
     "GLM-4.6": ["zai-org/GLM-4.6"],
     "GLM-4.7": ["zai-org/GLM-4.7"],
     "GLM-4.7-Flash": ["zai-org/GLM-4.7-Flash"],
@@ -57,7 +60,20 @@ AA_NAME_TO_HF_IDS: dict[str, list[str]] = {
     "gpt-oss-20b": ["openai/gpt-oss-20b"],
     "gpt-oss-120b": ["openai/gpt-oss-120b"],
     "Qwen3-Next 80B-A3B": ["Qwen/Qwen3-Next-80B-A3B-Instruct"],
+    "Qwen3.8 27B": ["Qwen/Qwen3.8-27B"],
+    "Qwen3.6 35B-A3B": ["Qwen/Qwen3.6-35B-A3B"],
+    "Qwen3.6 27B": ["Qwen/Qwen3.6-27B"],
     "Qwen3.5 397B-A17B": ["Qwen/Qwen3.5-397B-A17B"],
+    "Qwen3.5 122B-A10B": ["Qwen/Qwen3.5-122B-A10B"],
+    "Qwen3.5 35B-A3B": ["Qwen/Qwen3.5-35B-A3B"],
+    "Qwen3.5 27B": ["Qwen/Qwen3.5-27B"],
+    "Qwen3.5 9B": ["Qwen/Qwen3.5-9B"],
+    "Qwen3.5 4B": ["Qwen/Qwen3.5-4B"],
+    "Qwen3 Coder Next": ["Qwen/Qwen3-Coder-Next"],
+    "Qwen3 Coder 480B-A35B Instruct": ["Qwen/Qwen3-Coder-480B-A35B-Instruct"],
+    "Qwen3 Coder 30B A3B Instruct": ["Qwen/Qwen3-Coder-30B-A3B-Instruct"],
+    "Qwen2.5 Coder Instruct 32B": ["Qwen/Qwen2.5-Coder-32B-Instruct"],
+    "Qwen2.5 Coder Instruct 7B": ["Qwen/Qwen2.5-Coder-7B-Instruct"],
     "Qwen3 235B-A22B": ["Qwen/Qwen3-235B-A22B"],
     "Qwen3 32B": ["Qwen/Qwen3-32B"],
     "Qwen3 14B": ["Qwen/Qwen3-14B"],
@@ -102,7 +118,8 @@ _AA_INDEX_MAX = 47.6
 AA_LEADERBOARD_URL = "https://artificialanalysis.ai/leaderboards/models"
 
 # Snapshot of the AA Intelligence Index (open-weights only), refreshed on
-# 2026-06-29 from artificialanalysis.ai against their reworked index. Used as a
+# 2026-06-29 from artificialanalysis.ai against their reworked index, with the
+# Qwen3.5 / Qwen3.6 / Qwen3.8 and coder entries read on 2026-09-14. Used as a
 # fallback when the live HTML scrape returns no results (e.g. because the
 # Next.js payload format changes again). Entries are raw AA index values,
 # normalized through _normalize_aa_index() in get_aa_curated_fallback().
@@ -117,7 +134,7 @@ AA_LEADERBOARD_URL = "https://artificialanalysis.ai/leaderboards/models"
 # already-normalized 0-100 values, which would drop the negatives and decouple
 # the fallback from future bound retunes, but that is a larger change than this
 # issue calls for and is left for a follow-up if you want it.)
-AA_INDEX_FALLBACK_2026_06_29: dict[str, float] = {
+AA_INDEX_FALLBACK_2026_09_14: dict[str, float] = {
     # Frontier MoE / very large
     "moonshotai/Kimi-K2-Thinking": 32.7,  # live
     "moonshotai/Kimi-K2-Instruct": 19.4,  # live
@@ -146,11 +163,11 @@ AA_INDEX_FALLBACK_2026_06_29: dict[str, float] = {
     "zai-org/GLM-4.5": 19.5,  # live
     "zai-org/GLM-4.5-Air": 19.5,  # live
     # Qwen family
-    "Qwen/Qwen3.6-27B": 32.0,  # peer
+    "Qwen/Qwen3.6-27B": 21.9,  # live (2026-09-14; was a 32.0 hand estimate)
     "Qwen/Qwen3.5-397B-A17B": 33.7,  # live
     "Qwen/Qwen3-Next-80B-A3B-Instruct": 19.8,  # live
     "Qwen/Qwen3-235B-A22B": 13.4,  # live
-    "Qwen/Qwen3-Coder-30B-A3B-Instruct": 19.7,  # peer
+    "Qwen/Qwen3-Coder-30B-A3B-Instruct": 9.6,  # live (2026-09-14; was 19.7 peer)
     "Qwen/Qwen3-32B": 11.5,  # live
     "Qwen/Qwen3-14B": 10.1,  # live
     "Qwen/Qwen3-8B": 7.4,  # live
@@ -158,6 +175,20 @@ AA_INDEX_FALLBACK_2026_06_29: dict[str, float] = {
     "Qwen/Qwen3-4B": 1.3,  # peer
     "Qwen/Qwen3-1.7B": -7.9,  # peer
     "Qwen/Qwen3-0.6B": -14.0,  # peer
+    # Qwen3.5 / Qwen3.6 / Qwen3.8 releases and the current coder line. Raw
+    # values read from the live AA index (v4.3) on 2026-09-14, taking the
+    # highest variant per model as fetch_aa_index_scores() does.
+    "Qwen/Qwen3.8-27B": 33.9,  # live
+    "Qwen/Qwen3.6-35B-A3B": 18.8,  # live
+    "Qwen/Qwen3.5-27B": 22.9,  # live
+    "Qwen/Qwen3.5-122B-A10B": 17.7,  # live
+    "Qwen/Qwen3.5-35B-A3B": 19.3,  # live
+    "Qwen/Qwen3.5-9B": 13.7,  # live
+    "Qwen/Qwen3.5-4B": 13.1,  # live
+    "Qwen/Qwen3-Coder-Next": 10.1,  # live
+    "Qwen/Qwen3-Coder-480B-A35B-Instruct": 11.9,  # live
+    "Qwen/Qwen2.5-Coder-32B-Instruct": 6.7,  # live
+    "Qwen/Qwen2.5-Coder-7B-Instruct": 5.8,  # live
     # 8B-class peers (no AA tracking but realistic LB-equivalents)
     "meta-llama/Llama-3.1-8B-Instruct": -4.8,  # peer
     "meta-llama/Meta-Llama-3-8B-Instruct": -7.9,  # peer
@@ -275,7 +306,7 @@ def _extract_aa_pairs_from_html(html: str) -> list[tuple[str, float]]:
             score = float(m.group("idx"))
         except (ValueError, json.JSONDecodeError):
             continue
-        if name and score > 0:
+        if name and math.isfinite(score):
             pairs.append((name, score))
     return pairs
 
@@ -301,10 +332,10 @@ def _extract_aa_pairs(payload: dict) -> list[tuple[str, float]]:
             "score",
         ):
             v = node.get(score_key)
-            if isinstance(v, (int, float)):
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
                 score = float(v)
                 break
-        if name and score is not None and score > 0:
+        if name and score is not None and math.isfinite(score):
             pairs.append((name, score))
     return pairs
 
@@ -352,10 +383,8 @@ async def fetch_aa_index_scores(client: httpx.AsyncClient) -> dict[str, float]:
         if not hf_ids:
             continue
         normalized = _normalize_aa_index(score)
-        if normalized <= 0:
-            continue
         for hf_id in hf_ids:
-            if normalized > live.get(hf_id, 0.0):
+            if hf_id not in live or normalized > live[hf_id]:
                 live[hf_id] = normalized
     if not live:
         raise ExtractionFailed("AA index: live fetch returned 0 mapped scores")
@@ -365,21 +394,22 @@ async def fetch_aa_index_scores(client: httpx.AsyncClient) -> dict[str, float]:
     # numbers win wherever both exist; the snapshot fills the long tail of
     # models AA labels in a way we can't map (or no longer tracks).
     scores = get_aa_curated_fallback()
-    for hf_id, normalized in live.items():
-        if normalized > scores.get(hf_id, 0.0):
-            scores[hf_id] = normalized
+    scores.update(live)
     logger.debug(f"AA index: {len(live)} live + {len(scores)} merged scores")
     return scores
 
 
 def get_aa_curated_fallback() -> dict[str, float]:
-    """Return the 2026-06-29 curated snapshot, normalized to the 0-100 scale.
+    """Return the curated snapshot, normalized to the 0-100 scale.
+
+    Mixed dates: 2026-06-29 base, with the Qwen3.5 / Qwen3.6 / Qwen3.8 and
+    coder entries refreshed on 2026-09-14.
 
     Used whenever the live HTML scrape cannot extract data — for example
     when artificialanalysis.ai changes its Next.js payload shape.
     """
     result: dict[str, float] = {}
-    for hf_id, raw in AA_INDEX_FALLBACK_2026_06_29.items():
+    for hf_id, raw in AA_INDEX_FALLBACK_2026_09_14.items():
         normalized = _normalize_aa_index(raw)
         if normalized > 0:
             result[hf_id] = normalized

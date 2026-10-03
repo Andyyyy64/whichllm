@@ -167,6 +167,12 @@ def _matches_profile(model: ModelInfo, task_profile: str) -> bool:
         return True
     if profile == "general":
         return len(tags) == 0
+    if profile == "math":
+        # Math-tagged repos are a thin, mostly 2024-era pool (Qwen2.5-Math and
+        # friends), so a name-only filter leaves --profile math near-empty.
+        # Current math ability comes from general reasoning models, so keep the
+        # specialists eligible and only exclude the other specializations.
+        return not (tags - {"math"})
     return profile in tags
 
 
