@@ -121,3 +121,58 @@ def test_leaderboard_falls_back_to_rows_when_pyarrow_is_unavailable(monkeypatch)
             return await fetch_leaderboard_with_fallback(client)
 
     assert asyncio.run(run()) == expected
+
+
+def test_partial_leaderboard_survives_aggregation_and_cache(
+    monkeypatch, tmp_path, caplog
+):
+    from whichllm.models import benchmark_cache, benchmark_sources
+    from whichllm.models.benchmark_fetch import fetch_benchmark_scores
+
+    async def fake_sleep(delay):
+        return None
+
+    def handler(request):
+        offset = int(request.url.params["offset"])
+        if offset:
+            return httpx.Response(429, request=request)
+        return httpx.Response(
+            200,
+            json={"rows": _rows(0, 200), "num_rows_total": 200},
+            request=request,
+        )
+
+    async def partial_source(client):
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as mocked:
+            return await _fetch_leaderboard_api(mocked)
+
+    async def empty_source(client):
+        return {}
+
+    monkeypatch.setattr("whichllm.models.http.asyncio.sleep", fake_sleep)
+    monkeypatch.setattr(
+        benchmark_sources, "fetch_leaderboard_with_fallback", partial_source
+    )
+    for source in (
+        "fetch_arena_scores",
+        "fetch_aa_index_scores",
+        "fetch_aider_polyglot_scores",
+        "fetch_vision_scores",
+    ):
+        monkeypatch.setattr(benchmark_sources, source, empty_source)
+    monkeypatch.setattr(
+        benchmark_sources, "get_livebench_data", lambda: {"current/Model-7B": 88.0}
+    )
+    monkeypatch.setattr(benchmark_cache, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(benchmark_cache, "BENCHMARK_CACHE", tmp_path / "benchmark.json")
+
+    with caplog.at_level(logging.WARNING):
+        scores = asyncio.run(fetch_benchmark_scores())
+
+    assert scores["test/model-0"] > 0
+    assert scores["test/model-99"] > 0
+    assert "test/model-100" not in scores
+    assert scores["current/Model-7B"] == 88.0
+    assert "using 100 scores fetched so far" in caplog.text
+    benchmark_cache.save_benchmark_cache(scores)
+    assert benchmark_cache.load_benchmark_cache() == scores

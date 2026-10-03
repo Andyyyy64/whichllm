@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import random
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
@@ -28,6 +29,8 @@ def _retry_after_delay(response: httpx.Response) -> float | None:
             retry_at = retry_at.replace(tzinfo=timezone.utc)
         delay = (retry_at - datetime.now(timezone.utc)).total_seconds()
 
+    if not math.isfinite(delay):
+        return None
     return max(0.0, delay)
 
 
