@@ -165,6 +165,28 @@ def test_live_scores_land_on_one_checkpoint_each():
     assert scores["zai-org/GLM-4.5"] != scores["zai-org/GLM-4.5-Air"]
 
 
+@pytest.mark.parametrize(
+    "name,model_id",
+    [
+        ("DeepSeek V3 (Dec '24)", "deepseek-ai/DeepSeek-V3"),
+        ("DeepSeek V3 0324", "deepseek-ai/DeepSeek-V3-0324"),
+        ("GLM-4.5 (Reasoning)", "zai-org/GLM-4.5"),
+        ("GLM-4.5-Air (Reasoning)", "zai-org/GLM-4.5-Air"),
+    ],
+)
+@pytest.mark.parametrize("raw_score", [0.0, -19.4])
+def test_checkpoint_specific_decrease_preserves_absent_siblings(
+    name, model_id, raw_score
+):
+    scores = _run_fetch(_rsc_page([{"name": name, "index": raw_score}]))
+    fallback = get_aa_curated_fallback()
+
+    assert scores[model_id] == _normalize_aa_index(raw_score)
+    assert {k: v for k, v in scores.items() if k != model_id} == {
+        k: v for k, v in fallback.items() if k != model_id
+    }
+
+
 def test_live_normalization_anchors_on_reworked_scale():
     # Retuned bounds keep the calibration: the top mapped open model lands ~95
     # and an 8B-class model lands ~40, on AA's reworked (compressed) raw scale.
