@@ -348,6 +348,8 @@ def test_models_cache_roundtrip_keeps_published_at():
             published_at="2025-09-17T12:34:56.000Z",
             downloads=123_456,
             likes=789,
+            base_model="Qwen/Qwen3-8B",
+            base_model_relation="quantized",
         )
     ]
     cached = models_to_dicts(models)
@@ -355,6 +357,59 @@ def test_models_cache_roundtrip_keeps_published_at():
     assert len(restored) == 1
     assert restored[0].published_at == "2025-09-17T12:34:56.000Z"
     assert restored[0].downloads == 123_456
+    assert restored[0].base_model_relation == "quantized"
+
+
+def test_parse_model_keeps_quantized_base_model_relation():
+    parsed = _parse_model(
+        {
+            "id": "converter/Qwen3.6-27B-GGUF",
+            "config": {"architectures": ["Qwen2ForCausalLM"]},
+            "gguf": {"total": 27_000_000_000},
+            "siblings": [
+                {
+                    "rfilename": "Qwen3.6-27B-Q4_K_M.gguf",
+                    "size": 16_000_000_000,
+                }
+            ],
+            "cardData": {"base_model": "Qwen/Qwen3.6-27B"},
+            "tags": [
+                "gguf",
+                "base_model:Qwen/Qwen3.6-27B",
+                "base_model:quantized:Qwen/Qwen3.6-27B",
+            ],
+        }
+    )
+
+    assert parsed is not None
+    assert parsed.base_model == "Qwen/Qwen3.6-27B"
+    assert parsed.base_model_relation == "quantized"
+    assert "base_model:quantized:Qwen/Qwen3.6-27B" in parsed.tags
+
+
+def test_parse_model_keeps_finetune_base_model_relation():
+    parsed = _parse_model(
+        {
+            "id": "tuner/Qwen3.6-27B-tuned-GGUF",
+            "config": {"architectures": ["Qwen2ForCausalLM"]},
+            "gguf": {"total": 27_000_000_000},
+            "siblings": [
+                {
+                    "rfilename": "Qwen3.6-27B-tuned-Q4_K_M.gguf",
+                    "size": 16_000_000_000,
+                }
+            ],
+            "cardData": {"base_model": ["Qwen/Qwen3.6-27B"]},
+            "tags": [
+                "gguf",
+                "base_model:Qwen/Qwen3.6-27B",
+                "base_model:finetune:Qwen/Qwen3.6-27B",
+            ],
+        }
+    )
+
+    assert parsed is not None
+    assert parsed.base_model_relation == "finetune"
 
 
 def test_extract_published_at_prefers_created_at():

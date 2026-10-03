@@ -13,10 +13,10 @@ def test_cache_dir_defaults_to_dot_cache(monkeypatch):
     assert result == Path.home() / ".cache" / "whichllm"
 
 
-def test_cache_dir_respects_xdg_cache_home(monkeypatch):
-    monkeypatch.setenv("XDG_CACHE_HOME", "/tmp/custom-cache")
+def test_cache_dir_respects_xdg_cache_home(monkeypatch, tmp_path):
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
     result = _cache_dir()
-    assert result == Path("/tmp/custom-cache/whichllm")
+    assert result == tmp_path / "whichllm"
 
 
 def test_cache_dir_falls_back_on_empty_xdg(monkeypatch):

@@ -20,6 +20,8 @@ def test_attach_resolved_artifacts_maps_synthetic_quant_to_real_gguf_repo():
         parameter_count=4_000_000_000,
         downloads=26_000,
         base_model="Qwen/Qwen3-4B-Thinking-2507",
+        base_model_relation="quantized",
+        tags=("base_model:quantized:Qwen/Qwen3-4B-Thinking-2507",),
         gguf_variants=[
             GGUFVariant(
                 filename="Qwen3-4B-Thinking-2507-Q3_K_M.gguf",

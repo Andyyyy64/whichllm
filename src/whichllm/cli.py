@@ -459,6 +459,7 @@ def main(
     show_version: bool = typer.Option(
         False,
         "--version",
+        "-v",
         help="Show version and exit",
         callback=_print_version,
         is_eager=True,
@@ -770,6 +771,7 @@ def plan(
 
     from whichllm.models.cache import load_cache, save_cache
     from whichllm.models.fetcher import dicts_to_models, fetch_models, models_to_dicts
+    from whichllm.models.hf import fetch_model_by_id
     from whichllm.output.display import display_plan, display_plan_json
 
     with Progress(
@@ -780,9 +782,23 @@ def plan(
     ) as progress:
         task = progress.add_task("Loading models...", total=None)
         cached_data = None if refresh else load_cache()
-        if cached_data is not None:
-            models = dicts_to_models(cached_data)
-        else:
+        models = dicts_to_models(cached_data) if cached_data is not None else []
+        query_lower = model_name.lower()
+        model = next((m for m in models if m.id.lower() == query_lower), None)
+
+        if model is None and _looks_like_hf_repo_id(model_name):
+            progress.update(task, description="Fetching repository from HuggingFace...")
+            try:
+                model = _run_async(fetch_model_by_id(model_name))
+            except Exception as e:
+                _raise_repo_fetch_error(model_name, e)
+            if model is None:
+                console.print(
+                    f"[red]Hugging Face repository '{model_name}' does not expose "
+                    "enough model metadata to estimate memory.[/]"
+                )
+                raise typer.Exit(code=1)
+        elif cached_data is None:
             progress.update(task, description="Fetching models from HuggingFace...")
             try:
                 models = _run_async(fetch_models(include_vision=True))
@@ -793,7 +809,8 @@ def plan(
                 )
                 sys.exit(1)
 
-    model = _search_model(models, model_name)
+    if model is None:
+        model = _search_model(models, model_name)
 
     target_quant = quant.upper() if quant else "Q4_K_M"
 
@@ -1027,6 +1044,72 @@ def _size_compatible(model: ModelInfo, size_b: float) -> bool:
     return 0.7 <= ratio <= 1.5
 
 
+_HF_REPO_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+# Hugging Face answers 401 with these messages both for repositories that do
+# not exist and for private ones it will not reveal, so they cannot be told
+# apart from the response alone.
+_HF_MISSING_REPO_MESSAGES = (
+    "invalid username or password",
+    "invalid credentials",
+    "repository not found",
+)
+
+
+def _looks_like_hf_repo_id(value: str) -> bool:
+    """Return whether a CLI value has the shape of a Hugging Face repo ID."""
+    return _HF_REPO_ID_RE.fullmatch(value) is not None
+
+
+def _hf_error_message(error: Exception) -> str:
+    """Return the Hugging Face error message from a failed response, if any."""
+    response = getattr(error, "response", None)
+    if response is None:
+        return ""
+    try:
+        payload = response.json()
+    except Exception:
+        payload = None
+    if isinstance(payload, dict):
+        for key in ("error", "message"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    try:
+        text = response.text
+    except Exception:
+        return ""
+    return text.strip() if isinstance(text, str) else ""
+
+
+def _hf_reports_missing_repo(error: Exception) -> bool:
+    """Whether Hugging Face refused the request because the repo is not visible."""
+    message = _hf_error_message(error).casefold()
+    return any(marker in message for marker in _HF_MISSING_REPO_MESSAGES)
+
+
+def _raise_repo_fetch_error(model_id: str, error: Exception) -> None:
+    """Print a repository-specific fetch error and exit the CLI."""
+    response = getattr(error, "response", None)
+    status_code = getattr(response, "status_code", None)
+    if status_code == 404 or _hf_reports_missing_repo(error):
+        console.print(
+            f"[red]Repository not found on Hugging Face:[/] {model_id} "
+            "(it does not exist, or it is private or gated)."
+        )
+    elif status_code in {401, 403}:
+        console.print(
+            f"[red]Cannot access Hugging Face repository:[/] {model_id} "
+            "(it may be private or gated)."
+        )
+    else:
+        console.print(
+            f"[red]Error fetching Hugging Face repository '{model_id}':[/] "
+            f"{_format_fetch_error(error)}"
+        )
+    raise typer.Exit(code=1)
+
+
 def _search_model(models: list, model_name: str):
     """Search for a model by name/ID. Returns single model or exits."""
     query_lower = model_name.lower()
@@ -1133,12 +1216,15 @@ def _generate_chat_script(model, variant, context_length: int, cpu_only: bool) -
     """Generate a self-contained Python chat script for any model type."""
     if variant:
         n_gpu = 0 if cpu_only else -1
-        return f'''\
+        return f"""\
 from huggingface_hub import hf_hub_download
 from llama_cpp import Llama
 
-print("Downloading {model.id} ({variant.quant_type})...")
-model_path = hf_hub_download(repo_id="{model.id}", filename="{variant.filename}")
+model_id = {model.id!r}
+filename = {variant.filename!r}
+quant_type = {variant.quant_type!r}
+print(f"Downloading {{model_id}} ({{quant_type}})...")
+model_path = hf_hub_download(repo_id=model_id, filename=filename)
 print("Loading model...")
 llm = Llama(
     model_path=model_path,
@@ -1169,18 +1255,18 @@ while True:
     print()
     messages.append({{"role": "assistant", "content": full}})
 print("\\nBye!")
-'''
+"""
 
     device_map = '"cpu"' if cpu_only else '"auto"'
     dtype = "torch.float32" if cpu_only else '"auto"'
-    return f'''\
+    return f"""\
 import shutil
 import tempfile
 import torch
 from threading import Thread
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
 
-model_id = "{model.id}"
+model_id = {model.id!r}
 offload_folder = tempfile.mkdtemp(prefix="whichllm_transformers_offload_")
 try:
     print(f"Loading {{model_id}}...")
@@ -1232,7 +1318,7 @@ finally:
     except NameError:
         pass
     shutil.rmtree(offload_folder, ignore_errors=True)
-'''
+"""
 
 
 @app.command()
@@ -1414,12 +1500,12 @@ def snippet(
     deps, _ = _resolve_model_deps(model, variant)
 
     if variant:
-        code = f'''\
+        code = f"""\
 from llama_cpp import Llama
 
 llm = Llama.from_pretrained(
-    repo_id="{model.id}",
-    filename="{variant.filename}",
+    repo_id={model.id!r},
+    filename={variant.filename!r},
     n_ctx=4096,
     n_gpu_layers=-1,  # -1 = all layers on GPU, 0 = CPU only
     verbose=False,
@@ -1429,12 +1515,12 @@ output = llm.create_chat_completion(
     messages=[{{"role": "user", "content": "Hello!"}}],
 )
 print(output["choices"][0]["message"]["content"])
-'''
+"""
     else:
-        code = f'''\
+        code = f"""\
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-model_id = "{model.id}"
+model_id = {model.id!r}
 tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
 model = AutoModelForCausalLM.from_pretrained(
     model_id, device_map="auto", torch_dtype="auto", trust_remote_code=True,
@@ -1443,7 +1529,7 @@ model = AutoModelForCausalLM.from_pretrained(
 inputs = tokenizer("Hello!", return_tensors="pt").to(model.device)
 outputs = model.generate(**inputs, max_new_tokens=256)
 print(tokenizer.decode(outputs[0], skip_special_tokens=True))
-'''
+"""
 
     dep_str = " ".join(f"--with {d}" for d in deps)
     console.print(f"\n[bold]{model.id}[/]")
