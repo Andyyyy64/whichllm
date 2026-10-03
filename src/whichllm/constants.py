@@ -12,6 +12,7 @@ from whichllm.data.framework import (
 )
 from whichllm.data.gpu import (
     _GiB,
+    AMD_PCI_DEVICE_NAMES,
     AMD_SHARED_MEMORY_APU_MARKERS,
     CURATED_GPU_SPECS,
     CuratedGPUSpec,
@@ -34,6 +35,7 @@ from whichllm.data.quantization import (
 
 __all__ = [
     "_GiB",
+    "AMD_PCI_DEVICE_NAMES",
     "AMD_SHARED_MEMORY_APU_MARKERS",
     "CURATED_GPU_SPECS",
     "CuratedGPUSpec",

@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from math import log10
 
+from whichllm.engine.quantization import estimate_weight_bytes
 from whichllm.engine.types import CompatibilityResult
 
 
@@ -66,6 +67,17 @@ def _format_speed(result: CompatibilityResult) -> str:
     elif result.speed_confidence == "medium":
         marker = " ~"
     return f"[{style}]{base}{marker}[/{style}]"
+
+
+# Format model weight footprint and return whether it is estimated.
+def _format_weights(result: CompatibilityResult) -> tuple[str, bool]:
+    """Format model weight footprint and return whether it is estimated."""
+    variant = result.gguf_variant
+    if variant and variant.file_size_bytes > 0 and not variant.is_estimated:
+        return _format_bytes(variant.file_size_bytes), False
+
+    disk_bytes = estimate_weight_bytes(result.model, variant)
+    return f"~{_format_bytes(disk_bytes)}", True
 
 
 def _parse_published_at(value: str | None) -> datetime | None:

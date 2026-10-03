@@ -62,6 +62,26 @@ def test_model_cache_rejects_missing_provenance_schema(monkeypatch):
     assert cache_mod.load_cache() is None
 
 
+def test_model_cache_rejects_sizes_without_estimate_provenance(monkeypatch):
+    reader = _ReadableCacheFile(
+        {
+            "schema_version": 3,
+            "cached_at": time.time(),
+            "models": [
+                {
+                    "id": "test/old-cache",
+                    "gguf_variants": [
+                        {"filename": "model-Q4_K_M.gguf", "file_size_bytes": 1234}
+                    ],
+                }
+            ],
+        }
+    )
+    monkeypatch.setattr(cache_mod, "CACHE_FILE", reader)
+
+    assert cache_mod.load_cache() is None
+
+
 def _write_non_utf8_cache(path, payload):
     """Write a cache file the way a pre-0.5.12 Windows install left it.
 

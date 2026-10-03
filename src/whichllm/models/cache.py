@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 CACHE_DIR = _cache_dir()
 CACHE_FILE = CACHE_DIR / "models.json"
 DEFAULT_TTL_SECONDS = 6 * 3600  # 6 hours
-CACHE_SCHEMA_VERSION = 3
+CACHE_SCHEMA_VERSION = 4
 
 
 def _ensure_cache_dir() -> None:
