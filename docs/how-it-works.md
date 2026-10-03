@@ -108,6 +108,11 @@ whichllm separates sources into two tiers:
 Current sources can use live scrapes when reachable and curated snapshots when
 the upstream page shape changes. The snapshot month is printed below rankings.
 
+Within Artificial Analysis, mapped live scores replace stored AA scores even
+when lower or zero. The stored snapshot supplies models absent from the live
+response. This does not change how scores from different benchmark sources
+are combined. Use `--refresh` to bypass the 24-hour benchmark cache.
+
 Frozen-only scores are demoted by model lineage. This prevents an older model
 with a stale leaderboard score from outranking a newer generation simply because
 the newer model was never added to that frozen leaderboard.

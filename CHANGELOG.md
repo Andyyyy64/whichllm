@@ -12,6 +12,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   library, with repeatable `--lm-studio-path` overrides for legacy or custom
   locations. Local libraries remain read-only. (#20)
 
+### Fixed
+
+- Live Artificial Analysis scores replace stored AA scores even when lower or
+  zero. Models absent from the live response retain their stored AA scores.
+  Use `--refresh` to bypass an existing benchmark cache. (#101)
+
 ## [0.5.19] - 2026-09-20
 
 ### Added
