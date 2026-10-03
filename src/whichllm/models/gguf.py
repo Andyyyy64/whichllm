@@ -51,6 +51,7 @@ def _extract_gguf_variants(data: dict, param_count: int) -> list[GGUFVariant]:
     """Extract GGUF variants from HF sibling metadata."""
     quant_sizes: dict[str, int] = {}
     quant_first_filename: dict[str, str] = {}
+    missing_sizes: set[str] = set()
     siblings = data.get("siblings", []) or []
     for sib in siblings:
         fname = sib.get("rfilename", "")
@@ -60,8 +61,9 @@ def _extract_gguf_variants(data: dict, param_count: int) -> list[GGUFVariant]:
         if quant == "unknown":
             continue
         size = sib.get("size", 0)
-        if not isinstance(size, int) or size < 0:
+        if not isinstance(size, int) or isinstance(size, bool) or size <= 0:
             size = 0
+            missing_sizes.add(quant)
 
         # Split GGUF files are summed into one candidate per quant.
         quant_sizes[quant] = quant_sizes.get(quant, 0) + size
@@ -73,7 +75,7 @@ def _extract_gguf_variants(data: dict, param_count: int) -> list[GGUFVariant]:
     gguf_variants = []
     for quant, total_size in quant_sizes.items():
         is_estimated = False
-        if total_size <= 0:
+        if total_size <= 0 or quant in missing_sizes:
             total_size = _estimate_gguf_size(param_count, quant)
             is_estimated = True
         gguf_variants.append(

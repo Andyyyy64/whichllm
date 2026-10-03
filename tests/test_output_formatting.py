@@ -316,3 +316,18 @@ def test_gguf_variants_preserve_estimated_flag():
     assert len(extracted_real) == 1
     assert extracted_real[0].is_estimated is False
     assert extracted_real[0].file_size_bytes == 5_000_000_000
+
+
+def test_split_gguf_with_missing_size_is_estimated():
+    from whichllm.models.gguf import _extract_gguf_variants
+
+    data = {
+        "siblings": [
+            {"rfilename": "model-Q4_K_M-00001-of-00002.gguf", "size": 2_000_000_000},
+            {"rfilename": "model-Q4_K_M-00002-of-00002.gguf"},
+        ]
+    }
+    variants = _extract_gguf_variants(data, 10_000_000_000)
+
+    assert variants[0].is_estimated is True
+    assert variants[0].file_size_bytes > 2_000_000_000
