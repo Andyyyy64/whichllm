@@ -704,3 +704,34 @@ def test_models_cache_roundtrip_keeps_sliding_window():
     restored = dicts_to_models(models_to_dicts(models))
     assert restored[0].sliding_window == 1024
     assert restored[0].sliding_window_global_ratio == 1.0 / 6.0
+
+
+# Verify that the is_estimated flag on GGUF variants is preserved across cache serialization.
+def test_models_cache_roundtrip_keeps_gguf_variant_is_estimated():
+    from whichllm.models.types import GGUFVariant
+
+    models = [
+        ModelInfo(
+            id="test/model",
+            family_id="test/model",
+            name="model",
+            parameter_count=8_000_000_000,
+            gguf_variants=[
+                GGUFVariant(
+                    filename="model.Q4_K_M.gguf",
+                    quant_type="Q4_K_M",
+                    file_size_bytes=5_000_000_000,
+                    is_estimated=True,
+                ),
+                GGUFVariant(
+                    filename="model.Q8_0.gguf",
+                    quant_type="Q8_0",
+                    file_size_bytes=8_500_000_000,
+                    is_estimated=False,
+                ),
+            ],
+        )
+    ]
+    restored = dicts_to_models(models_to_dicts(models))
+    assert restored[0].gguf_variants[0].is_estimated is True
+    assert restored[0].gguf_variants[1].is_estimated is False

@@ -67,7 +67,7 @@ def effective_quant_type(model: ModelInfo, variant: GGUFVariant | None) -> str:
 
 def estimate_weight_bytes(model: ModelInfo, variant: GGUFVariant | None) -> int:
     """Estimate model weight size in bytes."""
-    if variant:
+    if variant and variant.file_size_bytes > 0:
         return variant.file_size_bytes
     quant_type = infer_non_gguf_quant_type(model.id)
     bytes_per_weight = _NON_GGUF_BYTES_PER_WEIGHT.get(quant_type, 2.0)

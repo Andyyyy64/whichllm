@@ -32,6 +32,7 @@ def models_to_dicts(models: list[ModelInfo]) -> list[dict]:
                         "filename": v.filename,
                         "quant_type": v.quant_type,
                         "file_size_bytes": v.file_size_bytes,
+                        "is_estimated": v.is_estimated,
                     }
                     for v in m.gguf_variants
                 ],
@@ -84,6 +85,7 @@ def dicts_to_models(data: list[dict]) -> list[ModelInfo]:
                         filename=v["filename"],
                         quant_type=v["quant_type"],
                         file_size_bytes=v["file_size_bytes"],
+                        is_estimated=v.get("is_estimated", False),
                     )
                     for v in d.get("gguf_variants", [])
                 ],

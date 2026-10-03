@@ -8,6 +8,7 @@ class GGUFVariant:
     filename: str
     quant_type: str  # "Q4_K_M", "Q8_0" etc
     file_size_bytes: int
+    is_estimated: bool = False
 
 
 @dataclass
