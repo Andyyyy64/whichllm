@@ -59,9 +59,15 @@ def _format_markdown_params(result: CompatibilityResult) -> str:
 
 
 def _format_markdown_model(result: CompatibilityResult) -> str:
-    if not result.artifact_model:
-        return result.model.id
-    return f"[{result.model.id}](https://huggingface.co/{result.artifact_model.id})"
+    if result.artifact_model:
+        model = (
+            f"[{result.model.id}](https://huggingface.co/{result.artifact_model.id})"
+        )
+    else:
+        model = result.model.id
+    if result.local_path:
+        model += " (Installed)"
+    return model
 
 
 def _markdown_table(headers: list[str], rows: list[list[str]]) -> str:
