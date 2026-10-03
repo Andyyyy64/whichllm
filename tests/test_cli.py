@@ -6,16 +6,10 @@ import httpx
 import pytest
 from typer import Exit
 
+import whichllm.cli_commands as cli_mod
 import whichllm.__main__ as main_mod
-from whichllm.cli import app
-from whichllm.cli_models import (
-    _extract_id_size_b,
-    _generate_chat_script,
-    _pick_gguf_variant,
-    _search_model,
-)
-from whichllm.cli_shared import _format_fetch_error
 from whichllm.cli_validation import (
+    _validate_ranking_flags,
     _apply_memory_budgets,
     _apply_gpu_overrides,
     _auto_min_params_for_profile,
@@ -28,9 +22,18 @@ from whichllm.cli_validation import (
     _resolve_speed_filter,
     _validate_evidence,
     _validate_gpu_flags,
-    _validate_ranking_flags,
 )
-from whichllm.models.artifacts import resolve_ranked_gguf_artifact
+from whichllm.cli_models import (
+    _extract_id_size_b,
+    _generate_chat_script,
+    _pick_gguf_variant,
+    _search_model,
+)
+from whichllm.cli_shared import _format_fetch_error
+from whichllm.models.artifacts import (
+    resolve_ranked_gguf_artifact as _resolve_ranked_gguf_for_run,
+)
+from whichllm.cli import app
 from whichllm.utils import _current_version
 from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.types import GPUInfo, HardwareInfo
@@ -497,6 +500,83 @@ def test_main_passes_speed_preset_and_default_runtime_columns(monkeypatch):
     assert result.exit_code == 0
     assert captured["min_speed"] == 10.0
     assert captured["show_status"] is True
+
+
+def test_main_passes_repeatable_lm_studio_paths(monkeypatch, tmp_path):
+    model = ModelInfo(
+        id="org/Test-7B-GGUF",
+        family_id="test-7b",
+        name="Test-7B-GGUF",
+        parameter_count=7_000_000_000,
+        published_at="2026-01-01T00:00:00.000Z",
+    )
+    variant = GGUFVariant(
+        filename="Test-7B-Q4_K_M.gguf",
+        quant_type="Q4_K_M",
+        file_size_bytes=4 * 1024**3,
+    )
+    result = CompatibilityResult(
+        model=model,
+        gguf_variant=variant,
+        can_run=True,
+        vram_required_bytes=5 * 1024**3,
+        vram_available_bytes=8 * 1024**3,
+    )
+    captured: dict[str, object] = {}
+
+    def fake_discover(paths):
+        captured["paths"] = [str(path) for path in paths]
+        return []
+
+    def fake_attach(results, local_models):
+        captured["attached"] = results == [result] and local_models == []
+
+    monkeypatch.setattr(
+        "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
+    )
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
+    monkeypatch.setattr(
+        "whichllm.engine.ranker.rank_models", lambda *args, **kwargs: [result]
+    )
+    monkeypatch.setattr(
+        "whichllm.models.lmstudio.discover_lmstudio_ggufs", fake_discover
+    )
+    monkeypatch.setattr("whichllm.models.lmstudio.attach_local_matches", fake_attach)
+    monkeypatch.setattr(
+        "whichllm.output.display.display_hardware", lambda hardware: None
+    )
+    monkeypatch.setattr(
+        "whichllm.output.display.display_ranking", lambda results, **kwargs: None
+    )
+
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+    cli_result = CliRunner().invoke(
+        app,
+        [
+            "--lm-studio-path",
+            str(first),
+            "--lm-studio-path",
+            str(second),
+        ],
+    )
+
+    assert cli_result.exit_code == 0
+    assert captured["paths"] == [str(first), str(second)]
+    assert captured["attached"] is True
+
+
+def test_main_reports_missing_explicit_lm_studio_path(tmp_path):
+    missing = tmp_path / "missing"
+
+    result = CliRunner().invoke(app, ["--lm-studio-path", str(missing)])
+
+    assert result.exit_code == 1
+    assert "LM Studio path does not exist" in result.output
+    assert str(missing) in result.output.replace("\n", "")
 
 
 def test_main_details_flag_restores_metadata_columns(monkeypatch):
@@ -1186,7 +1266,7 @@ def test_resolve_ranked_synthetic_gguf_to_real_repo():
         file_size_bytes=16_000_000_000,
     )
 
-    resolved = resolve_ranked_gguf_artifact(selected, synthetic, [selected, real_gguf])
+    resolved = _resolve_ranked_gguf_for_run(selected, synthetic, [selected, real_gguf])
 
     assert resolved is not None
     model, variant = resolved
@@ -1224,7 +1304,7 @@ def test_resolve_ranked_synthetic_gguf_rejects_finetuned_repo():
         file_size_bytes=16_000_000_000,
     )
 
-    resolved = resolve_ranked_gguf_artifact(
+    resolved = _resolve_ranked_gguf_for_run(
         selected,
         synthetic,
         [selected, finetuned_gguf],
@@ -1261,7 +1341,7 @@ def test_resolve_ranked_synthetic_gguf_rejects_unproven_base_relation():
         file_size_bytes=19_000_000_000,
     )
 
-    resolved = resolve_ranked_gguf_artifact(
+    resolved = _resolve_ranked_gguf_for_run(
         selected,
         synthetic,
         [selected, unproven_gguf],
@@ -1299,7 +1379,7 @@ def test_resolve_ranked_synthetic_gguf_rejects_other_quantized_checkpoint():
         file_size_bytes=16_000_000_000,
     )
 
-    resolved = resolve_ranked_gguf_artifact(
+    resolved = _resolve_ranked_gguf_for_run(
         selected,
         synthetic,
         [selected, other_checkpoint],
@@ -1343,7 +1423,7 @@ def test_resolve_ranked_synthetic_gguf_rejects_renamed_merge_claiming_quantized(
         file_size_bytes=19_000_000_000,
     )
 
-    resolved = resolve_ranked_gguf_artifact(
+    resolved = _resolve_ranked_gguf_for_run(
         selected,
         synthetic,
         [selected, merged_gguf],
@@ -1386,7 +1466,7 @@ def test_resolve_ranked_synthetic_gguf_rejects_conflicting_base_relations():
     )
 
     assert (
-        resolve_ranked_gguf_artifact(
+        _resolve_ranked_gguf_for_run(
             selected,
             synthetic,
             [selected, merged_gguf],
@@ -1410,7 +1490,7 @@ def test_resolve_ranked_existing_gguf_repo_does_not_require_base_relation():
         ],
     )
 
-    resolved = resolve_ranked_gguf_artifact(
+    resolved = _resolve_ranked_gguf_for_run(
         direct_gguf,
         direct_gguf.gguf_variants[0],
         [direct_gguf],
@@ -1448,7 +1528,7 @@ def test_resolve_ranked_synthetic_gguf_accepts_owner_prefixed_conversion_name():
         file_size_bytes=16_000_000_000,
     )
 
-    resolved = resolve_ranked_gguf_artifact(
+    resolved = _resolve_ranked_gguf_for_run(
         selected,
         synthetic,
         [selected, direct_gguf],
@@ -1501,7 +1581,7 @@ def test_resolve_ranked_synthetic_gguf_prefers_exact_quant():
         file_size_bytes=16_000_000_000,
     )
 
-    resolved = resolve_ranked_gguf_artifact(
+    resolved = _resolve_ranked_gguf_for_run(
         selected,
         synthetic,
         [selected, q5_only, q4_match],
@@ -1540,7 +1620,7 @@ def test_resolve_ranked_synthetic_gguf_rejects_quant_mismatch():
         file_size_bytes=16_000_000_000,
     )
 
-    resolved = resolve_ranked_gguf_artifact(selected, synthetic, [selected, q5_only])
+    resolved = _resolve_ranked_gguf_for_run(selected, synthetic, [selected, q5_only])
 
     assert resolved is None
 
@@ -1572,7 +1652,7 @@ def test_resolve_ranked_synthetic_gguf_without_real_repo_returns_none():
     )
 
     assert (
-        resolve_ranked_gguf_artifact(selected, synthetic, [selected, unrelated]) is None
+        _resolve_ranked_gguf_for_run(selected, synthetic, [selected, unrelated]) is None
     )
 
 
@@ -1602,7 +1682,7 @@ def test_resolve_ranked_synthetic_gguf_rejects_size_mismatch():
         file_size_bytes=90_000_000_000,
     )
 
-    resolved = resolve_ranked_gguf_artifact(selected, synthetic, [selected, mtp_head])
+    resolved = _resolve_ranked_gguf_for_run(selected, synthetic, [selected, mtp_head])
 
     assert resolved is None
 
@@ -1622,7 +1702,7 @@ def test_run_requires_uv(monkeypatch):
 
 def test_run_no_model_found_exits_gracefully(monkeypatch):
     monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/uv")
-    monkeypatch.setattr("whichllm.cli_commands._load_models", lambda refresh: [])
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [])
 
     runner = CliRunner()
     result = runner.invoke(app, ["run", "some-model"])
@@ -1693,7 +1773,7 @@ def test_snippet_treats_hf_metadata_as_literals(monkeypatch):
             file_size_bytes=1,
         )
     ]
-    monkeypatch.setattr("whichllm.cli_commands._load_models", lambda refresh: [model])
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [model])
 
     result = CliRunner().invoke(app, ["snippet", "Test-7B"])
 
@@ -1760,17 +1840,13 @@ def test_run_auto_pick_resolves_ranked_gguf_before_launch(monkeypatch):
         return Completed()
 
     monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/uv")
-    monkeypatch.setattr(
-        "whichllm.cli_commands._load_models", lambda refresh: [selected, real_gguf]
-    )
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [selected, real_gguf])
     monkeypatch.setattr(
         "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
     )
     monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
     monkeypatch.setattr("whichllm.engine.ranker.rank_models", fake_rank_models)
-    monkeypatch.setattr(
-        "whichllm.cli_commands._generate_chat_script", fake_generate_chat_script
-    )
+    monkeypatch.setattr(cli_mod, "_generate_chat_script", fake_generate_chat_script)
     monkeypatch.setattr("subprocess.run", fake_run)
 
     result = CliRunner().invoke(app, ["run", "--quant", "Q4_K_M"])
@@ -1784,7 +1860,7 @@ def test_run_auto_pick_resolves_ranked_gguf_before_launch(monkeypatch):
 
 
 def test_snippet_no_model_found(monkeypatch):
-    monkeypatch.setattr("whichllm.cli_commands._load_models", lambda refresh: [])
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [])
     runner = CliRunner()
     result = runner.invoke(app, ["snippet", "nonexistent_model_xyz_999"])
     assert result.exit_code != 0
@@ -1846,6 +1922,8 @@ def test_json_output_includes_benchmark_source_and_confidence():
     assert data["hardware"]["budget_notes"] == ["RAM budget: 32.0 GB"]
     assert entry["artifact_repo_id"] is None
     assert entry["artifact_filename"] is None
+    assert entry["local_match"] is False
+    assert entry["local_path"] is None
     assert entry["benchmark_status"] == "estimated"
     assert entry["benchmark_source"] == "line_interp"
     assert entry["benchmark_confidence"] == 0.34
@@ -1885,6 +1963,7 @@ def test_json_output_includes_resolved_artifact_fields():
             quant_type="Q3_K_M",
             file_size_bytes=2_000_000_000,
         ),
+        local_path="/models/Qwen3-4B-Thinking-2507-Q3_K_M.gguf",
         can_run=True,
         vram_required_bytes=3_000_000_000,
         vram_available_bytes=8_000_000_000,
@@ -1912,3 +1991,5 @@ def test_json_output_includes_resolved_artifact_fields():
     assert entry["model_id"] == "Qwen/Qwen3-4B-Thinking-2507"
     assert entry["artifact_repo_id"] == "MaziyarPanahi/Qwen3-4B-Thinking-2507-GGUF"
     assert entry["artifact_filename"] == "Qwen3-4B-Thinking-2507-Q3_K_M.gguf"
+    assert entry["local_match"] is True
+    assert entry["local_path"] == "/models/Qwen3-4B-Thinking-2507-Q3_K_M.gguf"

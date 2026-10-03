@@ -12,6 +12,7 @@ This module only defines the Typer app and command signatures.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Optional
 
 import typer
@@ -41,6 +42,7 @@ def main(
     show_version: bool = typer.Option(
         False,
         "--version",
+        "-v",
         help="Show version and exit",
         callback=_print_version,
         is_eager=True,
@@ -148,6 +150,11 @@ def main(
         "--ram-budget",
         help="RAM budget for offload: available | 8GB | 50%",
     ),
+    lm_studio_path: Optional[list[Path]] = typer.Option(
+        None,
+        "--lm-studio-path",
+        help="Additional LM Studio model library path (repeatable)",
+    ),
 ):
     """Detect hardware and recommend the best local LLMs."""
     return main_command(
@@ -175,6 +182,7 @@ def main(
         gpu_index=gpu_index,
         vram_headroom=vram_headroom,
         ram_budget=ram_budget,
+        lm_studio_path=lm_studio_path,
     )
 
 
@@ -329,16 +337,4 @@ def hardware(
     )
 
 
-__all__ = [
-    "app",
-    "hardware",
-    "main",
-    "plan",
-    "run",
-    "snippet",
-    "upgrade",
-]
-
-
-if __name__ == "__main__":
-    app()
+__all__ = ["app", "main", "plan", "upgrade", "run", "snippet", "hardware"]

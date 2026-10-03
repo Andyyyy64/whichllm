@@ -11,6 +11,14 @@ from whichllm.constants import _GiB
 from whichllm.hardware.types import HardwareInfo
 
 
+from pathlib import Path
+
+_MEMORY_RE = re.compile(
+    r"^(?P<number>\d+(?:\.\d+)?)\s*(?P<unit>gib|gb|g|mib|mb|m)?$",
+    re.IGNORECASE,
+)
+
+
 def _validate_gpu_flags(
     cpu_only: bool,
     gpu: list[str] | None,
@@ -54,7 +62,16 @@ def _validate_ranking_flags(
     min_speed: float | None,
     min_params: float | None,
 ) -> None:
-    """Validate ranking/filter flags that otherwise silently distort output."""
+    """Validate ranking/filter flags that otherwise silently distort output.
+
+    Without these guards a non-positive ``--top`` reaches ``results[:top_n]`` in
+    :func:`whichllm.engine.ranker.rank_models`: ``--top 0`` returns no
+    recommendations at all, and a negative value slices from the end
+    (``results[:-5]``), silently returning a truncated, unrequested subset
+    instead of the count the user asked for. Negative ``--min-speed`` /
+    ``--min-params`` thresholds are likewise meaningless. Fail fast with a clear
+    message instead of producing misleading results.
+    """
     if top < 1:
         console.print("[red]Error:[/] --top must be 1 or greater.")
         raise typer.Exit(code=1)
@@ -92,6 +109,7 @@ def _resolve_evidence_mode(evidence: str, direct: bool) -> str:
     """Resolve final evidence mode, keeping --direct as strict alias."""
     mode = _validate_evidence(evidence)
     if direct:
+        # 互換性維持のため --direct は strict と同義に固定する。
         return "strict"
     return mode
 
@@ -121,12 +139,6 @@ def _resolve_speed_filter(speed: str, min_speed: float | None) -> float | None:
         console.print("[red]Error:[/] --speed must be one of: any, usable, fast.")
         raise typer.Exit(code=1)
     return presets[mode]
-
-
-_MEMORY_RE = re.compile(
-    r"^(?P<number>\d+(?:\.\d+)?)\s*(?P<unit>gib|gb|g|mib|mb|m)?$",
-    re.IGNORECASE,
-)
 
 
 def _parse_memory_amount(
@@ -308,11 +320,16 @@ def _apply_gpu_overrides(
 
 
 def _auto_min_params_for_profile(hardware: HardwareInfo, profile: str) -> float | None:
-    """Pick automatic min-params threshold for strongest general ranking."""
+    """Pick automatic min-params threshold for strongest general ranking.
+
+    The threshold rises with VRAM so a 24GB GPU is steered away from 3-4B
+    toys, but tiny GPUs (4-8GB) still see full-GPU options instead of being
+    forced into 7B+ partial-offload-only results.
+    """
     if profile != "general":
         return None
     if not hardware.gpus:
-        return 2.0
+        return 2.0  # CPU-only: tiny is the only practical choice
     from whichllm.hardware.memory import effective_usable_ram
 
     usable_ram = effective_usable_ram(hardware.ram_bytes, hardware.ram_budget_bytes)
@@ -341,7 +358,7 @@ def _auto_min_params_for_profile(hardware: HardwareInfo, profile: str) -> float 
 
 
 def _include_vision_candidates(profile: str) -> bool:
-    """Return whether the fetcher should include vision-language candidates."""
+    """候補取得時にVLMを含めるべきプロファイルか判定する。"""
     return profile.lower() in {"vision", "any"}
 
 
@@ -350,7 +367,7 @@ def _fill_missing_published_at(
     results: list,
     fetch_model_published_at,
 ) -> bool:
-    """Backfill missing publish dates for top results."""
+    """上位表示で欠けている公開日時を補完し、更新有無を返す。"""
     missing_ids = [r.model.id for r in results if not r.model.published_at]
     if not missing_ids:
         return False
@@ -371,27 +388,55 @@ def _merge_model_eval_benchmarks(
     models: list,
     benchmark_scores: dict[str, float],
 ) -> tuple[dict[str, float], int]:
-    """Deprecated no-op kept for backward API compatibility."""
+    """Deprecated no-op kept for backward API compatibility.
+
+    Previously this injected each model's uploader-reported ``hf_eval``
+    value into the leaderboard scores dict under the model's id, which
+    caused those values to be treated as ``direct`` benchmark evidence
+    by the ranker. That elevated any account that wrote a high number
+    in their model card to the top of the rankings.
+
+    The hf_eval value is now consumed inside ``rank_models`` via
+    ``BenchmarkEvidence.source == "self_reported"`` with a much lower
+    weight and a dedicated display tag, so we no longer need to mutate
+    the leaderboard dict here. Returning the input unchanged keeps any
+    external callers working.
+    """
     return benchmark_scores, 0
 
 
+def _validate_lmstudio_path_flags(paths: list[Path] | None) -> None:
+    """Validate explicit LM Studio libraries before doing network work."""
+    if not paths:
+        return
+
+    from whichllm.models.lmstudio import LMStudioPathError, validate_lmstudio_paths
+
+    try:
+        validate_lmstudio_paths(paths)
+    except LMStudioPathError as error:
+        console.print(f"[red]Error:[/] {error}")
+        raise typer.Exit(code=1) from error
+
+
 __all__ = [
-    "_apply_gpu_overrides",
-    "_apply_memory_budgets",
-    "_auto_min_params_for_profile",
-    "_auto_vram_headroom",
-    "_fill_missing_published_at",
-    "_format_budget_bytes",
-    "_include_vision_candidates",
-    "_merge_model_eval_benchmarks",
-    "_parse_memory_amount",
-    "_parse_vram_headroom",
+    "_validate_gpu_flags",
+    "_validate_output_flags",
+    "_validate_ranking_flags",
+    "_validate_profile",
+    "_validate_evidence",
     "_resolve_evidence_mode",
     "_resolve_fit_filter",
     "_resolve_speed_filter",
-    "_validate_evidence",
-    "_validate_gpu_flags",
-    "_validate_output_flags",
-    "_validate_profile",
-    "_validate_ranking_flags",
+    "_parse_memory_amount",
+    "_auto_vram_headroom",
+    "_parse_vram_headroom",
+    "_apply_memory_budgets",
+    "_format_budget_bytes",
+    "_apply_gpu_overrides",
+    "_auto_min_params_for_profile",
+    "_include_vision_candidates",
+    "_fill_missing_published_at",
+    "_merge_model_eval_benchmarks",
+    "_validate_lmstudio_path_flags",
 ]

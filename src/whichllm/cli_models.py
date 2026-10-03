@@ -11,6 +11,21 @@ from whichllm.cli_shared import _format_fetch_error, _run_async, console
 from whichllm.models.types import ModelInfo
 
 
+_SIZE_TOKEN_RE = re.compile(r"^(\d+(?:\.\d+)?)([bm])$", re.IGNORECASE)
+
+
+_ID_SIZE_RE = re.compile(r"(?:^|[-_/])(\d+(?:\.\d+)?)(b|m)(?:[-_.]|$)", re.IGNORECASE)
+
+_HF_REPO_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+# Hugging Face uses these responses for missing and private repositories.
+_HF_MISSING_REPO_MESSAGES = (
+    "invalid username or password",
+    "invalid credentials",
+    "repository not found",
+)
+
+
 def _load_models(refresh: bool, include_vision: bool = True):
     """Load models from cache or fetch from HuggingFace."""
     from whichllm.models.cache import load_cache, save_cache
@@ -28,13 +43,15 @@ def _load_models(refresh: bool, include_vision: bool = True):
         sys.exit(1)
 
 
-_SIZE_TOKEN_RE = re.compile(r"^(\d+(?:\.\d+)?)([bm])$", re.IGNORECASE)
-
-
 def _parse_size_tokens(
     terms: list[str],
 ) -> tuple[list[str], float | None]:
-    """Split query terms into non-size terms and an optional size in billions."""
+    """Split query terms into non-size terms and an optional size in billions.
+
+    Returns (remaining_terms, size_b) where size_b is None if no size token
+    was found.  Only the first size token is used; subsequent size tokens are
+    kept as plain text terms.  Handles 'b' (billions) and 'm' (millions).
+    """
     remaining = []
     size_b: float | None = None
     for t in terms:
@@ -51,11 +68,12 @@ def _parse_size_tokens(
     return remaining, size_b
 
 
-_ID_SIZE_RE = re.compile(r"(?:^|[-_/])(\d+(?:\.\d+)?)(b|m)(?:[-_.]|$)", re.IGNORECASE)
-
-
 def _extract_id_size_b(model_id: str) -> float | None:
-    """Extract the size label from a model ID string, in billions."""
+    """Extract the size label from a model ID string, in billions.
+
+    Scans for patterns like '7B', '1.7B', '500M' at word boundaries in the
+    model ID.  Returns the first match converted to billions, or None.
+    """
     for m in _ID_SIZE_RE.finditer(model_id):
         value = float(m.group(1))
         if value <= 0:
@@ -66,7 +84,12 @@ def _extract_id_size_b(model_id: str) -> float | None:
 
 
 def _size_compatible(model: ModelInfo, size_b: float) -> bool:
-    """Check whether a model's parameter count is compatible with a query size."""
+    """Check whether a model's parameter count is compatible with a query size.
+
+    Uses a tolerance band of [0.7x, 1.5x] to accommodate rounding differences
+    (e.g. a 7B query matching a model with 7.6B actual parameters) while
+    rejecting adjacent model sizes (e.g. 7B vs 4B or 12B).
+    """
     if model.parameter_count <= 0:
         return True
     actual_b = model.parameter_count / 1e9
@@ -149,6 +172,7 @@ def _pick_gguf_variant(model, quant_filter: str | None = None):
             f"[yellow]Warning:[/] {quant_filter} not available, using best match."
         )
 
+    # Pick by preference order
     variant_map = {v.quant_type.upper(): v for v in model.gguf_variants}
     for qt in QUANT_PREFERENCE_ORDER:
         if qt in variant_map:
@@ -157,7 +181,10 @@ def _pick_gguf_variant(model, quant_filter: str | None = None):
 
 
 def _resolve_model_deps(model, variant) -> tuple[list[str], str]:
-    """Determine pip dependencies and script type for a model."""
+    """Determine pip dependencies and script type for a model.
+
+    Returns (deps, script_type) where script_type is 'gguf' or 'transformers'.
+    """
     if variant:
         return ["llama-cpp-python", "huggingface-hub"], "gguf"
 
@@ -281,13 +308,71 @@ finally:
 """
 
 
+def _looks_like_hf_repo_id(value: str) -> bool:
+    """Return whether a CLI value has the shape of a Hugging Face repo ID."""
+    return _HF_REPO_ID_RE.fullmatch(value) is not None
+
+
+def _hf_error_message(error: Exception) -> str:
+    """Return the Hugging Face error message from a failed response, if any."""
+    response = getattr(error, "response", None)
+    if response is None:
+        return ""
+    try:
+        payload = response.json()
+    except Exception:
+        payload = None
+    if isinstance(payload, dict):
+        for key in ("error", "message"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    try:
+        text = response.text
+    except Exception:
+        return ""
+    return text.strip() if isinstance(text, str) else ""
+
+
+def _hf_reports_missing_repo(error: Exception) -> bool:
+    """Whether Hugging Face refused the request because the repo is not visible."""
+    message = _hf_error_message(error).casefold()
+    return any(marker in message for marker in _HF_MISSING_REPO_MESSAGES)
+
+
+def _raise_repo_fetch_error(model_id: str, error: Exception) -> None:
+    """Print a repository-specific fetch error and exit the CLI."""
+    response = getattr(error, "response", None)
+    status_code = getattr(response, "status_code", None)
+    if status_code == 404 or _hf_reports_missing_repo(error):
+        console.print(
+            f"[red]Repository not found on Hugging Face:[/] {model_id} "
+            "(it does not exist, or it is private or gated)."
+        )
+    elif status_code in {401, 403}:
+        console.print(
+            f"[red]Cannot access Hugging Face repository:[/] {model_id} "
+            "(it may be private or gated)."
+        )
+    else:
+        console.print(
+            f"[red]Error fetching Hugging Face repository '{model_id}':[/] "
+            f"{_format_fetch_error(error)}"
+        )
+    raise typer.Exit(code=1)
+
+
 __all__ = [
-    "_extract_id_size_b",
-    "_generate_chat_script",
     "_load_models",
     "_parse_size_tokens",
+    "_extract_id_size_b",
+    "_size_compatible",
+    "_search_model",
     "_pick_gguf_variant",
     "_resolve_model_deps",
-    "_search_model",
-    "_size_compatible",
+    "_generate_chat_script",
+    "_looks_like_hf_repo_id",
+    "_hf_error_message",
+    "_hf_reports_missing_repo",
+    "_raise_repo_fetch_error",
 ]

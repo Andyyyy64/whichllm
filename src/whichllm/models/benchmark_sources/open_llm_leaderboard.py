@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import io
+import logging
 
 import httpx
 
 from whichllm.models.http import get_with_retries
+
+logger = logging.getLogger(__name__)
 
 LEADERBOARD_PARQUET_URL = (
     "https://huggingface.co/api/datasets/open-llm-leaderboard/contents"
@@ -53,6 +56,9 @@ async def _fetch_leaderboard_api(client: httpx.AsyncClient) -> dict[str, float]:
         resp = await get_with_retries(
             client,
             LEADERBOARD_ROWS_URL,
+            attempts=5,
+            base_delay=1.0,
+            max_delay=30.0,
             params={
                 "dataset": LEADERBOARD_DATASET,
                 "config": "default",
@@ -61,6 +67,14 @@ async def _fetch_leaderboard_api(client: httpx.AsyncClient) -> dict[str, float]:
                 "length": "100",
             },
         )
+        if resp.status_code == 429 and scores:
+            logger.warning(
+                "Open LLM Leaderboard rate-limited at offset %d; "
+                "using %d scores fetched so far",
+                offset,
+                len(scores),
+            )
+            return scores
         resp.raise_for_status()
         data = resp.json()
         rows = data.get("rows", [])

@@ -34,6 +34,15 @@ from whichllm.cli_validation import (
 )
 
 
+from pathlib import Path
+from whichllm.cli_models import _looks_like_hf_repo_id, _raise_repo_fetch_error
+from whichllm.cli_validation import _validate_lmstudio_path_flags
+from whichllm.models.artifacts import (
+    attach_resolved_artifacts,
+    resolve_ranked_gguf_artifact,
+)
+
+
 def main_command(
     ctx: typer.Context,
     *,
@@ -60,6 +69,7 @@ def main_command(
     gpu_index: int | None,
     vram_headroom: str,
     ram_budget: str | None,
+    lm_studio_path: list[Path] | None,
 ) -> None:
     """Detect hardware and recommend the best local LLMs."""
     if ctx.invoked_subcommand is not None:
@@ -67,6 +77,7 @@ def main_command(
 
     _validate_gpu_flags(cpu_only, gpu, vram, bandwidth, gpu_index)
     _validate_output_flags(json_output, markdown_output)
+    _validate_lmstudio_path_flags(lm_studio_path)
     _validate_ranking_flags(top, min_speed, min_params)
     profile = _validate_profile(profile)
     evidence_mode = _resolve_evidence_mode(evidence, direct)
@@ -103,6 +114,7 @@ def main_command(
         console=console,
         transient=True,
     ) as progress:
+        # Step 1: Detect hardware
         task = progress.add_task("Detecting hardware...", total=None)
         hardware = detect_hardware()
         _apply_gpu_overrides(hardware, cpu_only, gpu, vram, bandwidth, gpu_index)
@@ -111,6 +123,7 @@ def main_command(
         )
         progress.update(task, description="Hardware detected")
 
+        # Step 2: Fetch models
         progress.update(task, description="Loading models...")
         cached_data = None if refresh else load_cache()
         if cached_data is not None:
@@ -130,6 +143,7 @@ def main_command(
                 )
                 sys.exit(1)
 
+        # Step 3: Fetch benchmark scores
         progress.update(task, description="Loading benchmark data...")
         bench_scores = None if refresh else load_benchmark_cache()
         if bench_scores is None:
@@ -141,13 +155,22 @@ def main_command(
                 console.print(f"[yellow]Warning:[/] Benchmark data unavailable: {e}")
                 bench_scores = {}
 
+        # Step 4: Group and rank
         progress.update(task, description="Ranking models...")
         families = group_models(models)
+
+        # Flatten all models with their family IDs set by grouper
         all_models = []
         for family in families:
             all_models.append(family.base_model)
             all_models.extend(family.variants)
 
+        # NOTE: We no longer merge uploader-reported hf_eval values into the
+        # leaderboard scores dict — the ranker now treats them as a separate
+        # "self_reported" evidence tier with much lower trust. See
+        # ranker.lookup_benchmark_evidence + _SOURCE_WEIGHTS.
+
+        # general用途はGPUクラスに応じた自動しきい値で小さすぎるモデルを抑制する
         auto_min_params = (
             _auto_min_params_for_profile(hardware, profile)
             if min_params is None
@@ -169,6 +192,7 @@ def main_command(
             fit_filter=fit_filter,
         )
 
+        # 自動しきい値で候補ゼロなら緩和して表示を維持する
         if not results and auto_min_params is not None and min_params is None:
             results = rank_models(
                 all_models,
@@ -185,10 +209,21 @@ def main_command(
                 fit_filter=fit_filter,
             )
 
+        # 上位候補の公開日時が欠けている場合のみ補完して表示品質を上げる
         if results:
-            from whichllm.models.artifacts import attach_resolved_artifacts
-
             attach_resolved_artifacts(results, all_models, quant_filter=quant)
+            from whichllm.models.lmstudio import (
+                attach_local_matches,
+                discover_lmstudio_ggufs,
+                LMStudioPathError,
+            )
+
+            try:
+                local_models = discover_lmstudio_ggufs(lm_studio_path or ())
+            except LMStudioPathError as error:
+                console.print(f"[red]Error:[/] {error}")
+                raise typer.Exit(code=1) from error
+            attach_local_matches(results, local_models)
             try:
                 if _fill_missing_published_at(
                     all_models, results, fetch_model_published_at
@@ -199,6 +234,7 @@ def main_command(
                     task, description=f"Published date backfill skipped: {e}"
                 )
 
+    # Display results
     empty_message = None
     if fit_filter == "full_gpu":
         empty_message = (
@@ -239,6 +275,9 @@ def plan_command(
     """Show what GPU you need to run a specific model."""
     from rich.progress import Progress, SpinnerColumn, TextColumn
 
+    from whichllm.models.cache import load_cache, save_cache
+    from whichllm.models.fetcher import dicts_to_models, fetch_models, models_to_dicts
+    from whichllm.models.hf import fetch_model_by_id
     from whichllm.output.display import display_plan, display_plan_json
 
     with Progress(
@@ -248,10 +287,37 @@ def plan_command(
         transient=True,
     ) as progress:
         task = progress.add_task("Loading models...", total=None)
-        models = _load_models(refresh)
-        progress.remove_task(task)
+        cached_data = None if refresh else load_cache()
+        models = dicts_to_models(cached_data) if cached_data is not None else []
+        query_lower = model_name.lower()
+        model = next((m for m in models if m.id.lower() == query_lower), None)
 
-    model = _search_model(models, model_name)
+        if model is None and _looks_like_hf_repo_id(model_name):
+            progress.update(task, description="Fetching repository from HuggingFace...")
+            try:
+                model = _run_async(fetch_model_by_id(model_name))
+            except Exception as e:
+                _raise_repo_fetch_error(model_name, e)
+            if model is None:
+                console.print(
+                    f"[red]Hugging Face repository '{model_name}' does not expose "
+                    "enough model metadata to estimate memory.[/]"
+                )
+                raise typer.Exit(code=1)
+        elif cached_data is None:
+            progress.update(task, description="Fetching models from HuggingFace...")
+            try:
+                models = _run_async(fetch_models(include_vision=True))
+                save_cache(models_to_dicts(models))
+            except Exception as e:
+                console.print(
+                    f"[red]Error fetching models:[/] {_format_fetch_error(e)}"
+                )
+                sys.exit(1)
+
+    if model is None:
+        model = _search_model(models, model_name)
+
     target_quant = quant.upper() if quant else "Q4_K_M"
 
     if json_output:
@@ -272,7 +338,14 @@ def upgrade_command(
     json_output: bool,
     refresh: bool,
 ) -> None:
-    """Compare the current machine against potential GPU upgrades."""
+    """Compare the current machine against potential GPU upgrades.
+
+    For each GPU passed on the command line, simulate a system with the same
+    CPU/RAM but that GPU, run the ranker, and show the best-N models you'd
+    be able to run. Useful for answering "is upgrading from a 3090 to a 4090
+    worth it?" — the table shows the quality jump and the speed jump for
+    each option.
+    """
     from rich.progress import Progress, SpinnerColumn, TextColumn
 
     from whichllm.engine.ranker import rank_models
@@ -398,6 +471,7 @@ def run_command(
     cpu_only: bool,
 ) -> None:
     """Download and chat with a model. Picks the best one if none specified."""
+
     if not shutil.which("uv"):
         console.print("[red]uv is required.[/]")
         console.print(
@@ -423,7 +497,6 @@ def run_command(
     else:
         from whichllm.engine.ranker import rank_models
         from whichllm.hardware.detector import detect_hardware
-        from whichllm.models.artifacts import resolve_ranked_gguf_artifact
         from whichllm.models.benchmark import load_benchmark_cache
         from whichllm.models.grouper import group_models
 
@@ -621,10 +694,10 @@ def hardware_command(
 
 
 __all__ = [
-    "hardware_command",
     "main_command",
     "plan_command",
+    "upgrade_command",
     "run_command",
     "snippet_command",
-    "upgrade_command",
+    "hardware_command",
 ]

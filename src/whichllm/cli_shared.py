@@ -41,9 +41,4 @@ def _print_version(value: bool) -> None:
         raise typer.Exit()
 
 
-__all__ = [
-    "_format_fetch_error",
-    "_print_version",
-    "_run_async",
-    "console",
-]
+__all__ = ["_run_async", "_format_fetch_error", "_print_version", "console"]
