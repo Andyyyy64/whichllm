@@ -38,7 +38,7 @@ AMD_SHARED_MEMORY_APU_MARKERS: tuple[str, ...] = (
 )
 
 AMD_PCI_DEVICE_NAMES: dict[str, str] = {
-    "0x1586": "Strix Halo [Radeon 8060S]",
+    "0x1586": "Strix Halo [Radeon Graphics]",
 }
 
 # GPU memory bandwidth in GB/s (theoretical peak)

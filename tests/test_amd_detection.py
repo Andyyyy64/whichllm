@@ -128,7 +128,7 @@ def test_detect_strix_halo_generic_pci_id_from_lspci(monkeypatch):
     gpus = amd.detect_amd_gpus()
 
     assert len(gpus) == 1
-    assert gpus[0].name == "Strix Halo [Radeon 8060S]"
+    assert gpus[0].name == "Strix Halo [Radeon Graphics]"
     assert gpus[0].shared_memory is True
     assert gpus[0].vram_bytes == 0
     assert gpus[0].memory_bandwidth_gbps == 256.0
@@ -148,7 +148,7 @@ def test_detect_strix_halo_pci_id_from_sysfs(monkeypatch, tmp_path):
     gpus = amd._detect_amd_gpus_fallback()
 
     assert len(gpus) == 1
-    assert gpus[0].name == "Strix Halo [Radeon 8060S]"
+    assert gpus[0].name == "Strix Halo [Radeon Graphics]"
     assert gpus[0].shared_memory is True
     assert gpus[0].vram_bytes == 0
     assert gpus[0].memory_bandwidth_gbps == 256.0
