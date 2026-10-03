@@ -1,8 +1,12 @@
 import builtins
 import subprocess
+import sys
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import pytest
+
+import whichllm.hardware.nvidia as nvidia
 from whichllm.hardware.nvidia import detect_nvidia_gpus
 
 
@@ -192,3 +196,56 @@ def test_nvidia_smi_fallback_returns_empty_on_command_failure(monkeypatch):
     monkeypatch.setattr(subprocess, "run", fake_run)
 
     assert detect_nvidia_gpus() == []
+
+
+@pytest.mark.parametrize(
+    "name", ["NVIDIA Jetson AGX Xavier", "NVIDIA Jetson Xavier NX"]
+)
+def test_xavier_smi_uses_system_ram_when_dedicated_memory_is_unavailable(
+    monkeypatch, name
+):
+    monkeypatch.setattr(
+        nvidia.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(stdout=f"{name}, [N/A]\n"),
+    )
+    monkeypatch.setattr(
+        "whichllm.hardware.memory.detect_ram_bytes", lambda: 16 * 1024**3
+    )
+
+    gpus = nvidia._detect_nvidia_gpus_via_smi()
+
+    assert len(gpus) == 1
+    assert gpus[0].name == name
+    assert gpus[0].shared_memory is True
+    assert gpus[0].vram_bytes == 16 * 1024**3
+
+
+@pytest.mark.parametrize(
+    "name", [b"NVIDIA Jetson AGX Xavier", "NVIDIA Jetson Xavier NX"]
+)
+def test_xavier_nvml_uses_system_ram_when_memory_query_fails(monkeypatch, name):
+    class FakeNVMLError(Exception):
+        pass
+
+    fake = SimpleNamespace(
+        NVMLError=FakeNVMLError,
+        nvmlInit=Mock(),
+        nvmlDeviceGetCount=Mock(return_value=1),
+        nvmlDeviceGetHandleByIndex=Mock(return_value=object()),
+        nvmlDeviceGetName=Mock(return_value=name),
+        nvmlDeviceGetMemoryInfo=Mock(side_effect=FakeNVMLError("not supported")),
+        nvmlShutdown=Mock(),
+    )
+    monkeypatch.setitem(sys.modules, "pynvml", fake)
+    monkeypatch.setattr(
+        "whichllm.hardware.memory.detect_ram_bytes", lambda: 32 * 1024**3
+    )
+
+    gpus = detect_nvidia_gpus()
+
+    assert len(gpus) == 1
+    assert gpus[0].name == (name.decode() if isinstance(name, bytes) else name)
+    assert gpus[0].shared_memory is True
+    assert gpus[0].vram_bytes == 32 * 1024**3
+    fake.nvmlShutdown.assert_called_once()

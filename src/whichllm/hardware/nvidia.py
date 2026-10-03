@@ -13,11 +13,11 @@ from whichllm.hardware.types import GPUInfo
 logger = logging.getLogger(__name__)
 
 _NVIDIA_UNIFIED_MEMORY_MARKERS = (
-    "GB10",           # Jetson Orin (32/64/128GB)
-    "DGX SPARK",      # Jetson Orin Nano/Nova
+    "GB10",
+    "DGX SPARK",
     "JETSON AGX XAVIER",
     "JETSON XAVIER NX",
-    "XAVIER",         # Catch-all for any Xavier variant
+    "XAVIER",
 )
 
 
