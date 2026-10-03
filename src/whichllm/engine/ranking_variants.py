@@ -48,6 +48,7 @@ def _synthesize_variants_for_official_repo(
                 filename=f"{model.name}.{quant}.gguf",
                 quant_type=quant,
                 file_size_bytes=int(model.parameter_count * bpw),
+                is_estimated=True,
             )
         )
     return out
