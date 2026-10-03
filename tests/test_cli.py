@@ -6,29 +6,35 @@ import httpx
 import pytest
 from typer import Exit
 
-import whichllm.cli as cli_mod
+import whichllm.commands.run as cli_mod
+import whichllm.commands.snippet as snippet_mod
 import whichllm.__main__ as main_mod
-from whichllm.cli import (
+from whichllm.cli_validation import (
+    _validate_ranking_flags,
     _apply_memory_budgets,
     _apply_gpu_overrides,
     _auto_min_params_for_profile,
-    _extract_id_size_b,
     _fill_missing_published_at,
-    _format_fetch_error,
-    _generate_chat_script,
     _include_vision_candidates,
     _merge_model_eval_benchmarks,
     _parse_memory_amount,
-    _pick_gguf_variant,
-    _resolve_ranked_gguf_for_run,
     _resolve_evidence_mode,
     _resolve_fit_filter,
     _resolve_speed_filter,
-    _search_model,
     _validate_evidence,
     _validate_gpu_flags,
-    app,
 )
+from whichllm.cli_models import (
+    _extract_id_size_b,
+    _generate_chat_script,
+    _pick_gguf_variant,
+    _search_model,
+)
+from whichllm.cli_shared import _format_fetch_error
+from whichllm.models.artifacts import (
+    resolve_ranked_gguf_artifact as _resolve_ranked_gguf_for_run,
+)
+from whichllm.cli import app
 from whichllm.utils import _current_version
 from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.types import GPUInfo, HardwareInfo
@@ -691,8 +697,8 @@ def test_main_negative_min_params_rejected():
 
 def test_validate_ranking_flags_accepts_valid_values():
     # A valid combination must not raise (no recommendations are dropped).
-    cli_mod._validate_ranking_flags(top=10, min_speed=0.0, min_params=None)
-    cli_mod._validate_ranking_flags(top=1, min_speed=None, min_params=7.0)
+    _validate_ranking_flags(top=10, min_speed=0.0, min_params=None)
+    _validate_ranking_flags(top=1, min_speed=None, min_params=7.0)
 
 
 def test_upgrade_top_zero_rejected():
@@ -1768,7 +1774,7 @@ def test_snippet_treats_hf_metadata_as_literals(monkeypatch):
             file_size_bytes=1,
         )
     ]
-    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [model])
+    monkeypatch.setattr(snippet_mod, "_load_models", lambda refresh: [model])
 
     result = CliRunner().invoke(app, ["snippet", "Test-7B"])
 
@@ -1855,7 +1861,7 @@ def test_run_auto_pick_resolves_ranked_gguf_before_launch(monkeypatch):
 
 
 def test_snippet_no_model_found(monkeypatch):
-    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [])
+    monkeypatch.setattr(snippet_mod, "_load_models", lambda refresh: [])
     runner = CliRunner()
     result = runner.invoke(app, ["snippet", "nonexistent_model_xyz_999"])
     assert result.exit_code != 0
