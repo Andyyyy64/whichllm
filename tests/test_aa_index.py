@@ -16,6 +16,8 @@ import pytest
 
 from whichllm.models.benchmark_sources.aa_index import (
     AA_LEADERBOARD_URL,
+    AA_NAME_TO_HF_IDS,
+    _AA_CANON_TO_HF_IDS,
     _canonical_name,
     _decode_rsc_blob,
     _extract_aa_pairs_from_html,
@@ -113,6 +115,37 @@ def test_fetch_maps_canonical_names_and_merges_over_fallback():
 def test_fetch_raises_when_no_records_found():
     with pytest.raises(ExtractionFailed):
         _run_fetch("<html><body>nothing to see</body></html>")
+
+
+def test_each_checkpoint_maps_to_its_own_aa_row():
+    # V3-0324 and GLM-4.5-Air are separate models, not quantizations of their
+    # siblings: parameters.py puts GLM-4.5 at 32B active against 12B for Air,
+    # and livebench already scores each checkpoint separately. Sharing one AA
+    # display name handed both checkpoints in each pair the same index.
+    assert AA_NAME_TO_HF_IDS["DeepSeek V3"] == ["deepseek-ai/DeepSeek-V3"]
+    assert AA_NAME_TO_HF_IDS["DeepSeek V3 0324"] == ["deepseek-ai/DeepSeek-V3-0324"]
+    assert AA_NAME_TO_HF_IDS["GLM-4.5"] == ["zai-org/GLM-4.5"]
+    assert AA_NAME_TO_HF_IDS["GLM-4.5-Air"] == ["zai-org/GLM-4.5-Air"]
+
+    # The canonical map unions ids across display names that collapse onto one
+    # key, so it is the invariant that actually has to hold.
+    assert _AA_CANON_TO_HF_IDS["deepseek v3"] == ["deepseek-ai/DeepSeek-V3"]
+    assert _AA_CANON_TO_HF_IDS["glm 4.5"] == ["zai-org/GLM-4.5"]
+
+
+def test_live_scores_land_on_one_checkpoint_each():
+    # A page listing both GLM-4.5 rows must give each HF id its own score.
+    # While the ids shared a display name the Air row was dropped and both
+    # inherited the base model's index.
+    page = _rsc_page(
+        [
+            {"name": "GLM-4.5", "index": 19.5},
+            {"name": "GLM-4.5-Air", "index": 30.0},
+        ]
+    )
+    scores = _run_fetch(page)
+
+    assert scores["zai-org/GLM-4.5"] != scores["zai-org/GLM-4.5-Air"]
 
 
 def test_live_normalization_anchors_on_reworked_scale():
