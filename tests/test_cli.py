@@ -6,7 +6,8 @@ import httpx
 import pytest
 from typer import Exit
 
-import whichllm.cli_commands as cli_mod
+import whichllm.commands.run as cli_mod
+import whichllm.commands.snippet as snippet_mod
 import whichllm.__main__ as main_mod
 from whichllm.cli_validation import (
     _validate_ranking_flags,
@@ -1773,7 +1774,7 @@ def test_snippet_treats_hf_metadata_as_literals(monkeypatch):
             file_size_bytes=1,
         )
     ]
-    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [model])
+    monkeypatch.setattr(snippet_mod, "_load_models", lambda refresh: [model])
 
     result = CliRunner().invoke(app, ["snippet", "Test-7B"])
 
@@ -1860,7 +1861,7 @@ def test_run_auto_pick_resolves_ranked_gguf_before_launch(monkeypatch):
 
 
 def test_snippet_no_model_found(monkeypatch):
-    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [])
+    monkeypatch.setattr(snippet_mod, "_load_models", lambda refresh: [])
     runner = CliRunner()
     result = runner.invoke(app, ["snippet", "nonexistent_model_xyz_999"])
     assert result.exit_code != 0
