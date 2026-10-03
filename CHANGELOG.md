@@ -32,9 +32,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Changed
 
-- Ranking tables show actual GGUF file sizes when known and mark estimated
-  sizes. Estimates retain their origin through cache serialization; an
-  incomplete split-file size is estimated rather than shown as exact. (#168)
+- Rich ranking tables show known GGUF file sizes and mark estimates.
+  Estimates retain their origin through cache serialization. Missing size
+  metadata for a split part makes the whole variant an estimate. (#168)
 - Model cache schema 4 invalidates older caches that lack size provenance.
 - CLI execution and helpers move out of the Typer facade while retaining
   command options, exact repository lookup, and help behavior. (#41, #162)
