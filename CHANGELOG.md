@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.5.20] - 2026-10-03
+
 ### Added
 
 - Recommendations now detect exact GGUF artifacts in the current LM Studio
@@ -17,6 +19,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Live Artificial Analysis scores replace stored AA scores even when lower or
   zero. Models absent from the live response retain their stored AA scores.
   Use `--refresh` to bypass an existing benchmark cache. (#101)
+- DeepSeek V3 and V3-0324, and GLM-4.5 and GLM-4.5-Air, have separate
+  Artificial Analysis mappings. (#181)
+- Archived leaderboard requests honor valid `Retry-After` values with bounded
+  retries. A later page's exhausted 429 retains earlier pages and warns on
+  stderr. Partial results use the existing 24-hour cache; `--refresh` retries
+  collection. A first-page failure still fails the source. (#180, #182)
+- AMD PCI ID `1002:1586` maps to the SKU-neutral Strix Halo family name in
+  sysfs and lspci fallbacks, with shared-memory classification. (#36, #154)
+- Xavier names from NVML and nvidia-smi use the NVIDIA shared-memory path.
+  This does not resolve a failure to enumerate any GPU. (#146)
+
+### Changed
+
+- Ranking tables show actual GGUF file sizes when known and mark estimated
+  sizes. Estimates retain their origin through cache serialization; an
+  incomplete split-file size is estimated rather than shown as exact. (#168)
+- Model cache schema 4 invalidates older caches that lack size provenance.
+- CLI execution and helpers move out of the Typer facade while retaining
+  command options, exact repository lookup, and help behavior. (#41, #162)
 
 ## [0.5.19] - 2026-09-20
 
