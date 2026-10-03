@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.5.19] - 2026-09-20
+
+### Added
+
+- `-v` as a short alias for `--version`. (#159)
+
+## [0.5.18] - 2026-09-19
+
+### Fixed
+
+- `plan owner/repo` fetches exact Hugging Face repository IDs outside the cached
+  catalog, with errors for inaccessible repositories and insufficient metadata.
+  (#163, #164)
+- Model grouping preserves organization namespaces, minor versions, checkpoint
+  dates, and instruction/chat variants. Only explicit quantizations follow a referenced base model; other
+  derivatives keep their own identity. Ranking and JSON `family_id` values now
+  distinguish these checkpoints, including when loading an existing cache. (#171)
+- AMD shared-memory detection uses a recognized ROCm product SKU even when
+  `Card Series` contains a generic name, preserving the reported display name
+  and avoiding a 512 MB aperture being treated as dedicated VRAM. (#36)
+
+
+### Changed
+
+- Document the limits of multi-GPU weight and KV-cache placement estimates.
+  (#104, #175)
+
+## [0.5.17] - 2026-09-19
+
 ### Added
 
 - Fetch the Qwen3.5 / Qwen3.6 / Qwen3.8 releases and the current coder line
@@ -17,6 +46,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 - `--profile math` now keeps general reasoning models alongside math-specialized
   repos, instead of only repos with "math" in the name. (#24)
+- Split ranking orchestration, scoring, filters, and variant selection into
+  focused modules. (#41, #145)
+- Keep cache-directory tests portable across platforms. (#149)
 
 ### Fixed
 
@@ -30,6 +62,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Replaced the hand-estimated curated index values for `Qwen/Qwen3.6-27B` and
   `Qwen/Qwen3-Coder-30B-A3B-Instruct` with their measured ones. Both were off by
   enough to reorder neighbouring models offline. (#24)
+- Non-UTF-8 model and benchmark caches are treated as cache misses instead of
+  crashing during decoding. (#160, #161)
+- Apple Silicon GPU memory budgets respect the configured
+  `iogpu.wired_limit_mb` value. (#152, #153)
+- RTX Ada Generation laptop workstation GPUs resolve bandwidth from the GPU
+  catalog without confusing mobile and desktop variants. (#144)
+- Restore the README star-history chart. (#166)
 
 ## [0.5.16] - 2026-08-14
 

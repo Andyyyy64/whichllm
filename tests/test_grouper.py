@@ -14,6 +14,7 @@ def _make_model(
         parameter_count=7_000_000_000,
         downloads=downloads,
         base_model=base_model,
+        base_model_relation="quantized" if base_model else None,
     )
 
 
@@ -52,6 +53,65 @@ def test_ungrouped_models_separate():
 def test_empty_input():
     families = group_models([])
     assert families == []
+
+
+def test_checkpoint_versions_dates_and_instruction_variants_stay_distinct():
+    for names in [
+        ["Qwen3.5-27B", "Qwen3.6-27B", "Qwen3.8-27B"],
+        ["Mistral-Small-3.1-24B", "Mistral-Small-3.2-24B"],
+        ["DeepSeek-V3.1", "DeepSeek-V3.2"],
+        ["Model-7B-2503", "Model-7B-2507"],
+        ["Model-7B", "Model-7B-Instruct", "Model-7B-Chat"],
+    ]:
+        models = [_make_model(f"org/{name}") for name in names]
+        models += [
+            _make_model(f"converter/{name}-GGUF", f"org/{name}") for name in names
+        ]
+        families = group_models(models)
+        assert len(families) == len(names)
+        assert len({f.family_id for f in families}) == len(names)
+        assert all(len(f.variants) == 1 for f in families)
+
+
+def test_derivative_and_its_quantization_do_not_join_the_upstream():
+    base = _make_model("org/Model-7B")
+    derived = _make_model("tuner/Model-7B", base.id)
+    derived.base_model_relation = "finetune"
+    quant = _make_model("converter/Model-7B-GGUF", derived.id)
+    families = group_models([base, derived, quant])
+    assert len(families) == 2
+    assert derived.family_id == quant.family_id != base.family_id
+
+
+def test_cached_old_family_ids_are_recomputed():
+    from whichllm.models.serialization import dicts_to_models, models_to_dicts
+
+    models = [_make_model(f"Qwen/Qwen3.{minor}-27B") for minor in [5, 6, 8]]
+    for model in models:
+        model.family_id = "qwen3-27b"
+    restored = dicts_to_models(models_to_dicts(models))
+    assert len(group_models(restored)) == 3
+    assert len({model.family_id for model in restored}) == 3
+
+
+def test_quantization_keeps_its_referenced_namespace_with_or_without_base():
+    for include_base in [False, True]:
+        unrelated = _make_model("org/Model-7B")
+        referenced = _make_model("tuner/Model-7B")
+        quant = _make_model("converter/Model-7B-GGUF", referenced.id)
+        models = [unrelated, quant] + ([referenced] if include_base else [])
+        families = group_models(models)
+        assert {family.family_id for family in families} == {
+            "org/model-7b",
+            "tuner/model-7b",
+        }
+        assert quant.family_id != unrelated.family_id
+
+    unrelated = _make_model("org/Model-7B")
+    quant = _make_model("converter/Model-7B-GGUF", "org/Model-7B-FP16")
+    group_models([unrelated, quant])
+    assert quant.family_id == "org/model-7b-fp16"
+    assert quant.family_id != unrelated.family_id
 
 
 def test_family_id_set():
