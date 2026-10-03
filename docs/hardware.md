@@ -219,6 +219,14 @@ PCIe/NVLink bandwidth, NCCL/RCCL support, batch size, and model architecture.
 This is a practical fit approximation. It does not model every tensor-parallel
 or pipeline-parallel runtime configuration.
 
+The fit check compares a combined memory estimate with the effective GPU budget;
+it does not assign weights and KV cache separately to individual GPUs. LM Studio
+can use a different placement, so its per-GPU memory usage can differ even when
+the model runs within the estimated speed range. To compare a real run, record
+the model and quantization, context length, runtime version, GPU layer split,
+per-GPU memory use, KV-cache placement, and generation speed. See [#104](https://github.com/Andyyyy64/whichllm/issues/104)
+for the reported multi-GPU case.
+
 ## Disk checks
 
 The compatibility check also compares estimated model weight size with free

@@ -663,6 +663,204 @@ def test_plan_no_model_found_shows_error(monkeypatch):
     assert "No model found" in result.stdout
 
 
+def test_plan_fetches_exact_repo_id_when_missing_from_cache(monkeypatch):
+    import whichllm.models.fetcher as fetcher
+    import whichllm.models.hf as hf
+
+    requested: list[str] = []
+    displayed: list[str] = []
+
+    async def fake_fetch_model_by_id(model_id):
+        requested.append(model_id)
+        return _make_model(model_id, parameter_count=8_202_227_712)
+
+    async def unexpected_fetch_models(*args, **kwargs):
+        raise AssertionError("Exact Repo ID lookup must not fetch the bulk catalog")
+
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: None)
+    monkeypatch.setattr(hf, "fetch_model_by_id", fake_fetch_model_by_id)
+    monkeypatch.setattr(fetcher, "fetch_models", unexpected_fetch_models)
+    monkeypatch.setattr(
+        "whichllm.output.display.display_plan",
+        lambda model, context_length, target_quant: displayed.append(model.id),
+    )
+
+    result = CliRunner().invoke(app, ["plan", "ilsp/Llama-Krikri-8B-Instruct"])
+
+    assert result.exit_code == 0
+    assert requested == ["ilsp/Llama-Krikri-8B-Instruct"]
+    assert displayed == ["ilsp/Llama-Krikri-8B-Instruct"]
+
+
+def test_plan_uses_cached_exact_repo_without_network(monkeypatch):
+    import whichllm.models.hf as hf
+    from whichllm.models.fetcher import models_to_dicts
+
+    cached_model = _make_model("org/Cached-8B")
+    displayed: list[str] = []
+
+    async def unexpected_fetch(model_id):
+        raise AssertionError(f"Unexpected direct fetch for {model_id}")
+
+    monkeypatch.setattr(
+        "whichllm.models.cache.load_cache", lambda: models_to_dicts([cached_model])
+    )
+    monkeypatch.setattr(hf, "fetch_model_by_id", unexpected_fetch)
+    monkeypatch.setattr(
+        "whichllm.output.display.display_plan",
+        lambda model, context_length, target_quant: displayed.append(model.id),
+    )
+
+    result = CliRunner().invoke(app, ["plan", "org/Cached-8B"])
+
+    assert result.exit_code == 0
+    assert displayed == ["org/Cached-8B"]
+
+
+@pytest.mark.parametrize(
+    "status_code, expected",
+    [
+        (404, "Repository not found on Hugging Face"),
+        (401, "private or gated"),
+        (403, "private or gated"),
+    ],
+)
+def test_plan_reports_repo_fetch_http_errors(monkeypatch, status_code, expected):
+    import whichllm.models.hf as hf
+
+    async def fake_fetch_model_by_id(model_id):
+        request = httpx.Request("GET", f"https://huggingface.co/api/models/{model_id}")
+        response = httpx.Response(status_code, request=request)
+        raise httpx.HTTPStatusError("failed", request=request, response=response)
+
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr(hf, "fetch_model_by_id", fake_fetch_model_by_id)
+
+    result = CliRunner().invoke(app, ["plan", "org/Missing-8B"])
+
+    assert result.exit_code != 0
+    assert expected in " ".join(result.stdout.split())
+
+
+def test_plan_reports_missing_repo_from_hf_401_body(monkeypatch):
+    """Hugging Face answers 401 for repositories that do not exist."""
+    import whichllm.models.hf as hf
+
+    async def fake_fetch_model_by_id(model_id):
+        request = httpx.Request("GET", f"https://huggingface.co/api/models/{model_id}")
+        response = httpx.Response(
+            401, json={"error": "Invalid username or password."}, request=request
+        )
+        raise httpx.HTTPStatusError("failed", request=request, response=response)
+
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr(hf, "fetch_model_by_id", fake_fetch_model_by_id)
+
+    result = CliRunner().invoke(app, ["plan", "org/Typo-8B"])
+    output = " ".join(result.stdout.split())
+
+    assert result.exit_code != 0
+    assert "Repository not found on Hugging Face" in output
+
+
+def test_plan_reports_missing_repo_from_hf_plain_text_401(monkeypatch):
+    """The error body is not always JSON."""
+    import whichllm.models.hf as hf
+
+    async def fake_fetch_model_by_id(model_id):
+        request = httpx.Request("GET", f"https://huggingface.co/api/models/{model_id}")
+        response = httpx.Response(401, text="Invalid credentials", request=request)
+        raise httpx.HTTPStatusError("failed", request=request, response=response)
+
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr(hf, "fetch_model_by_id", fake_fetch_model_by_id)
+
+    result = CliRunner().invoke(app, ["plan", "org/Typo-8B"])
+    output = " ".join(result.stdout.split())
+
+    assert result.exit_code != 0
+    assert "Repository not found on Hugging Face" in output
+
+
+def test_plan_reports_restricted_repo_401_body_as_access_error(monkeypatch):
+    import whichllm.models.hf as hf
+
+    async def fake_fetch_model_by_id(model_id):
+        request = httpx.Request("GET", f"https://huggingface.co/api/models/{model_id}")
+        response = httpx.Response(
+            401,
+            json={
+                "error": "Access to model org/Gated-8B is restricted and you are "
+                "not in the authorized list."
+            },
+            request=request,
+        )
+        raise httpx.HTTPStatusError("failed", request=request, response=response)
+
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr(hf, "fetch_model_by_id", fake_fetch_model_by_id)
+
+    result = CliRunner().invoke(app, ["plan", "org/Gated-8B"])
+    output = " ".join(result.stdout.split())
+
+    assert result.exit_code != 0
+    assert "Cannot access Hugging Face repository" in output
+    assert "private or gated" in output
+    assert "Repository not found" not in output
+
+
+def test_plan_reports_repo_with_insufficient_metadata(monkeypatch):
+    import whichllm.models.hf as hf
+
+    async def fake_fetch_model_by_id(model_id):
+        return None
+
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr(hf, "fetch_model_by_id", fake_fetch_model_by_id)
+
+    result = CliRunner().invoke(app, ["plan", "org/Metadata-Free-Model"])
+
+    assert result.exit_code != 0
+    assert "does not expose enough model metadata" in " ".join(result.stdout.split())
+
+
+def test_plan_reports_repo_network_error(monkeypatch):
+    import whichllm.models.hf as hf
+
+    async def fake_fetch_model_by_id(model_id):
+        request = httpx.Request("GET", f"https://huggingface.co/api/models/{model_id}")
+        raise httpx.ConnectError("network unavailable", request=request)
+
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr(hf, "fetch_model_by_id", fake_fetch_model_by_id)
+
+    result = CliRunner().invoke(app, ["plan", "org/Remote-8B"])
+    output = " ".join(result.stdout.split())
+
+    assert result.exit_code != 0
+    assert "Error fetching Hugging Face repository" in output
+    assert "network unavailable" in output
+
+
+def test_plan_does_not_fetch_malformed_repo_id(monkeypatch):
+    import whichllm.models.hf as hf
+
+    requested: list[str] = []
+
+    async def fake_fetch_model_by_id(model_id):
+        requested.append(model_id)
+        return _make_model(model_id)
+
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr(hf, "fetch_model_by_id", fake_fetch_model_by_id)
+
+    result = CliRunner().invoke(app, ["plan", "org/nested/Model-8B"])
+
+    assert result.exit_code != 0
+    assert requested == []
+    assert "No model found" in result.stdout
+
+
 def test_plan_display_plan_renders_tables():
     """display_plan should render model info, VRAM table, and GPU table."""
     from whichllm.output.display import display_plan

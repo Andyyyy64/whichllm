@@ -8,11 +8,8 @@ from whichllm.models.types import ModelFamily, ModelInfo
 
 
 def _normalize_name(model_id: str) -> str:
-    """Normalize model ID for grouping by removing org prefix and GGUF/quant/chat suffixes."""
-    name = model_id.lower()
-    # Strip org prefix (e.g. "bartowski/Meta-Llama-3.1" -> "meta-llama-3.1")
-    if "/" in name:
-        name = name.split("/", 1)[1]
+    """Remove packaging suffixes while preserving the checkpoint namespace."""
+    owner, separator, name = model_id.lower().rpartition("/")
     # Strip common org prefixes in model names (e.g. "qwen_qwen3-8b" -> "qwen3-8b")
     name = re.sub(r"^(qwen_|meta-llama_|google_)", "", name)
     # Remove common suffixes (applied repeatedly to handle stacked suffixes)
@@ -20,9 +17,6 @@ def _normalize_name(model_id: str) -> str:
         r"-gguf$",
         r"-gptq$",
         r"-awq$",
-        r"-instruct$",
-        r"-chat$",
-        r"-it$",
         r"-hf$",
         r"-fp8$",
         r"-fp16$",
@@ -30,7 +24,6 @@ def _normalize_name(model_id: str) -> str:
         r"-mxfp4$",
         r"-nvfp4$",
         r"-\d+bit$",
-        r"-\d{4}$",  # date suffixes like -2507, -2503
     ]
     for _ in range(3):  # multiple passes to strip stacked suffixes
         prev = name
@@ -39,72 +32,37 @@ def _normalize_name(model_id: str) -> str:
         if name == prev:
             break
 
-    # Strip version-before-size: mistral-small-3.2-24b -> mistral-small-24b
-    # This catches patterns like MODEL-MAJOR.MINOR-SIZEb where the version
-    # is a separate segment (preceded by '-') before the size suffix.
-    # Does NOT match qwen3.5-27b because '3.5' is glued to 'qwen' without '-'.
-    name = re.sub(r"-\d+\.\d+(-\d+(?:\.\d+)?b(?:-a\d+b)?)$", r"\1", name)
-
-    # Split series name from size suffix, strip minor version from series only.
-    # Merges qwen3.5-27b + qwen3-30b-a3b naming variants (different sizes stay separate).
-    m = re.match(r"^(.+?)-(\d+(?:\.\d+)?b(?:-a\d+b)?)$", name)
-    if m:
-        series, size = m.group(1), m.group(2)
-        series = re.sub(r"(\d+)\.\d+$", r"\1", series)
-        name = f"{series}-{size}"
-    else:
-        # No size suffix (e.g. deepseek-v3.2) — strip minor version directly
-        name = re.sub(r"(\d+)\.\d+$", r"\1", name)
-
-    return name
+    return f"{owner}/{name}" if separator else name
 
 
 def group_models(models: list[ModelInfo]) -> list[ModelFamily]:
-    """Group models into families based on base_model and name similarity."""
-    # Pass 1: Group by base_model
-    base_model_groups: dict[str, list[ModelInfo]] = {}
-    ungrouped: list[ModelInfo] = []
-
+    """Group quantizations without erasing checkpoint identifiers."""
+    # Only explicit quantizations share their upstream checkpoint's identity.
+    keys = {
+        model.id.lower(): (
+            model.id.lower()
+            if model.base_model and model.base_model_relation != "quantized"
+            else _normalize_name(model.id)
+        )
+        for model in models
+    }
+    groups: dict[str, list[ModelInfo]] = {}
     for model in models:
-        if model.base_model:
-            key = model.base_model.lower()
-            base_model_groups.setdefault(key, []).append(model)
-        else:
-            ungrouped.append(model)
-
-    # Pass 2: Group ungrouped by normalized name
-    name_groups: dict[str, list[ModelInfo]] = {}
-    for model in ungrouped:
-        key = _normalize_name(model.id)
-        name_groups.setdefault(key, []).append(model)
-
-    # Merge base_model groups that share the same normalized name
-    merged_base: dict[str, list[ModelInfo]] = {}
-    for key, group in base_model_groups.items():
-        norm_key = _normalize_name(key)
-        merged_base.setdefault(norm_key, []).extend(group)
-
-    # Also merge with ungrouped via name matching
-    for norm_key, group in list(merged_base.items()):
-        if norm_key in name_groups:
-            group.extend(name_groups.pop(norm_key))
-
-    # Replace base_model_groups with merged version
-    base_model_groups = merged_base
+        key = keys[model.id.lower()]
+        if model.base_model and model.base_model_relation == "quantized":
+            key = keys.get(model.base_model.lower(), model.base_model.lower())
+        groups.setdefault(key, []).append(model)
 
     # Build families
     families: list[ModelFamily] = []
 
-    for group_key, group in list(base_model_groups.items()) + list(name_groups.items()):
+    for group_key, group in groups.items():
         if not group:
             continue
 
         # Pick the base model. Priority order:
         #   1. Models that are referenced by another group member's base_model
-        #      field — these are upstream of the others, so they are the
-        #      true base even when a downstream fine-tune (e.g.
-        #      prefeitura-rio/Rio-3.0-Open-Mini) has more downloads than the
-        #      official base (Qwen/Qwen3-4B-Thinking-2507).
+        #      field, even when a quantization has more downloads.
         #   2. Models without GGUF/quant suffixes and no base_model of their
         #      own (the original checkpoint).
         #   3. Anything left in the group.
@@ -124,7 +82,7 @@ def group_models(models: list[ModelInfo]) -> list[ModelFamily]:
         variants = [m for m in group if m.id != base.id]
 
         # Set family_id on all members
-        family_id = _normalize_name(base.id)
+        family_id = group_key
         base.family_id = family_id
         for v in variants:
             v.family_id = family_id

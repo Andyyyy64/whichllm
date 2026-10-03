@@ -12,6 +12,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   zero. Models absent from the live response retain their stored AA scores.
   Use `--refresh` to bypass an existing benchmark cache. (#101)
 
+## [0.5.19] - 2026-09-20
+
+### Added
+
+- `-v` as a short alias for `--version`. (#159)
+
+## [0.5.18] - 2026-09-19
+
+### Fixed
+
+- `plan owner/repo` fetches exact Hugging Face repository IDs outside the cached
+  catalog, with errors for inaccessible repositories and insufficient metadata.
+  (#163, #164)
+- Model grouping preserves organization namespaces, minor versions, checkpoint
+  dates, and instruction/chat variants. Only explicit quantizations follow a referenced base model; other
+  derivatives keep their own identity. Ranking and JSON `family_id` values now
+  distinguish these checkpoints, including when loading an existing cache. (#171)
+- AMD shared-memory detection uses a recognized ROCm product SKU even when
+  `Card Series` contains a generic name, preserving the reported display name
+  and avoiding a 512 MB aperture being treated as dedicated VRAM. (#36)
+
+
+### Changed
+
+- Document the limits of multi-GPU weight and KV-cache placement estimates.
+  (#104, #175)
+
 ## [0.5.17] - 2026-09-19
 
 ### Added

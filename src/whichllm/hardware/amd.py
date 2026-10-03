@@ -281,6 +281,10 @@ def detect_amd_gpus() -> list[GPUInfo]:
             except (ValueError, TypeError):
                 pass
 
-        gpus.append(_make_gpu(name, vram_bytes=vram_total, rocm_version=rocm_version))
+        sku = card_info.get("Card SKU")
+        identity = sku if isinstance(sku, str) and _is_shared_memory_apu(sku) else name
+        gpu = _make_gpu(identity, vram_bytes=vram_total, rocm_version=rocm_version)
+        gpu.name = name
+        gpus.append(gpu)
 
     return gpus
