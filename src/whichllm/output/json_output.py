@@ -42,6 +42,8 @@ def display_json(results: list[CompatibilityResult], hardware: HardwareInfo) -> 
                 "artifact_filename": (
                     r.artifact_variant.filename if r.artifact_variant else None
                 ),
+                "local_match": r.local_path is not None,
+                "local_path": r.local_path,
                 "parameter_count": r.model.parameter_count,
                 "published_at": r.model.published_at,
                 "downloads": r.model.downloads,

@@ -28,3 +28,4 @@ class CompatibilityResult:
     multi_gpu_effective_vram_bytes: int | None = None
     artifact_model: ModelInfo | None = None
     artifact_variant: GGUFVariant | None = None
+    local_path: str | None = None
