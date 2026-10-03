@@ -2,6 +2,18 @@
 
 This page lists common issues and the first checks to make.
 
+## Leaderboard rate limits
+
+Without pyarrow, whichllm reads the archived Open LLM Leaderboard in pages of
+100 rows. It retries HTTP 429 responses before stopping. If an earlier page
+succeeded, it keeps the scores collected so far and writes a warning to stderr
+with the failed offset and retained score count. A failure on the first page
+still fails that source; the other benchmark sources can continue.
+
+Partial results use the same 24-hour benchmark cache as a complete fetch. The
+cache does not record which pages were missing, and later cache reads do not
+repeat the warning. Run `whichllm --refresh` to fetch the benchmark sources again.
+
 ## No GPU detected
 
 Run:
