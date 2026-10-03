@@ -122,6 +122,9 @@ _KNOWN_MOE_ACTIVE_PARAMS: dict[str, int] = {
     "Qwen/Qwen3-Next-80B-A3B-Instruct": 3_000_000_000,
     "Qwen/Qwen3-30B-A3B": 3_000_000_000,
     "Qwen/Qwen3-Coder-30B-A3B-Instruct": 3_000_000_000,
+    # 80B total / 3B active, but the name carries no A*B hint and the config
+    # (512 experts, top-10) would fall to the generic expert-fraction estimate.
+    "Qwen/Qwen3-Coder-Next": 3_000_000_000,
     "Qwen/Qwen3-235B-A22B": 22_000_000_000,
     "Qwen/Qwen3.5-397B-A17B": 17_000_000_000,
     "deepseek-ai/DeepSeek-V3": 37_000_000_000,

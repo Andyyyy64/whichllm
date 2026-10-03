@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import re
+
 from whichllm.engine.types import CompatibilityResult
 from whichllm.models.types import GGUFVariant, ModelInfo
+
+_DERIVATIVE_PROVENANCE_TAGS = frozenset({"adapter", "finetune", "merge"})
 
 
 def find_gguf_variant(model: ModelInfo, quant_type: str) -> GGUFVariant | None:
@@ -14,22 +18,6 @@ def find_gguf_variant(model: ModelInfo, quant_type: str) -> GGUFVariant | None:
     return None
 
 
-def is_same_model_family(candidate: ModelInfo, selected: ModelInfo) -> bool:
-    """Return whether two repos represent the same base model family."""
-    if candidate.id == selected.id:
-        return True
-    if candidate.family_id and selected.family_id:
-        if candidate.family_id == selected.family_id:
-            return True
-    if candidate.base_model and candidate.base_model == selected.id:
-        return True
-    if selected.base_model and selected.base_model == candidate.id:
-        return True
-    if candidate.base_model and selected.base_model:
-        return candidate.base_model == selected.base_model
-    return False
-
-
 def has_compatible_parameter_count(candidate: ModelInfo, selected: ModelInfo) -> bool:
     """Reject artifact repos that are clearly a different model size."""
     if candidate.parameter_count <= 0 or selected.parameter_count <= 0:
@@ -37,6 +25,36 @@ def has_compatible_parameter_count(candidate: ModelInfo, selected: ModelInfo) ->
     smaller = min(candidate.parameter_count, selected.parameter_count)
     larger = max(candidate.parameter_count, selected.parameter_count)
     return (larger / smaller) <= 2.0
+
+
+def is_equivalent_quantization(candidate: ModelInfo, selected: ModelInfo) -> bool:
+    """Return whether provenance identifies a direct quantization of selected."""
+    candidate_name = re.sub(r"[^a-z0-9]+", "", candidate.name.casefold())
+    if candidate_name.endswith("gguf"):
+        candidate_name = candidate_name.removesuffix("gguf")
+    selected_name = re.sub(r"[^a-z0-9]+", "", selected.id.rsplit("/", 1)[-1].casefold())
+    selected_owner = (
+        re.sub(r"[^a-z0-9]+", "", selected.id.split("/", 1)[0].casefold())
+        if "/" in selected.id
+        else ""
+    )
+    accepted_names = {selected_name, f"{selected_owner}{selected_name}"}
+    normalized_tags = {tag.casefold() for tag in candidate.tags}
+    base_relations = {
+        parts[1]
+        for tag in normalized_tags
+        if len(parts := tag.split(":", 2)) == 3
+        and parts[0] == "base_model"
+        and parts[2] == selected.id.casefold()
+    }
+    return (
+        candidate.base_model is not None
+        and candidate.base_model.casefold() == selected.id.casefold()
+        and candidate.base_model_relation == "quantized"
+        and base_relations == {"quantized"}
+        and candidate_name in accepted_names
+        and not normalized_tags.intersection(_DERIVATIVE_PROVENANCE_TAGS)
+    )
 
 
 def resolve_ranked_gguf_artifact(
@@ -57,19 +75,19 @@ def resolve_ranked_gguf_artifact(
         variant = find_gguf_variant(selected_model, desired_quant)
         return (selected_model, variant) if variant else None
 
-    candidates: list[tuple[bool, int, int, ModelInfo, GGUFVariant]] = []
+    candidates: list[tuple[int, int, ModelInfo, GGUFVariant]] = []
     for model in models:
-        if not model.gguf_variants or not is_same_model_family(model, selected_model):
+        if not model.gguf_variants or not is_equivalent_quantization(
+            model, selected_model
+        ):
             continue
         if not has_compatible_parameter_count(model, selected_model):
             continue
         variant = find_gguf_variant(model, desired_quant)
         if not variant:
             continue
-        explicit_base = model.base_model == selected_model.id
         candidates.append(
             (
-                explicit_base,
                 model.downloads,
                 model.likes,
                 model,
@@ -80,7 +98,7 @@ def resolve_ranked_gguf_artifact(
     if not candidates:
         return None
 
-    _, _, _, model, variant = max(candidates, key=lambda item: item[:3])
+    _, _, model, variant = max(candidates, key=lambda item: item[:2])
     return model, variant
 
 

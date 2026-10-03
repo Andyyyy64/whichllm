@@ -27,6 +27,8 @@ class ModelInfo:
     gguf_variants: list[GGUFVariant] = field(default_factory=list)
     benchmark_scores: dict[str, float] = field(default_factory=dict)
     base_model: str | None = None  # cardData.base_model
+    base_model_relation: str | None = None  # e.g. quantized, finetune, merge
+    tags: tuple[str, ...] = ()  # Hugging Face provenance and capability tags
     # Sliding-window-attention KV-cache modeling. Only populated for
     # architectures whose mainline runtimes actually honor interleaved SWA
     # (Gemma-2/3, gpt-oss, Cohere2); left None otherwise so VRAM estimates

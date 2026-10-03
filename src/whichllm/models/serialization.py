@@ -37,6 +37,8 @@ def models_to_dicts(models: list[ModelInfo]) -> list[dict]:
                 ],
                 "benchmark_scores": m.benchmark_scores,
                 "base_model": m.base_model,
+                "base_model_relation": m.base_model_relation,
+                "tags": list(m.tags),
                 "sliding_window": m.sliding_window,
                 "sliding_window_global_ratio": m.sliding_window_global_ratio,
             }
@@ -87,6 +89,8 @@ def dicts_to_models(data: list[dict]) -> list[ModelInfo]:
                 ],
                 benchmark_scores=d.get("benchmark_scores", {}),
                 base_model=base_model,
+                base_model_relation=d.get("base_model_relation"),
+                tags=tuple(d.get("tags", [])),
                 sliding_window=d.get("sliding_window"),
                 sliding_window_global_ratio=d.get("sliding_window_global_ratio"),
             )

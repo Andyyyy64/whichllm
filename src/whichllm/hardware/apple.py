@@ -13,6 +13,8 @@ from whichllm.hardware.types import GPUInfo
 
 logger = logging.getLogger(__name__)
 
+_MiB = 1024**2
+
 
 def _lookup_bandwidth(chip_name: str) -> float | None:
     chip_upper = chip_name.upper()
@@ -20,6 +22,28 @@ def _lookup_bandwidth(chip_name: str) -> float | None:
         if key.upper() in chip_upper:
             return GPU_BANDWIDTH[key]
     return None
+
+
+def _detect_iogpu_wired_limit_bytes() -> int | None:
+    """Return the macOS GPU wired-memory limit when it is available."""
+    try:
+        result = subprocess.run(
+            ["sysctl", "-n", "iogpu.wired_limit_mb"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+    if result.returncode != 0:
+        return None
+
+    try:
+        limit_mb = int(result.stdout.strip())
+    except ValueError:
+        return None
+    return limit_mb * _MiB if limit_mb > 0 else None
 
 
 def detect_apple_gpu() -> list[GPUInfo]:
@@ -55,6 +79,9 @@ def detect_apple_gpu() -> list[GPUInfo]:
             mem_unit, 1024**3
         )
         unified_memory = mem_value * multiplier
+        wired_limit = _detect_iogpu_wired_limit_bytes()
+        if wired_limit is not None:
+            unified_memory = min(unified_memory, wired_limit)
 
         return [
             GPUInfo(

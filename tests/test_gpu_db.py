@@ -106,6 +106,37 @@ def test_resolve_a2000_12gb_vram_bin_from_dbgpu():
     assert resolve_detected_bandwidth("NVIDIA RTX A2000 12GB", 12 * _GiB) == 288.0
 
 
+def test_resolve_ada_workstation_laptop_family_from_dbgpu():
+    # The whole RTX Ada Generation Laptop workstation line reported BW: N/A:
+    # dbgpu names them "RTX 2000 Mobile Ada Generation" (marker mid-string)
+    # while drivers emit "RTX 2000 Ada Generation Laptop GPU" (marker last).
+    # The normalizer must reconcile the two orderings so dbgpu's value is used.
+    expected = {
+        "NVIDIA RTX 500 Ada Generation Laptop GPU": 128.0,
+        "NVIDIA RTX 1000 Ada Generation Laptop GPU": 192.0,
+        "NVIDIA RTX 2000 Ada Generation Laptop GPU": 256.0,
+        "NVIDIA RTX 3000 Ada Generation Laptop GPU": 256.0,
+        "NVIDIA RTX 3500 Ada Generation Laptop GPU": 432.0,
+        "NVIDIA RTX 4000 Ada Generation Laptop GPU": 432.0,
+        "NVIDIA RTX 5000 Ada Generation Laptop GPU": 576.0,
+    }
+    for name, bw in expected.items():
+        assert resolve_detected_bandwidth(name) == bw, name
+
+
+def test_normalize_relocates_mid_string_mobile_marker():
+    # Consumer laptops already carry a trailing marker and must be unchanged.
+    assert (
+        _normalize_detected_name("NVIDIA GeForce RTX 4060 Laptop GPU")
+        == "GeForce RTX 4060 Mobile"
+    )
+    # dbgpu's mid-string marker is moved to the tail to match driver ordering.
+    assert (
+        _normalize_detected_name("RTX 2000 Mobile Ada Generation")
+        == "RTX 2000 Ada Generation Mobile"
+    )
+
+
 def test_static_bandwidth_compound_lspci_name():
     # Ported from amd.py (#68): compound lspci names resolve via segment
     # splitting, first matching segment wins, "RX " prefix retried for bare

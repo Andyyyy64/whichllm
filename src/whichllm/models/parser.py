@@ -186,6 +186,25 @@ def _extract_base_model(card_data: dict) -> str | None:
     return None
 
 
+def _extract_base_model_relation(tags: object, base_model: str | None) -> str | None:
+    """Return the Hugging Face relation attached to the selected base model."""
+    if not base_model or not isinstance(tags, (list, tuple)):
+        return None
+
+    expected_model = base_model.casefold()
+    for tag in tags:
+        if not isinstance(tag, str):
+            continue
+        parts = tag.split(":", 2)
+        if (
+            len(parts) == 3
+            and parts[0].casefold() == "base_model"
+            and parts[2].casefold() == expected_model
+        ):
+            return parts[1].casefold()
+    return None
+
+
 def _resolve_active_params(
     config: dict,
     param_count: int,
@@ -242,6 +261,13 @@ def _parse_model(data: dict) -> ModelInfo | None:
     config = data.get("config", {}) or {}
     card_data = data.get("cardData", {}) or {}
     base_model = _extract_base_model(card_data)
+    raw_tags = data.get("tags")
+    tags = (
+        tuple(tag for tag in raw_tags if isinstance(tag, str))
+        if isinstance(raw_tags, list)
+        else ()
+    )
+    base_model_relation = _extract_base_model_relation(tags, base_model)
 
     param_count = _extract_param_count(data)
     param_count = _normalize_param_count(param_count, model_id, base_model)
@@ -290,6 +316,8 @@ def _parse_model(data: dict) -> ModelInfo | None:
         gguf_variants=gguf_variants,
         benchmark_scores=benchmark_scores,
         base_model=base_model,
+        base_model_relation=base_model_relation,
+        tags=tags,
         sliding_window=sliding_window,
         sliding_window_global_ratio=swa_global_ratio,
     )

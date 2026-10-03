@@ -663,6 +663,204 @@ def test_plan_no_model_found_shows_error(monkeypatch):
     assert "No model found" in result.stdout
 
 
+def test_plan_fetches_exact_repo_id_when_missing_from_cache(monkeypatch):
+    import whichllm.models.fetcher as fetcher
+    import whichllm.models.hf as hf
+
+    requested: list[str] = []
+    displayed: list[str] = []
+
+    async def fake_fetch_model_by_id(model_id):
+        requested.append(model_id)
+        return _make_model(model_id, parameter_count=8_202_227_712)
+
+    async def unexpected_fetch_models(*args, **kwargs):
+        raise AssertionError("Exact Repo ID lookup must not fetch the bulk catalog")
+
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: None)
+    monkeypatch.setattr(hf, "fetch_model_by_id", fake_fetch_model_by_id)
+    monkeypatch.setattr(fetcher, "fetch_models", unexpected_fetch_models)
+    monkeypatch.setattr(
+        "whichllm.output.display.display_plan",
+        lambda model, context_length, target_quant: displayed.append(model.id),
+    )
+
+    result = CliRunner().invoke(app, ["plan", "ilsp/Llama-Krikri-8B-Instruct"])
+
+    assert result.exit_code == 0
+    assert requested == ["ilsp/Llama-Krikri-8B-Instruct"]
+    assert displayed == ["ilsp/Llama-Krikri-8B-Instruct"]
+
+
+def test_plan_uses_cached_exact_repo_without_network(monkeypatch):
+    import whichllm.models.hf as hf
+    from whichllm.models.fetcher import models_to_dicts
+
+    cached_model = _make_model("org/Cached-8B")
+    displayed: list[str] = []
+
+    async def unexpected_fetch(model_id):
+        raise AssertionError(f"Unexpected direct fetch for {model_id}")
+
+    monkeypatch.setattr(
+        "whichllm.models.cache.load_cache", lambda: models_to_dicts([cached_model])
+    )
+    monkeypatch.setattr(hf, "fetch_model_by_id", unexpected_fetch)
+    monkeypatch.setattr(
+        "whichllm.output.display.display_plan",
+        lambda model, context_length, target_quant: displayed.append(model.id),
+    )
+
+    result = CliRunner().invoke(app, ["plan", "org/Cached-8B"])
+
+    assert result.exit_code == 0
+    assert displayed == ["org/Cached-8B"]
+
+
+@pytest.mark.parametrize(
+    "status_code, expected",
+    [
+        (404, "Repository not found on Hugging Face"),
+        (401, "private or gated"),
+        (403, "private or gated"),
+    ],
+)
+def test_plan_reports_repo_fetch_http_errors(monkeypatch, status_code, expected):
+    import whichllm.models.hf as hf
+
+    async def fake_fetch_model_by_id(model_id):
+        request = httpx.Request("GET", f"https://huggingface.co/api/models/{model_id}")
+        response = httpx.Response(status_code, request=request)
+        raise httpx.HTTPStatusError("failed", request=request, response=response)
+
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr(hf, "fetch_model_by_id", fake_fetch_model_by_id)
+
+    result = CliRunner().invoke(app, ["plan", "org/Missing-8B"])
+
+    assert result.exit_code != 0
+    assert expected in " ".join(result.stdout.split())
+
+
+def test_plan_reports_missing_repo_from_hf_401_body(monkeypatch):
+    """Hugging Face answers 401 for repositories that do not exist."""
+    import whichllm.models.hf as hf
+
+    async def fake_fetch_model_by_id(model_id):
+        request = httpx.Request("GET", f"https://huggingface.co/api/models/{model_id}")
+        response = httpx.Response(
+            401, json={"error": "Invalid username or password."}, request=request
+        )
+        raise httpx.HTTPStatusError("failed", request=request, response=response)
+
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr(hf, "fetch_model_by_id", fake_fetch_model_by_id)
+
+    result = CliRunner().invoke(app, ["plan", "org/Typo-8B"])
+    output = " ".join(result.stdout.split())
+
+    assert result.exit_code != 0
+    assert "Repository not found on Hugging Face" in output
+
+
+def test_plan_reports_missing_repo_from_hf_plain_text_401(monkeypatch):
+    """The error body is not always JSON."""
+    import whichllm.models.hf as hf
+
+    async def fake_fetch_model_by_id(model_id):
+        request = httpx.Request("GET", f"https://huggingface.co/api/models/{model_id}")
+        response = httpx.Response(401, text="Invalid credentials", request=request)
+        raise httpx.HTTPStatusError("failed", request=request, response=response)
+
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr(hf, "fetch_model_by_id", fake_fetch_model_by_id)
+
+    result = CliRunner().invoke(app, ["plan", "org/Typo-8B"])
+    output = " ".join(result.stdout.split())
+
+    assert result.exit_code != 0
+    assert "Repository not found on Hugging Face" in output
+
+
+def test_plan_reports_restricted_repo_401_body_as_access_error(monkeypatch):
+    import whichllm.models.hf as hf
+
+    async def fake_fetch_model_by_id(model_id):
+        request = httpx.Request("GET", f"https://huggingface.co/api/models/{model_id}")
+        response = httpx.Response(
+            401,
+            json={
+                "error": "Access to model org/Gated-8B is restricted and you are "
+                "not in the authorized list."
+            },
+            request=request,
+        )
+        raise httpx.HTTPStatusError("failed", request=request, response=response)
+
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr(hf, "fetch_model_by_id", fake_fetch_model_by_id)
+
+    result = CliRunner().invoke(app, ["plan", "org/Gated-8B"])
+    output = " ".join(result.stdout.split())
+
+    assert result.exit_code != 0
+    assert "Cannot access Hugging Face repository" in output
+    assert "private or gated" in output
+    assert "Repository not found" not in output
+
+
+def test_plan_reports_repo_with_insufficient_metadata(monkeypatch):
+    import whichllm.models.hf as hf
+
+    async def fake_fetch_model_by_id(model_id):
+        return None
+
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr(hf, "fetch_model_by_id", fake_fetch_model_by_id)
+
+    result = CliRunner().invoke(app, ["plan", "org/Metadata-Free-Model"])
+
+    assert result.exit_code != 0
+    assert "does not expose enough model metadata" in " ".join(result.stdout.split())
+
+
+def test_plan_reports_repo_network_error(monkeypatch):
+    import whichllm.models.hf as hf
+
+    async def fake_fetch_model_by_id(model_id):
+        request = httpx.Request("GET", f"https://huggingface.co/api/models/{model_id}")
+        raise httpx.ConnectError("network unavailable", request=request)
+
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr(hf, "fetch_model_by_id", fake_fetch_model_by_id)
+
+    result = CliRunner().invoke(app, ["plan", "org/Remote-8B"])
+    output = " ".join(result.stdout.split())
+
+    assert result.exit_code != 0
+    assert "Error fetching Hugging Face repository" in output
+    assert "network unavailable" in output
+
+
+def test_plan_does_not_fetch_malformed_repo_id(monkeypatch):
+    import whichllm.models.hf as hf
+
+    requested: list[str] = []
+
+    async def fake_fetch_model_by_id(model_id):
+        requested.append(model_id)
+        return _make_model(model_id)
+
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr(hf, "fetch_model_by_id", fake_fetch_model_by_id)
+
+    result = CliRunner().invoke(app, ["plan", "org/nested/Model-8B"])
+
+    assert result.exit_code != 0
+    assert requested == []
+    assert "No model found" in result.stdout
+
+
 def test_plan_display_plan_renders_tables():
     """display_plan should render model info, VRAM table, and GPU table."""
     from whichllm.output.display import display_plan
@@ -970,6 +1168,8 @@ def test_resolve_ranked_synthetic_gguf_to_real_repo():
         parameter_count=27_000_000_000,
         downloads=200_000,
         base_model="Qwen/Qwen3.6-27B",
+        base_model_relation="quantized",
+        tags=("base_model:quantized:Qwen/Qwen3.6-27B",),
         gguf_variants=[
             GGUFVariant(
                 filename="Qwen3.6-27B-Q4_K_M.gguf",
@@ -990,6 +1190,269 @@ def test_resolve_ranked_synthetic_gguf_to_real_repo():
     model, variant = resolved
     assert model.id == "unsloth/Qwen3.6-27B-GGUF"
     assert variant.filename == "Qwen3.6-27B-Q4_K_M.gguf"
+
+
+def test_resolve_ranked_synthetic_gguf_rejects_finetuned_repo():
+    selected = ModelInfo(
+        id="Qwen/Qwen3.6-27B",
+        family_id="qwen3-27b",
+        name="Qwen3.6-27B",
+        parameter_count=27_000_000_000,
+    )
+    finetuned_gguf = ModelInfo(
+        id="converter/Qwen3.6-27B-MTP-pi-tune-GGUF",
+        family_id="qwen3-27b",
+        name="Qwen3.6-27B-MTP-pi-tune-GGUF",
+        parameter_count=27_000_000_000,
+        downloads=1_000_000,
+        base_model="Qwen/Qwen3.6-27B",
+        base_model_relation="finetune",
+        tags=("base_model:finetune:Qwen/Qwen3.6-27B",),
+        gguf_variants=[
+            GGUFVariant(
+                filename="Qwen3.6-27B-MTP-Q4_K_M.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=16_000_000_000,
+            )
+        ],
+    )
+    synthetic = GGUFVariant(
+        filename="Qwen3.6-27B.Q4_K_M.gguf",
+        quant_type="Q4_K_M",
+        file_size_bytes=16_000_000_000,
+    )
+
+    resolved = _resolve_ranked_gguf_for_run(
+        selected,
+        synthetic,
+        [selected, finetuned_gguf],
+    )
+
+    assert resolved is None
+
+
+def test_resolve_ranked_synthetic_gguf_rejects_unproven_base_relation():
+    selected = ModelInfo(
+        id="google/gemma-4-31B-it",
+        family_id="gemma-4-31b-it",
+        name="gemma-4-31B-it",
+        parameter_count=31_000_000_000,
+    )
+    unproven_gguf = ModelInfo(
+        id="converter/Gemma-4-31B-custom-GGUF",
+        family_id="gemma-4-31b-it",
+        name="Gemma-4-31B-custom-GGUF",
+        parameter_count=31_000_000_000,
+        downloads=1_000_000,
+        base_model="google/gemma-4-31b-it",
+        gguf_variants=[
+            GGUFVariant(
+                filename="Gemma-4-31B-Q4_K_M.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=19_000_000_000,
+            )
+        ],
+    )
+    synthetic = GGUFVariant(
+        filename="gemma-4-31B-it.Q4_K_M.gguf",
+        quant_type="Q4_K_M",
+        file_size_bytes=19_000_000_000,
+    )
+
+    resolved = _resolve_ranked_gguf_for_run(
+        selected,
+        synthetic,
+        [selected, unproven_gguf],
+    )
+
+    assert resolved is None
+
+
+def test_resolve_ranked_synthetic_gguf_rejects_other_quantized_checkpoint():
+    selected = ModelInfo(
+        id="Qwen/Qwen3.6-27B",
+        family_id="qwen3-27b",
+        name="Qwen3.6-27B",
+        parameter_count=27_000_000_000,
+    )
+    other_checkpoint = ModelInfo(
+        id="converter/Qwen3.6-27B-tuned-GGUF",
+        family_id="qwen3-27b",
+        name="Qwen3.6-27B-tuned-GGUF",
+        parameter_count=27_000_000_000,
+        base_model="tuner/Qwen3.6-27B-tuned",
+        base_model_relation="quantized",
+        tags=("base_model:quantized:tuner/Qwen3.6-27B-tuned",),
+        gguf_variants=[
+            GGUFVariant(
+                filename="Qwen3.6-27B-tuned-Q4_K_M.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=16_000_000_000,
+            )
+        ],
+    )
+    synthetic = GGUFVariant(
+        filename="Qwen3.6-27B.Q4_K_M.gguf",
+        quant_type="Q4_K_M",
+        file_size_bytes=16_000_000_000,
+    )
+
+    resolved = _resolve_ranked_gguf_for_run(
+        selected,
+        synthetic,
+        [selected, other_checkpoint],
+    )
+
+    assert resolved is None
+
+
+def test_resolve_ranked_synthetic_gguf_rejects_renamed_merge_claiming_quantized():
+    selected = ModelInfo(
+        id="Qwen/Qwen3.6-27B",
+        family_id="qwen3-27b",
+        name="Qwen3.6-27B",
+        parameter_count=27_000_000_000,
+    )
+    merged_gguf = ModelInfo(
+        id="converter/Qwopus3.6-27B-Fusion-GGUF",
+        family_id="qwen3-27b",
+        name="Qwopus3.6-27B-Fusion-GGUF",
+        parameter_count=27_000_000_000,
+        downloads=1_000_000,
+        base_model="Qwen/Qwen3.6-27B",
+        base_model_relation="quantized",
+        tags=(
+            "gguf",
+            "merge",
+            "task-vector",
+            "base_model:quantized:Qwen/Qwen3.6-27B",
+        ),
+        gguf_variants=[
+            GGUFVariant(
+                filename="Qwopus3.6-27B-Fusion-Q5_K_M.gguf",
+                quant_type="Q5_K_M",
+                file_size_bytes=19_000_000_000,
+            )
+        ],
+    )
+    synthetic = GGUFVariant(
+        filename="Qwen3.6-27B.Q5_K_M.gguf",
+        quant_type="Q5_K_M",
+        file_size_bytes=19_000_000_000,
+    )
+
+    resolved = _resolve_ranked_gguf_for_run(
+        selected,
+        synthetic,
+        [selected, merged_gguf],
+    )
+
+    assert resolved is None
+
+
+def test_resolve_ranked_synthetic_gguf_rejects_conflicting_base_relations():
+    selected = ModelInfo(
+        id="Qwen/Qwen3.6-27B",
+        family_id="qwen3-27b",
+        name="Qwen3.6-27B",
+        parameter_count=27_000_000_000,
+    )
+    merged_gguf = ModelInfo(
+        id="converter/Qwen3.6-27B-GGUF",
+        family_id="qwen3-27b",
+        name="Qwen3.6-27B-GGUF",
+        parameter_count=27_000_000_000,
+        base_model="Qwen/Qwen3.6-27B",
+        base_model_relation="quantized",
+        tags=(
+            "gguf",
+            "base_model:quantized:Qwen/Qwen3.6-27B",
+            "base_model:finetune:Qwen/Qwen3.6-27B",
+        ),
+        gguf_variants=[
+            GGUFVariant(
+                filename="Qwen3.6-27B-Q4_K_M.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=16_000_000_000,
+            )
+        ],
+    )
+    synthetic = GGUFVariant(
+        filename="Qwen3.6-27B.Q4_K_M.gguf",
+        quant_type="Q4_K_M",
+        file_size_bytes=16_000_000_000,
+    )
+
+    assert (
+        _resolve_ranked_gguf_for_run(
+            selected,
+            synthetic,
+            [selected, merged_gguf],
+        )
+        is None
+    )
+
+
+def test_resolve_ranked_existing_gguf_repo_does_not_require_base_relation():
+    direct_gguf = ModelInfo(
+        id="author/custom-model-GGUF",
+        family_id="custom-model",
+        name="custom-model-GGUF",
+        parameter_count=7_000_000_000,
+        gguf_variants=[
+            GGUFVariant(
+                filename="custom-model-Q4_K_M.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=4_000_000_000,
+            )
+        ],
+    )
+
+    resolved = _resolve_ranked_gguf_for_run(
+        direct_gguf,
+        direct_gguf.gguf_variants[0],
+        [direct_gguf],
+    )
+
+    assert resolved == (direct_gguf, direct_gguf.gguf_variants[0])
+
+
+def test_resolve_ranked_synthetic_gguf_accepts_owner_prefixed_conversion_name():
+    selected = ModelInfo(
+        id="Qwen/Qwen3.6-27B",
+        family_id="qwen3-27b",
+        name="Qwen3.6-27B",
+        parameter_count=27_000_000_000,
+    )
+    direct_gguf = ModelInfo(
+        id="converter/Qwen_Qwen3.6-27B-GGUF",
+        family_id="qwen3-27b",
+        name="Qwen_Qwen3.6-27B-GGUF",
+        parameter_count=27_000_000_000,
+        base_model="Qwen/Qwen3.6-27B",
+        base_model_relation="quantized",
+        tags=("base_model:quantized:Qwen/Qwen3.6-27B",),
+        gguf_variants=[
+            GGUFVariant(
+                filename="Qwen3.6-27B-Q4_K_M.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=16_000_000_000,
+            )
+        ],
+    )
+    synthetic = GGUFVariant(
+        filename="Qwen3.6-27B.Q4_K_M.gguf",
+        quant_type="Q4_K_M",
+        file_size_bytes=16_000_000_000,
+    )
+
+    resolved = _resolve_ranked_gguf_for_run(
+        selected,
+        synthetic,
+        [selected, direct_gguf],
+    )
+
+    assert resolved == (direct_gguf, direct_gguf.gguf_variants[0])
 
 
 def test_resolve_ranked_synthetic_gguf_prefers_exact_quant():
@@ -1019,6 +1482,9 @@ def test_resolve_ranked_synthetic_gguf_prefers_exact_quant():
         name="Qwen3.6-27B-GGUF",
         parameter_count=27_000_000_000,
         downloads=10,
+        base_model="Qwen/Qwen3.6-27B",
+        base_model_relation="quantized",
+        tags=("base_model:quantized:Qwen/Qwen3.6-27B",),
         gguf_variants=[
             GGUFVariant(
                 filename="q4.gguf",
@@ -1249,6 +1715,8 @@ def test_run_auto_pick_resolves_ranked_gguf_before_launch(monkeypatch):
         parameter_count=27_000_000_000,
         downloads=200_000,
         base_model="Qwen/Qwen3.6-27B",
+        base_model_relation="quantized",
+        tags=("base_model:quantized:Qwen/Qwen3.6-27B",),
         gguf_variants=[
             GGUFVariant(
                 filename="q4.gguf",

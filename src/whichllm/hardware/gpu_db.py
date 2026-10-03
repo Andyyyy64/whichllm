@@ -40,6 +40,7 @@ _LAPTOP_GPU_RE = re.compile(r"\blaptop gpu\b", re.IGNORECASE)
 _TRAILING_GRAPHICS_RE = re.compile(r"\bgraphics\s*$", re.IGNORECASE)
 _WHITESPACE_RE = re.compile(r"\s+")
 _MOBILE_MARKER_RE = re.compile(r"\b(?:laptop|mobile|max-?q)\b", re.IGNORECASE)
+_MOBILE_WORD_RE = re.compile(r"\bmobile\b", re.IGNORECASE)
 # Driver names write VRAM bins without a space ("RTX A2000 12GB"); dbgpu
 # writes "RTX A2000 12 GB" (#98).
 _VRAM_NOSPACE_RE = re.compile(r"\b(\d+)GB\b", re.IGNORECASE)
@@ -57,6 +58,12 @@ def _normalize_detected_name(name: str) -> str:
     text = _LAPTOP_GPU_RE.sub("Mobile", text)
     text = _TRAILING_GRAPHICS_RE.sub("", text)
     text = _VRAM_NOSPACE_RE.sub(r"\1 GB", text)
+    # Canonicalize the Mobile marker to a trailing position. dbgpu names the
+    # workstation Ada laptops "RTX 2000 Mobile Ada Generation" (marker in the
+    # middle) while drivers emit "RTX 2000 Ada Generation Laptop GPU" (marker
+    # last). Moving it to the end on both sides makes the two orderings match.
+    if _MOBILE_WORD_RE.search(text):
+        text = f"{_MOBILE_WORD_RE.sub('', text)} Mobile"
     return _WHITESPACE_RE.sub(" ", text).strip()
 
 

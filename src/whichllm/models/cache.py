@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 CACHE_DIR = _cache_dir()
 CACHE_FILE = CACHE_DIR / "models.json"
 DEFAULT_TTL_SECONDS = 6 * 3600  # 6 hours
+CACHE_SCHEMA_VERSION = 3
 
 
 def _ensure_cache_dir() -> None:
@@ -26,12 +27,15 @@ def load_cache() -> list[dict] | None:
 
     try:
         data = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
+        if data.get("schema_version") != CACHE_SCHEMA_VERSION:
+            logger.debug("Model cache schema is outdated")
+            return None
         cached_at = data.get("cached_at", 0)
         if time.time() - cached_at > DEFAULT_TTL_SECONDS:
             logger.debug("Cache expired")
             return None
         return data.get("models", [])
-    except (json.JSONDecodeError, KeyError) as e:
+    except (json.JSONDecodeError, UnicodeDecodeError, KeyError) as e:
         logger.debug(f"Cache corrupted: {e}")
         return None
 
@@ -40,6 +44,7 @@ def save_cache(models: list[dict]) -> None:
     """Save model data to cache."""
     _ensure_cache_dir()
     data = {
+        "schema_version": CACHE_SCHEMA_VERSION,
         "cached_at": time.time(),
         "models": models,
     }
