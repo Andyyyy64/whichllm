@@ -152,20 +152,38 @@ def discover_lmstudio_ggufs(
     return sorted(discovered, key=lambda item: os.path.normcase(str(item.path)))
 
 
+def _split_parts(name: str) -> tuple[str, int] | None:
+    """Return the filename prefix and part count of a split GGUF name."""
+    match = _GGUF_SPLIT_RE.search(name)
+    if match is None:
+        return None
+    return name[: match.start()], int(match.group(2))
+
+
+def _split_entry_filename(name: str) -> str | None:
+    """Return the first part filename of a split GGUF name, if it is one."""
+    parts = _split_parts(name)
+    if parts is None:
+        return None
+    prefix, total = parts
+    if total < 1:
+        return None
+    return f"{prefix}-00001-of-{total:05d}.gguf"
+
+
 def _has_all_split_parts(
     repo_id: str,
     artifact_path: str,
     local_models: Sequence[LocalGGUF],
 ) -> bool:
     artifact = PurePosixPath(artifact_path)
-    match = _GGUF_SPLIT_RE.search(artifact.name)
-    if match is None:
+    parts = _split_parts(artifact.name)
+    if parts is None:
         return True
 
-    total = int(match.group(2))
+    prefix, total = parts
     if total < 1:
         return False
-    prefix = artifact.name[: match.start()]
     expected = {
         artifact.with_name(f"{prefix}-{part:05d}-of-{total:05d}.gguf").as_posix()
         for part in range(1, total + 1)
@@ -181,6 +199,57 @@ def _has_all_split_parts(
     return expected <= available
 
 
+def find_local_artifact(
+    repo_id: str,
+    artifact_path: str,
+    local_models: Sequence[LocalGGUF],
+) -> LocalGGUF | None:
+    """Return the readable local file that exactly matches a repository artifact."""
+    normalized = PurePosixPath(artifact_path).as_posix()
+    for local in local_models:
+        if (
+            local.repo_id is not None
+            and local.repo_id.casefold() == repo_id.casefold()
+            and local.artifact_path is not None
+            and local.artifact_path == normalized
+            and _is_readable_file(local.path)
+            and _has_all_split_parts(repo_id, artifact_path, local_models)
+        ):
+            return local
+    return None
+
+
+def verify_local_artifact(
+    local: LocalGGUF,
+    repo_id: str,
+    artifact_path: str,
+    local_models: Sequence[LocalGGUF],
+) -> Path | None:
+    """Re-check a match right before launch and return the GGUF path to load.
+
+    A match can go stale between discovery and launch, so the repository, the
+    exact artifact path, the file, and every split part are checked again. The
+    returned path is the entry part a backend expects to open.
+    """
+    if local.repo_id is None or local.artifact_path is None:
+        return None
+    if local.repo_id.casefold() != repo_id.casefold():
+        return None
+    normalized = PurePosixPath(artifact_path).as_posix()
+    if local.artifact_path != normalized:
+        return None
+    if not _is_readable_file(local.path):
+        return None
+    if not _has_all_split_parts(repo_id, artifact_path, local_models):
+        return None
+
+    entry = _split_entry_filename(PurePosixPath(normalized).name)
+    if entry is None:
+        return local.path
+    entry_path = local.path.with_name(entry)
+    return entry_path if _is_readable_file(entry_path) else None
+
+
 def _find_local_match(
     result: CompatibilityResult, local_models: Sequence[LocalGGUF]
 ) -> LocalGGUF | None:
@@ -189,19 +258,7 @@ def _find_local_match(
     if model is None or variant is None:
         return None
 
-    repo_id = model.id.casefold()
-    artifact_path = PurePosixPath(variant.filename).as_posix()
-    for local in local_models:
-        if (
-            local.repo_id is not None
-            and local.repo_id.casefold() == repo_id
-            and local.artifact_path is not None
-            and local.artifact_path == artifact_path
-            and _is_readable_file(local.path)
-            and _has_all_split_parts(model.id, variant.filename, local_models)
-        ):
-            return local
-    return None
+    return find_local_artifact(model.id, variant.filename, local_models)
 
 
 def attach_local_matches(

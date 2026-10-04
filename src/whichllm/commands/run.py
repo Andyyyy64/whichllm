@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+from pathlib import Path
 
 import typer
 
@@ -16,12 +17,52 @@ from whichllm.cli_models import (
     _resolve_model_deps,
     _search_model,
 )
+from whichllm.cli_options import _validate_lmstudio_path_flags
 from whichllm.cli_shared import console
 
 
 from whichllm.models.artifacts import (
     resolve_ranked_gguf_artifact,
 )
+from whichllm.models.lmstudio import (
+    LMStudioPathError,
+    LocalGGUF,
+    discover_lmstudio_ggufs,
+    find_local_artifact,
+    verify_local_artifact,
+)
+
+
+def _discover_local_models(lm_studio_path: list[Path] | None) -> list[LocalGGUF]:
+    """Scan LM Studio libraries, failing clearly on an unreadable explicit path."""
+    try:
+        return discover_lmstudio_ggufs(lm_studio_path or ())
+    except LMStudioPathError as error:
+        console.print(f"[red]Error:[/] {error}")
+        raise typer.Exit(code=1) from error
+
+
+def _verified_local_path(
+    model_id: str,
+    artifact_path: str,
+    lm_studio_path: list[Path] | None,
+) -> str | None:
+    """Return the local artifact to load, re-checking the match before launch."""
+    local_models = _discover_local_models(lm_studio_path)
+    match = find_local_artifact(model_id, artifact_path, local_models)
+    if match is None:
+        return None
+
+    verified = verify_local_artifact(match, model_id, artifact_path, local_models)
+    if verified is None:
+        console.print(
+            "[yellow]Warning:[/] Local LM Studio file for "
+            f"{model_id} is missing or incomplete; downloading instead."
+        )
+        return None
+
+    console.print(f"[dim]Using local LM Studio file: {verified}[/]")
+    return str(verified)
 
 
 def run_command(
@@ -31,8 +72,11 @@ def run_command(
     quant: str | None,
     refresh: bool,
     cpu_only: bool,
+    lm_studio_path: list[Path] | None = None,
 ) -> None:
     """Download and chat with a model. Picks the best one if none specified."""
+
+    _validate_lmstudio_path_flags(lm_studio_path)
 
     if not shutil.which("uv"):
         console.print("[red]uv is required.[/]")
@@ -130,8 +174,20 @@ def run_command(
 
     if variant is None:
         variant = _pick_gguf_variant(model, quant)
+
+    local_path = (
+        _verified_local_path(model.id, variant.filename, lm_studio_path)
+        if variant is not None
+        else None
+    )
     deps, script_type = _resolve_model_deps(model, variant)
-    script = _generate_chat_script(model, variant, context_length, cpu_only)
+    if local_path is not None:
+        # A verified local artifact is opened directly, so the isolated run does
+        # not need the Hugging Face client.
+        deps = [dep for dep in deps if dep != "huggingface-hub"]
+    script = _generate_chat_script(
+        model, variant, context_length, cpu_only, local_path=local_path
+    )
 
     fmt = variant.quant_type if variant else script_type.upper()
     console.print(f"\n[bold green]Running {model.id}[/] [dim]({fmt})[/]")
