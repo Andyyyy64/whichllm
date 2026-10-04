@@ -2,6 +2,22 @@
 
 This page lists common issues and the first checks to make.
 
+## Local LM Studio file disappears before launch
+
+`whichllm run` reuses an exact local LM Studio match instead of downloading the
+artifact again. The match is verified when it is found and again immediately
+before the chat script is generated.
+
+If the file moved, was deleted, or lost a split part in between, `run` prints:
+
+```
+Warning: Local LM Studio file for <repo> is missing or incomplete; downloading instead.
+```
+
+The run then downloads the artifact from Hugging Face as usual. Check the
+library with `whichllm --lm-studio-path <path>`, or re-download the model in LM
+Studio to restore a complete artifact.
+
 ## Leaderboard rate limits
 
 Without pyarrow, whichllm reads the archived Open LLM Leaderboard in pages of

@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+
+- `whichllm run` opens a verified local LM Studio GGUF artifact instead of
+downloading a second copy, with the repeatable `--lm-studio-path` option. The
+match is checked again immediately before launch; a file that disappeared or an
+incomplete split artifact falls back to a Hugging Face download with a warning.
+(#20, #186)
+
 ## [0.5.20] - 2026-10-03
 
 ### Added
