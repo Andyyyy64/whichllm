@@ -271,6 +271,11 @@ def run(
     ),
     refresh: bool = typer.Option(False, "--refresh", help="Ignore cache"),
     cpu_only: bool = typer.Option(False, "--cpu-only", help="CPU-only mode"),
+    lm_studio_path: Optional[list[Path]] = typer.Option(
+        None,
+        "--lm-studio-path",
+        help="Additional LM Studio model library path (repeatable)",
+    ),
 ):
     """Download and chat with a model. Picks the best one if none specified."""
     return run_command(
@@ -279,6 +284,7 @@ def run(
         quant=quant,
         refresh=refresh,
         cpu_only=cpu_only,
+        lm_studio_path=lm_studio_path,
     )
 
 
