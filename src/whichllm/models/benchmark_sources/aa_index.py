@@ -31,7 +31,9 @@ logger = logging.getLogger(__name__)
 # map AA-reported labels back to HuggingFace model IDs. Only the most common
 # fully-open-weights releases need entries here; anything else is dropped.
 AA_NAME_TO_HF_IDS: dict[str, list[str]] = {
-    "Kimi K2": ["moonshotai/Kimi-K2-Instruct", "moonshotai/Kimi-K2-Base"],
+    # AA's "Kimi K2" row links its weights to Kimi-K2-Instruct (modelWeightsSourceUrl).
+    # No AA row evaluates Kimi-K2-Base, so it is left unmapped.
+    "Kimi K2": ["moonshotai/Kimi-K2-Instruct"],
     "Kimi K2-Thinking": ["moonshotai/Kimi-K2-Thinking"],
     "DeepSeek V3": ["deepseek-ai/DeepSeek-V3"],
     "DeepSeek V3 0324": ["deepseek-ai/DeepSeek-V3-0324"],
@@ -90,10 +92,9 @@ AA_NAME_TO_HF_IDS: dict[str, list[str]] = {
     "Devstral Small": ["mistralai/Devstral-Small-2505"],
     "Phi-4": ["microsoft/phi-4"],
     "Command A": ["CohereForAI/c4ai-command-a-03-2025"],
-    "Command R+": [
-        "CohereForAI/c4ai-command-r-plus-08-2024",
-        "CohereForAI/c4ai-command-r-plus",
-    ],
+    # AA's only Command R+ row is "Command-R+ (Apr '24)", whose weights link to
+    # c4ai-command-r-plus. No AA row evaluates the 08-2024 release, so it is left unmapped.
+    "Command R+": ["CohereForAI/c4ai-command-r-plus"],
     "MiniMax-M2": ["MiniMaxAI/MiniMax-M2"],
     "MiniMax-M2.5": ["MiniMaxAI/MiniMax-M2.5"],
     "Nemotron 3 Super 120B-A12B": ["nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16"],
