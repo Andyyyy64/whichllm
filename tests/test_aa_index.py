@@ -143,11 +143,17 @@ def test_each_checkpoint_maps_to_its_own_aa_row():
     assert AA_NAME_TO_HF_IDS["DeepSeek V3 0324"] == ["deepseek-ai/DeepSeek-V3-0324"]
     assert AA_NAME_TO_HF_IDS["GLM-4.5"] == ["zai-org/GLM-4.5"]
     assert AA_NAME_TO_HF_IDS["GLM-4.5-Air"] == ["zai-org/GLM-4.5-Air"]
+    # AA has no row for Kimi-K2-Base or the 08-2024 Command R+ release, so
+    # neither inherits its sibling's index.
+    assert AA_NAME_TO_HF_IDS["Kimi K2"] == ["moonshotai/Kimi-K2-Instruct"]
+    assert AA_NAME_TO_HF_IDS["Command R+"] == ["CohereForAI/c4ai-command-r-plus"]
 
     # The canonical map unions ids across display names that collapse onto one
     # key, so it is the invariant that actually has to hold.
     assert _AA_CANON_TO_HF_IDS["deepseek v3"] == ["deepseek-ai/DeepSeek-V3"]
     assert _AA_CANON_TO_HF_IDS["glm 4.5"] == ["zai-org/GLM-4.5"]
+    assert _AA_CANON_TO_HF_IDS["kimi k2"] == ["moonshotai/Kimi-K2-Instruct"]
+    assert _AA_CANON_TO_HF_IDS["command r+"] == ["CohereForAI/c4ai-command-r-plus"]
 
 
 def test_live_scores_land_on_one_checkpoint_each():
@@ -172,6 +178,8 @@ def test_live_scores_land_on_one_checkpoint_each():
         ("DeepSeek V3 0324", "deepseek-ai/DeepSeek-V3-0324"),
         ("GLM-4.5 (Reasoning)", "zai-org/GLM-4.5"),
         ("GLM-4.5-Air (Reasoning)", "zai-org/GLM-4.5-Air"),
+        ("Kimi K2", "moonshotai/Kimi-K2-Instruct"),
+        ("Command-R+ (Apr '24)", "CohereForAI/c4ai-command-r-plus"),
     ],
 )
 @pytest.mark.parametrize("raw_score", [0.0, -19.4])
