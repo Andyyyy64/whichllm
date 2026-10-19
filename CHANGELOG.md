@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.5.21] - 2026-10-19
+
+### Fixed
+
+- Artificial Analysis maps Kimi K2 only to Kimi-K2-Instruct and the April
+  Command R+ row only to c4ai-command-r-plus. Kimi-K2-Base and the August
+  Command R+ release no longer inherit their sibling's live AA score.
+  Fallback snapshot values are unchanged. (#184, #188)
+
 ## [0.5.20] - 2026-10-03
 
 ### Added
