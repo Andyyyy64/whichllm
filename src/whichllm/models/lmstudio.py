@@ -172,10 +172,16 @@ def _split_entry_filename(name: str) -> str | None:
 
 
 def _has_all_split_parts(
-    repo_id: str,
+    local: LocalGGUF,
     artifact_path: str,
     local_models: Sequence[LocalGGUF],
 ) -> bool:
+    """Return whether every split part sits beside this candidate's entry file.
+
+    llama.cpp resolves the remaining parts relative to the file it opens, so
+    parts that only exist in another library directory cannot complete the set.
+    Only files in the candidate's own directory are counted.
+    """
     artifact = PurePosixPath(artifact_path)
     parts = _split_parts(artifact.name)
     if parts is None:
@@ -185,16 +191,15 @@ def _has_all_split_parts(
     if total < 1:
         return False
     expected = {
-        artifact.with_name(f"{prefix}-{part:05d}-of-{total:05d}.gguf").as_posix()
-        for part in range(1, total + 1)
+        f"{prefix}-{part:05d}-of-{total:05d}.gguf" for part in range(1, total + 1)
     }
+    directory = os.path.normcase(os.path.abspath(local.path.parent))
     available = {
-        local.artifact_path
-        for local in local_models
-        if local.repo_id is not None
-        and local.repo_id.casefold() == repo_id.casefold()
-        and local.artifact_path is not None
-        and _is_readable_file(local.path)
+        PurePosixPath(candidate.artifact_path).name
+        for candidate in local_models
+        if candidate.artifact_path is not None
+        and os.path.normcase(os.path.abspath(candidate.path.parent)) == directory
+        and _is_readable_file(candidate.path)
     }
     return expected <= available
 
@@ -213,7 +218,7 @@ def find_local_artifact(
             and local.artifact_path is not None
             and local.artifact_path == normalized
             and _is_readable_file(local.path)
-            and _has_all_split_parts(repo_id, artifact_path, local_models)
+            and _has_all_split_parts(local, artifact_path, local_models)
         ):
             return local
     return None
@@ -240,7 +245,7 @@ def verify_local_artifact(
         return None
     if not _is_readable_file(local.path):
         return None
-    if not _has_all_split_parts(repo_id, artifact_path, local_models):
+    if not _has_all_split_parts(local, artifact_path, local_models):
         return None
 
     entry = _split_entry_filename(PurePosixPath(normalized).name)

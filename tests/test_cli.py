@@ -1972,6 +1972,64 @@ def test_run_ignores_incomplete_split_local_artifact(monkeypatch, tmp_path):
     assert "huggingface-hub" in captured["cmd"]
 
 
+def test_run_ignores_split_artifact_parts_from_another_library(monkeypatch, tmp_path):
+    parts = [f"q4-{part:05d}-of-00002.gguf" for part in (1, 2)]
+    model = _local_gguf_model(filename=parts[0])
+    first, second = tmp_path / "lib-a", tmp_path / "lib-b"
+    _write_library_file(first, parts[0])
+    _write_library_file(second, parts[1])
+    captured: dict[str, object] = {}
+    _capture_run(monkeypatch, captured)
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [model])
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "run",
+            "Test-7B",
+            "--lm-studio-path",
+            str(first),
+            "--lm-studio-path",
+            str(second),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Using local LM Studio file" not in result.stdout
+    assert "hf_hub_download" in captured["script"]
+    assert "huggingface-hub" in captured["cmd"]
+
+
+def test_run_uses_complete_split_artifact_from_a_later_library(monkeypatch, tmp_path):
+    parts = [f"q4-{part:05d}-of-00002.gguf" for part in (1, 2)]
+    model = _local_gguf_model(filename=parts[0])
+    first, second = tmp_path / "lib-a", tmp_path / "lib-b"
+    _write_library_file(first, parts[0])
+    for part in parts:
+        _write_library_file(second, part)
+    entry = second / "org" / "Test-7B-GGUF" / parts[0]
+    captured: dict[str, object] = {}
+    _capture_run(monkeypatch, captured)
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [model])
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "run",
+            "Test-7B",
+            "--lm-studio-path",
+            str(first),
+            "--lm-studio-path",
+            str(second),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert _flat(f"Using local LM Studio file: {entry}") in _flat(result.stdout)
+    assert f"model_path = {str(entry)!r}" in captured["script"]
+    assert "hf_hub_download" not in captured["script"]
+
+
 def test_run_falls_back_when_local_file_disappears_before_launch(monkeypatch, tmp_path):
     model = _local_gguf_model()
     root = tmp_path / "lmstudio"

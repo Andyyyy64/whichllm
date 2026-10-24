@@ -280,6 +280,47 @@ def test_attach_local_match_rejects_incomplete_split_artifact(tmp_path):
     assert result.local_path is None
 
 
+def test_find_local_artifact_rejects_split_parts_split_across_libraries(tmp_path):
+    parts = [f"model-Q4_K_M-{part:05d}-of-00002.gguf" for part in (1, 2)]
+    _add_model_file(tmp_path, parts[0], root=tmp_path / "lib-a")
+    _add_model_file(tmp_path, parts[1], root=tmp_path / "lib-b")
+    local_models = discover_lmstudio_ggufs(
+        [tmp_path / "lib-a", tmp_path / "lib-b"], home=tmp_path
+    )
+
+    assert (
+        find_local_artifact("lmstudio-community/Qwen3-8B-GGUF", parts[0], local_models)
+        is None
+    )
+
+    result = _result(filename=parts[0])
+    attach_local_matches([result], local_models)
+    assert result.local_path is None
+
+
+def test_find_local_artifact_prefers_complete_split_set_in_another_library(tmp_path):
+    parts = [f"model-Q4_K_M-{part:05d}-of-00002.gguf" for part in (1, 2)]
+    _add_model_file(tmp_path, parts[0], root=tmp_path / "lib-a")
+    complete = _add_model_file(tmp_path, parts[0], root=tmp_path / "lib-b")
+    _add_model_file(tmp_path, parts[1], root=tmp_path / "lib-b")
+    local_models = discover_lmstudio_ggufs(
+        [tmp_path / "lib-a", tmp_path / "lib-b"], home=tmp_path
+    )
+
+    match = find_local_artifact(
+        "lmstudio-community/Qwen3-8B-GGUF", parts[0], local_models
+    )
+
+    assert match is not None
+    assert match.path == complete
+    assert (
+        verify_local_artifact(
+            match, "lmstudio-community/Qwen3-8B-GGUF", parts[0], local_models
+        )
+        == complete
+    )
+
+
 def test_find_local_artifact_matches_exact_repo_and_artifact(tmp_path):
     path = _add_model_file(tmp_path, "Qwen3-8B-Q4_K_M.gguf")
     local_models = discover_lmstudio_ggufs(home=tmp_path)

@@ -69,8 +69,9 @@ with the GPU number from `whichllm hardware`.
 
 whichllm scans `~/.lmstudio/models` for GGUF files. A recommendation is marked
 `Installed` only when its resolved Hugging Face repository and exact artifact
-path match a readable local file. Every part of a split GGUF must be present.
-Libraries are only read; whichllm does not move, modify, or delete LM Studio
+path match a readable local file. Every part of a split GGUF must be present
+beside the entry file in the same library, because that is where llama.cpp
+looks for it. Libraries are only read; whichllm does not move, modify, or delete LM Studio
 files. Use `--lm-studio-path` for legacy or custom model libraries; an explicit
 path that cannot be read is reported as an error.
 
@@ -226,8 +227,8 @@ Options:
 If the resolved model has an exact local match in an LM Studio library, `run`
 opens that file instead of downloading a second copy from Hugging Face. A match
 requires the resolved repository and the complete artifact path, every part of a
-split GGUF, and a readable file. For a split artifact, `run` opens the first
-part.
+split GGUF beside the entry file, and a readable file. For a split artifact,
+`run` opens the first part.
 
 The match is checked again immediately before the script is generated. If the
 file disappeared or a part is no longer readable, `run` prints a warning and
