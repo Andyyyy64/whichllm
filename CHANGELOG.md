@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Changed
+
+- Multi-GPU fit now plans a layer split per device instead of comparing one
+  combined budget. Each device pays its own runtime buffer first, weights and KV
+  cache are assigned in proportion to what is left, and the non-splittable part
+  (activation buffers and framework overhead) is reserved on the device with the
+  most capacity. A placement whose runtime-only part fits no single device is
+  rejected even when the combined VRAM would have covered the estimate, and a
+  device that cannot pay its runtime buffer stays out of the pool. `--json` adds
+  `multi_gpu_placement` with the per-device budget, weight share, KV share, and
+  requirement. This is the estimator part of #189; the per-device comparison on
+  real hardware is still open. (#104, #189)
+
 ## [0.5.21] - 2026-10-19
 
 ### Fixed
