@@ -199,19 +199,37 @@ def _resolve_model_deps(model, variant) -> tuple[list[str], str]:
     return base, "transformers"
 
 
-def _generate_chat_script(model, variant, context_length: int, cpu_only: bool) -> str:
-    """Generate a self-contained Python chat script for any model type."""
+def _generate_chat_script(
+    model,
+    variant,
+    context_length: int,
+    cpu_only: bool,
+    local_path: str | None = None,
+) -> str:
+    """Generate a self-contained Python chat script for any model type.
+
+    A verified local artifact path replaces the Hugging Face download, so the
+    generated script never calls `hf_hub_download`.
+    """
     if variant:
         n_gpu = 0 if cpu_only else -1
+        if local_path is not None:
+            loader = f"""\
+model_path = {local_path!r}
+print(f"Using local GGUF {{quant_type}}: {{model_path}}")"""
+            hub_import = ""
+        else:
+            loader = """\
+print(f"Downloading {model_id} ({quant_type})...")
+model_path = hf_hub_download(repo_id=model_id, filename=filename)"""
+            hub_import = "from huggingface_hub import hf_hub_download\n"
         return f"""\
-from huggingface_hub import hf_hub_download
-from llama_cpp import Llama
+{hub_import}from llama_cpp import Llama
 
 model_id = {model.id!r}
 filename = {variant.filename!r}
 quant_type = {variant.quant_type!r}
-print(f"Downloading {{model_id}} ({{quant_type}})...")
-model_path = hf_hub_download(repo_id=model_id, filename=filename)
+{loader}
 print("Loading model...")
 llm = Llama(
     model_path=model_path,
