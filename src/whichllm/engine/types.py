@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from whichllm.engine.placement import DevicePlacement
 from whichllm.models.types import GGUFVariant, ModelInfo
 
 
@@ -26,6 +27,9 @@ class CompatibilityResult:
     context_fits: bool = True  # False when known model max context < requested
     uses_multi_gpu: bool = False
     multi_gpu_effective_vram_bytes: int | None = None
+    # Per-device share of a layer split, populated only for pooled dedicated
+    # GPUs. None means the fit used a single device or a shared-memory pool.
+    multi_gpu_placement: list[DevicePlacement] | None = None
     artifact_model: ModelInfo | None = None
     artifact_variant: GGUFVariant | None = None
     local_path: str | None = None

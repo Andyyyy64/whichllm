@@ -5,14 +5,14 @@ from __future__ import annotations
 from whichllm.constants import _GiB
 from whichllm.constants import MIN_COMPUTE_CAPABILITY_OLLAMA
 from whichllm.constants import VULKAN_ONLY_GPUS
+from whichllm.engine.placement import PlacementPlan, plan_multi_gpu_placement
 from whichllm.engine.quantization import estimate_weight_bytes
 from whichllm.engine.types import CompatibilityResult
-from whichllm.engine.vram import estimate_vram
+from whichllm.engine.vram import estimate_kv_cache, estimate_vram
 from whichllm.hardware.memory import effective_usable_ram
 from whichllm.hardware.types import GPUInfo, HardwareInfo
 from whichllm.models.types import GGUFVariant, ModelInfo
 
-_MULTI_GPU_FRAMEWORK_OVERHEAD_BYTES = int(0.3 * _GiB)
 _MULTI_GPU_HOMOGENEOUS_UTILIZATION = 0.95
 _MULTI_GPU_HETEROGENEOUS_UTILIZATION = 0.90
 
@@ -77,14 +77,18 @@ def _is_homogeneous_gpu_set(gpus: list[GPUInfo], available: list[int]) -> bool:
     )
 
 
-def _multi_gpu_effective_vram(
+def _multi_gpu_fit_budget(
     gpus: list[GPUInfo],
     available: list[int],
     warnings: list[str],
-) -> tuple[int, bool, int | None]:
+    *,
+    weights_bytes: int,
+    kv_bytes: int,
+    nonsplittable_bytes: int,
+) -> tuple[int, bool, int | None, PlacementPlan | None]:
     raw_total = sum(available)
     if len(gpus) <= 1:
-        return raw_total, False, None
+        return raw_total, False, None, None
 
     if any(gpu.shared_memory or gpu.vendor == "apple" for gpu in gpus):
         effective = max(available)
@@ -92,7 +96,7 @@ def _multi_gpu_effective_vram(
             "Multiple shared-memory GPUs are not pooled; using the largest "
             "reported memory pool for fit checks"
         )
-        return effective, False, None
+        return effective, False, None, None
 
     homogeneous = _is_homogeneous_gpu_set(gpus, available)
     utilization = (
@@ -100,19 +104,46 @@ def _multi_gpu_effective_vram(
         if homogeneous
         else _MULTI_GPU_HETEROGENEOUS_UTILIZATION
     )
-    overhead = min(raw_total, len(gpus) * _MULTI_GPU_FRAMEWORK_OVERHEAD_BYTES)
-    effective = int((raw_total - overhead) * utilization)
+    plan = plan_multi_gpu_placement(
+        gpus,
+        available,
+        weights_bytes=weights_bytes,
+        kv_bytes=kv_bytes,
+        nonsplittable_bytes=nonsplittable_bytes,
+        utilization=utilization,
+    )
+
+    if not plan.devices or not plan.fits:
+        if plan.excluded:
+            warnings.append(
+                "Devices without room for their own runtime buffer stay out of "
+                f"the multi-GPU pool: {', '.join(plan.excluded)}"
+            )
+        if not plan.devices:
+            warnings.append(
+                "Multi-GPU fit skipped: fewer than two devices have room left "
+                "after their runtime buffer"
+            )
+        else:
+            warnings.append(
+                "Multi-GPU placement rejected: the runtime-only part of the "
+                "estimate (activation buffers and framework overhead) does not "
+                "fit on any single device, so no layer split can carry it"
+            )
+        single = max((placement.budget_bytes for placement in plan.devices), default=0)
+        return single, False, None, plan
 
     warnings.append(
         "Multi-GPU fit uses a conservative layer-split budget: "
-        f"{effective / _GiB:.1f} GB effective from {raw_total / _GiB:.1f} GB raw VRAM"
+        f"{plan.effective_bytes / _GiB:.1f} GB effective from "
+        f"{raw_total / _GiB:.1f} GB raw VRAM"
     )
     if not homogeneous:
         warnings.append(
             "Heterogeneous multi-GPU setup: fit assumes uneven layer placement; "
             "speed depends on backend split mode and interconnect"
         )
-    return effective, True, effective
+    return plan.effective_bytes, True, plan.effective_bytes, plan
 
 
 def check_compatibility(
@@ -125,6 +156,11 @@ def check_compatibility(
     warnings: list[str] = []
 
     vram_required = estimate_vram(model, variant, context_length)
+    weights_required = estimate_weight_bytes(model, variant)
+    kv_required = estimate_kv_cache(model, context_length)
+    # Activation buffers and framework overhead are per-run, not per-layer, so a
+    # layer split cannot divide them between devices.
+    nonsplittable_required = max(0, vram_required - weights_required - kv_required)
 
     usable_ram = effective_usable_ram(hardware.ram_bytes, hardware.ram_budget_bytes)
 
@@ -144,8 +180,15 @@ def check_compatibility(
             best_gpu_available = gpu_available
 
     vram_available = sum(gpu_available_values) if gpu_available_values else 0
-    fit_vram_available, uses_multi_gpu, multi_gpu_effective_vram = (
-        _multi_gpu_effective_vram(candidate_gpus, gpu_available_values, warnings)
+    fit_vram_available, uses_multi_gpu, multi_gpu_effective_vram, placement = (
+        _multi_gpu_fit_budget(
+            candidate_gpus,
+            gpu_available_values,
+            warnings,
+            weights_bytes=weights_required,
+            kv_bytes=kv_required,
+            nonsplittable_bytes=nonsplittable_required,
+        )
     )
     if (
         len(candidate_gpus) > 1
@@ -255,6 +298,7 @@ def check_compatibility(
         offload_ratio=offload_ratio,
         uses_multi_gpu=uses_multi_gpu,
         multi_gpu_effective_vram_bytes=multi_gpu_effective_vram,
+        multi_gpu_placement=placement.devices if placement is not None else None,
         warnings=warnings,
         fit_type=fit_type,
         context_fits=context_fits,

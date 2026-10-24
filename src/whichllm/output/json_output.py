@@ -4,12 +4,34 @@ from __future__ import annotations
 
 import json
 
+from whichllm.engine.placement import DevicePlacement
 from whichllm.engine.quantization import effective_quant_type, estimate_weight_bytes
 from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.types import HardwareInfo
 from whichllm.models.types import GGUFVariant, ModelInfo
 from whichllm.output import _console
 from whichllm.output.upgrade import _summarize_row
+
+
+def _placement_rows(
+    placement: list[DevicePlacement] | None,
+) -> list[dict[str, object]] | None:
+    """Serialize a per-device layer-split placement for JSON consumers."""
+    if not placement:
+        return None
+    return [
+        {
+            "name": device.name,
+            "available_bytes": device.available_bytes,
+            "budget_bytes": device.budget_bytes,
+            "weight_bytes": device.weight_bytes,
+            "kv_bytes": device.kv_bytes,
+            "nonsplittable_bytes": device.nonsplittable_bytes,
+            "required_bytes": device.required_bytes,
+            "fits": device.fits,
+        }
+        for device in placement
+    ]
 
 
 def display_json(results: list[CompatibilityResult], hardware: HardwareInfo) -> None:
@@ -57,6 +79,7 @@ def display_json(results: list[CompatibilityResult], hardware: HardwareInfo) -> 
                 "vram_available_bytes": r.vram_available_bytes,
                 "uses_multi_gpu": r.uses_multi_gpu,
                 "multi_gpu_effective_vram_bytes": r.multi_gpu_effective_vram_bytes,
+                "multi_gpu_placement": _placement_rows(r.multi_gpu_placement),
                 "estimated_tok_per_sec": r.estimated_tok_per_sec,
                 "speed_confidence": r.speed_confidence,
                 "speed_range_tok_per_sec": (

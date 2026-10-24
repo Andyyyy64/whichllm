@@ -2,6 +2,7 @@
 
 from whichllm.constants import _GiB
 from whichllm.engine.compatibility import check_compatibility
+from whichllm.engine.placement import PER_DEVICE_RUNTIME_BUFFER_BYTES
 from whichllm.hardware.memory import estimate_usable_ram
 from whichllm.hardware.types import GPUInfo, HardwareInfo
 from whichllm.models.types import GGUFVariant, ModelInfo
@@ -500,3 +501,102 @@ def test_context_fits_unknown_is_true():
     result = check_compatibility(model, variant, hw, context_length=32768)
     assert result.context_fits is True
     assert not any("max context" in w.lower() for w in result.warnings)
+
+
+def _dual_gpu_hardware(small: int, large: int, **kwargs) -> HardwareInfo:
+    return HardwareInfo(
+        gpus=[
+            GPUInfo(
+                name="NVIDIA GeForce GTX 1660 SUPER",
+                vendor="nvidia",
+                vram_bytes=small,
+                compute_capability=(7, 5),
+                memory_bandwidth_gbps=336.0,
+            ),
+            GPUInfo(
+                name="NVIDIA GeForce RTX 5060 Ti",
+                vendor="nvidia",
+                vram_bytes=large,
+                compute_capability=(10, 0),
+                memory_bandwidth_gbps=448.0,
+            ),
+        ],
+        cpu_name="Test CPU",
+        cpu_cores=16,
+        ram_bytes=kwargs.get("ram_bytes", 64 * _GiB),
+        disk_free_bytes=200 * _GiB,
+        os="linux",
+    )
+
+
+def test_unequal_gpus_report_a_share_per_device():
+    model = _make_model()
+    variant = _make_variant(12 * _GiB)
+    hw = _dual_gpu_hardware(6 * _GiB, 16 * _GiB)
+
+    result = check_compatibility(model, variant, hw)
+
+    assert result.uses_multi_gpu is True
+    placement = result.multi_gpu_placement
+    assert placement is not None
+    assert len(placement) == 2
+    small, large = placement
+    assert small.budget_bytes == 6 * _GiB - PER_DEVICE_RUNTIME_BUFFER_BYTES
+    assert large.budget_bytes == 16 * _GiB - PER_DEVICE_RUNTIME_BUFFER_BYTES
+    assert 0 < small.weight_bytes < large.weight_bytes
+    assert small.fits is True
+    assert large.fits is True
+    # The whole estimate lands somewhere in the plan.
+    assert abs(
+        sum(device.required_bytes for device in placement) - result.vram_required_bytes
+    ) <= 2 * len(placement)
+
+
+def test_multi_gpu_budget_keeps_a_runtime_buffer_per_device():
+    model = _make_model()
+    variant = _make_variant(8 * _GiB)
+    hw = _dual_gpu_hardware(6 * _GiB, 16 * _GiB)
+
+    result = check_compatibility(model, variant, hw)
+
+    assert result.multi_gpu_effective_vram_bytes is not None
+    budgets = 22 * _GiB - 2 * PER_DEVICE_RUNTIME_BUFFER_BYTES
+    assert result.multi_gpu_effective_vram_bytes == int(budgets * 0.90)
+    assert result.multi_gpu_effective_vram_bytes < result.vram_available_bytes
+
+
+def test_combined_fit_is_rejected_when_one_device_cannot_hold_the_runtime_part():
+    model = _make_model(100_000_000)
+    variant = _make_variant(64 * 1024**2)
+    hw = HardwareInfo(
+        gpus=[
+            GPUInfo(
+                name="NVIDIA GeForce GT 1030",
+                vendor="nvidia",
+                vram_bytes=1 * _GiB,
+                compute_capability=(6, 1),
+                memory_bandwidth_gbps=112.0,
+            ),
+            GPUInfo(
+                name="NVIDIA GeForce GT 1030",
+                vendor="nvidia",
+                vram_bytes=1 * _GiB,
+                compute_capability=(6, 1),
+                memory_bandwidth_gbps=112.0,
+            ),
+        ],
+        cpu_name="Test CPU",
+        cpu_cores=8,
+        ram_bytes=32 * _GiB,
+        disk_free_bytes=100 * _GiB,
+        os="linux",
+    )
+
+    result = check_compatibility(model, variant, hw)
+
+    # The combined 2 GiB would cover the estimate, but the activation buffers and
+    # framework overhead have to live on one device and fit neither.
+    assert result.uses_multi_gpu is False
+    assert result.fit_type == "partial_offload"
+    assert result.multi_gpu_effective_vram_bytes is None
+    assert any("placement rejected" in w for w in result.warnings)

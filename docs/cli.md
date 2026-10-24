@@ -113,6 +113,7 @@ Ranking JSON model rows include:
 | `vram_available_bytes` | GPU memory budget used for the fit check |
 | `uses_multi_gpu` | Whether the fit check used more than one GPU |
 | `multi_gpu_effective_vram_bytes` | Conservative effective VRAM budget for multi-GPU fits, when applicable |
+| `multi_gpu_placement` | Per-device layer split: budget after the per-device runtime buffer, weights, KV cache, the non-splittable runtime part, the resulting requirement, and whether it fits that device |
 | `estimated_tok_per_sec` | Point estimate used by ranking |
 | `speed_confidence` | `high`, `medium`, or `low` |
 | `speed_range_tok_per_sec` | Estimated lower/upper tok/s range, when available |
