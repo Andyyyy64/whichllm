@@ -65,7 +65,7 @@ uvx whichllm@latest --gpu-only --speed usable --vram-headroom 1.5GB
 ```bash
 git clone https://github.com/Andyyyy64/whichllm.git
 cd whichllm
-uv sync --dev
+uv sync --locked --dev
 uv run whichllm
 uv run pytest
 ```

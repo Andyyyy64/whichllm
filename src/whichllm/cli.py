@@ -133,7 +133,10 @@ def main(
         None,
         "--bandwidth",
         "--ram-bandwidth",
-        help="Override GPU/RAM bandwidth in GB/s",
+        help=(
+            "Override the selected GPU's memory bandwidth in GB/s "
+            "(system RAM bandwidth for an iGPU or unified memory)"
+        ),
     ),
     gpu_index: Optional[int] = typer.Option(
         None,
@@ -319,7 +322,10 @@ def hardware(
         None,
         "--bandwidth",
         "--ram-bandwidth",
-        help="Override GPU/RAM bandwidth in GB/s",
+        help=(
+            "Override the selected GPU's memory bandwidth in GB/s "
+            "(system RAM bandwidth for an iGPU or unified memory)"
+        ),
     ),
     gpu_index: Optional[int] = typer.Option(
         None,

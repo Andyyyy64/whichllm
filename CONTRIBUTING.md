@@ -46,7 +46,7 @@ reviewable. If you wrote it or asked a tool to write it, you own it. Read it,
 test the parts that matter, and be ready to explain or fix it.
 
 ### Adding GPU Support
-To add a new GPU to the bandwidth database, edit `src/whichllm/constants.py` and add the GPU specs.
+To add a new GPU to the bandwidth database, edit `src/whichllm/data/gpu.py` and add the GPU specs.
 
 ## Code Style
 - Follow existing code conventions

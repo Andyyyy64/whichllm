@@ -28,8 +28,8 @@ from whichllm.models.benchmark_sources.vision import fetch_vision_scores
 # spaces change their JSON shape), so the user-visible ranking is anchored
 # to this snapshot. Surface it in the CLI so a stale recommendation is
 # self-evident rather than silently trusted. Bump this whenever any
-# *_FALLBACK_* dict is refreshed.
-BENCHMARK_SNAPSHOT = "2026-05"
+# *_FALLBACK_* dict is refreshed; a test checks it against their dates.
+BENCHMARK_SNAPSHOT = "2026-09"
 
 __all__ = [
     "BENCHMARK_SNAPSHOT",

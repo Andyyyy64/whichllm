@@ -27,7 +27,12 @@ def plan_command(
     from rich.progress import Progress, SpinnerColumn, TextColumn
 
     from whichllm.models.cache import load_cache, save_cache
-    from whichllm.models.fetcher import dicts_to_models, fetch_models, models_to_dicts
+    from whichllm.models.fetcher import (
+        ModelFetchReport,
+        dicts_to_models,
+        fetch_models,
+        models_to_dicts,
+    )
     from whichllm.models.hf import fetch_model_by_id
     from whichllm.output.display import display_plan, display_plan_json
 
@@ -58,8 +63,13 @@ def plan_command(
         elif cached_data is None:
             progress.update(task, description="Fetching models from HuggingFace...")
             try:
-                models = _run_async(fetch_models(include_vision=True))
-                save_cache(models_to_dicts(models))
+                report = ModelFetchReport()
+                models = _run_async(fetch_models(include_vision=True, report=report))
+                save_cache(
+                    models_to_dicts(models),
+                    include_vision=True,
+                    complete=report.complete,
+                )
             except Exception as e:
                 console.print(
                     f"[red]Error fetching models:[/] {_format_fetch_error(e)}"

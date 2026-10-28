@@ -35,7 +35,7 @@ Common options:
 | `--cpu-only` | Ignore GPUs and rank for CPU-only use |
 | `--gpu` | Simulate GPU(s) by name. Accepts repeated flags, comma-separated values, and count shorthand |
 | `--vram` | Override simulated GPU VRAM or detected GPU usable VRAM in GB |
-| `--bandwidth`, `--ram-bandwidth` | Override GPU/RAM bandwidth in GB/s |
+| `--bandwidth`, `--ram-bandwidth` | Override the selected GPU's memory bandwidth in GB/s (system RAM bandwidth for an iGPU or unified memory) |
 | `--gpu-index` | Detected GPU index to override when multiple GPUs are present |
 | `--vram-headroom` | Reserve per-GPU memory for runtime overhead. Default: `auto`. Accepts `none`, byte values like `1.5GB`, or percentages like `10%` |
 | `--ram-budget` | Cap RAM available for partial offload. Accepts `available`, byte values like `8GB`, or percentages like `50%` |

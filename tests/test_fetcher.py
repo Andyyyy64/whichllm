@@ -735,3 +735,72 @@ def test_models_cache_roundtrip_keeps_gguf_variant_is_estimated():
     restored = dicts_to_models(models_to_dicts(models))
     assert restored[0].gguf_variants[0].is_estimated is True
     assert restored[0].gguf_variants[1].is_estimated is False
+
+
+def _frontier_fetch_with_statuses(monkeypatch, statuses: dict[str, int]):
+    """Run fetch_models where list calls are empty and frontier calls answer
+    with the given status per repo (200 for every unlisted repo id)."""
+    monkeypatch.delenv("HF_ENDPOINT", raising=False)
+
+    async def fake_get_with_retries(client, url: str, **kwargs):
+        request = httpx.Request("GET", url)
+        if "/models/" not in url:
+            return httpx.Response(200, json=[], request=request)
+        model_id = url.split("/api/models/", 1)[1]
+        status = statuses.get(model_id, 404)
+        if status == "transport":
+            raise httpx.ConnectError("boom", request=request)
+        return httpx.Response(status, json={}, request=request)
+
+    monkeypatch.setattr(fetcher, "get_with_retries", fake_get_with_retries)
+    report = fetcher.ModelFetchReport()
+    models = asyncio.run(
+        fetcher.fetch_models(limit=1, include_vision=False, report=report)
+    )
+    return models, report
+
+
+def test_frontier_rate_limits_mark_catalog_incomplete(monkeypatch, caplog):
+    first, second, third = fetcher._FRONTIER_MODEL_IDS[:3]
+
+    with caplog.at_level("WARNING", logger="whichllm.models.hf"):
+        models, report = _frontier_fetch_with_statuses(
+            monkeypatch, {first: 429, second: 503, third: "transport"}
+        )
+
+    assert models == []
+    assert report.failed == [first, second, third]
+    assert report.complete is False
+    assert len(report.unavailable) == len(fetcher._FRONTIER_MODEL_IDS) - 3
+    warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) == 1
+    assert "Could not fetch 3 of" in warnings[0]
+
+
+def test_missing_frontier_repos_do_not_mark_catalog_incomplete(monkeypatch, caplog):
+    with caplog.at_level("WARNING", logger="whichllm.models.hf"):
+        _, report = _frontier_fetch_with_statuses(monkeypatch, {})
+
+    assert report.failed == []
+    assert report.complete is True
+    assert len(report.unavailable) == len(fetcher._FRONTIER_MODEL_IDS)
+    assert not [r for r in caplog.records if r.levelname == "WARNING"]
+
+
+def test_failed_trending_list_marks_catalog_incomplete(monkeypatch):
+    monkeypatch.delenv("HF_ENDPOINT", raising=False)
+
+    async def fake_get_with_retries(client, url: str, **kwargs):
+        request = httpx.Request("GET", url)
+        if kwargs.get("params", {}).get("sort") == "trending":
+            return httpx.Response(429, request=request)
+        if "/models/" in url:
+            return httpx.Response(404, request=request)
+        return httpx.Response(200, json=[], request=request)
+
+    monkeypatch.setattr(fetcher, "get_with_retries", fake_get_with_retries)
+    report = fetcher.ModelFetchReport()
+    asyncio.run(fetcher.fetch_models(limit=1, include_vision=False, report=report))
+
+    assert report.failed == ["trending:all", "trending:gguf"]
+    assert report.complete is False

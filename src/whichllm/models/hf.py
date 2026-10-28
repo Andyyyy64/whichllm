@@ -5,14 +5,39 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from dataclasses import dataclass, field
 
 import httpx
 
-from whichllm.models.http import DEFAULT_ACCEPT_ENCODING, get_with_retries
+from whichllm.models.http import (
+    DEFAULT_ACCEPT_ENCODING,
+    RETRYABLE_STATUS_CODES,
+    get_with_retries,
+)
 from whichllm.models.parser import _extract_published_at, _parse_model
 from whichllm.models.types import ModelInfo
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ModelFetchReport:
+    """What a catalog fetch could not retrieve.
+
+    ``failed`` lists requests that still failed after retries (rate limits,
+    server errors, network errors). A catalog with failures is incomplete and
+    should not be cached for the full TTL. ``unavailable`` lists curated repos
+    that answered with a permanent client error, such as a renamed or gated
+    repository; retrying soon would not change those.
+    """
+
+    failed: list[str] = field(default_factory=list)
+    unavailable: list[str] = field(default_factory=list)
+
+    @property
+    def complete(self) -> bool:
+        return not self.failed
+
 
 _DEFAULT_HF_ENDPOINT = "https://huggingface.co"
 
@@ -170,10 +195,14 @@ async def _fetch_frontier_models(
     client: httpx.AsyncClient,
     models: list[ModelInfo],
     seen_ids: set[str],
+    report: ModelFetchReport,
 ) -> None:
+    requested = 0
+    failed_before = len(report.failed)
     for model_id in _FRONTIER_MODEL_IDS:
         if model_id in seen_ids:
             continue
+        requested += 1
         try:
             resp = await get_with_retries(
                 client,
@@ -184,15 +213,28 @@ async def _fetch_frontier_models(
                 logger.debug(
                     f"Frontier fetch skipped {model_id}: HTTP {resp.status_code}"
                 )
+                if resp.status_code in RETRYABLE_STATUS_CODES:
+                    report.failed.append(model_id)
+                else:
+                    report.unavailable.append(model_id)
                 continue
             data = resp.json()
         except (httpx.HTTPError, ValueError) as e:
             logger.debug(f"Frontier fetch failed for {model_id}: {e}")
+            report.failed.append(model_id)
             continue
         model = _parse_model(data)
         if model:
             models.append(model)
             seen_ids.add(model.id)
+
+    failed = len(report.failed) - failed_before
+    if failed:
+        logger.warning(
+            f"Could not fetch {failed} of {requested} curated recent models "
+            "from Hugging Face (rate limit or network error). Recent releases "
+            "may be missing; this partial list is cached for 30 minutes."
+        )
 
 
 async def fetch_model_by_id(model_id: str) -> ModelInfo | None:
@@ -212,9 +254,16 @@ async def fetch_model_by_id(model_id: str) -> ModelInfo | None:
 
 
 async def fetch_models(
-    limit: int = 300, include_vision: bool = True
+    limit: int = 300,
+    include_vision: bool = True,
+    report: ModelFetchReport | None = None,
 ) -> list[ModelInfo]:
-    """Fetch popular models from HuggingFace Hub."""
+    """Fetch popular models from HuggingFace Hub.
+
+    Pass ``report`` to learn whether the result is complete.
+    """
+    if report is None:
+        report = ModelFetchReport()
     models: list[ModelInfo] = []
 
     async with httpx.AsyncClient(
@@ -258,10 +307,11 @@ async def fetch_models(
                 )
             except (httpx.HTTPError, ValueError) as e:
                 logger.debug(f"Trending fetch skipped: {e}")
+                report.failed.append(f"trending:{filter_value or 'all'}")
                 continue
             _append_new_models(trending_data_list, models, seen_ids)
 
-        await _fetch_frontier_models(client, models, seen_ids)
+        await _fetch_frontier_models(client, models, seen_ids, report)
 
         if include_vision:
             for pipeline_tag in ("image-text-to-text",):
