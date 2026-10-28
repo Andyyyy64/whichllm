@@ -13,11 +13,12 @@ import asyncio
 import json
 import logging
 import time
+from pathlib import Path
 
 import httpx
 
-from whichllm.models.hf import _hf_file_url
-from whichllm.models.http import DEFAULT_ACCEPT_ENCODING, get_with_retries
+from whichllm.models.hf import _hf_file_url, _hf_headers
+from whichllm.models.http import get_with_retries
 from whichllm.models.shape import ModelShape, parse_model_shape
 from whichllm.models.types import ModelInfo
 from whichllm.utils import _cache_dir
@@ -44,11 +45,12 @@ _SHARE_PARAM_RATIO = (0.9, 1.1)
 _MISSING = object()
 
 
-def _load_entries() -> dict[str, dict]:
-    if not SHAPE_CACHE_FILE.exists():
+def _load_entries(cache_file: Path | None = None) -> dict[str, dict]:
+    cache_file = cache_file or SHAPE_CACHE_FILE
+    if not cache_file.exists():
         return {}
     try:
-        data = json.loads(SHAPE_CACHE_FILE.read_text(encoding="utf-8"))
+        data = json.loads(cache_file.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError) as e:
         logger.debug(f"Shape cache corrupted: {e}")
         return {}
@@ -60,10 +62,11 @@ def _load_entries() -> dict[str, dict]:
     return entries if isinstance(entries, dict) else {}
 
 
-def _save_entries(entries: dict[str, dict]) -> None:
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+def _save_entries(entries: dict[str, dict], cache_file: Path | None = None) -> None:
+    cache_file = cache_file or SHAPE_CACHE_FILE
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
     data = {"schema_version": SHAPE_CACHE_SCHEMA_VERSION, "entries": entries}
-    SHAPE_CACHE_FILE.write_text(json.dumps(data), encoding="utf-8")
+    cache_file.write_text(json.dumps(data), encoding="utf-8")
 
 
 def _cached_shape(entry: object, now: float):
@@ -134,12 +137,14 @@ def _attach(models: list[ModelInfo], shapes: dict[str, ModelShape | None]) -> in
     return attached
 
 
-def attach_cached_shapes(models: list[ModelInfo]) -> int:
+def attach_cached_shapes(
+    models: list[ModelInfo], cache_file: Path | None = None
+) -> int:
     """Attach shapes already in the disk cache; returns how many were set."""
     now = time.time()
     shapes = {
         repo: shape
-        for repo, entry in _load_entries().items()
+        for repo, entry in _load_entries(cache_file).items()
         if (shape := _cached_shape(entry, now)) is not _MISSING
     }
     return _attach(models, shapes)
@@ -167,15 +172,23 @@ async def _fetch_config_shape(
     return parse_model_shape(config)
 
 
-async def fetch_family_shapes(models: list[ModelInfo], family_ids: list[str]) -> int:
+async def fetch_family_shapes(
+    models: list[ModelInfo],
+    family_ids: list[str],
+    *,
+    max_families: int | None = None,
+    cache_file: Path | None = None,
+) -> int:
     """Fetch shapes for the given families, cache them, attach; returns count.
 
     Each family tries up to MAX_SOURCES_PER_FAMILY repositories, most
     downloaded first, until one has a usable config.json. Network failures
-    are not cached and leave the heuristic estimate in place.
+    are not cached and leave the heuristic estimate in place. At most
+    max_families (default MAX_FAMILIES_PER_RUN) families are looked up.
     """
     now = time.time()
-    entries = _load_entries()
+    limit = MAX_FAMILIES_PER_RUN if max_families is None else max_families
+    entries = _load_entries(cache_file)
     members: dict[str, list[ModelInfo]] = {}
     for model in models:
         members.setdefault(model.family_id, []).append(model)
@@ -193,7 +206,7 @@ async def fetch_family_shapes(models: list[ModelInfo], family_ids: list[str]) ->
         sources = [s for s in sources if _cached_shape(entries.get(s), now) is _MISSING]
         if sources:
             pending.append(sources[:MAX_SOURCES_PER_FAMILY])
-        if len(pending) >= MAX_FAMILIES_PER_RUN:
+        if len(pending) >= limit:
             break
 
     if pending:
@@ -201,7 +214,7 @@ async def fetch_family_shapes(models: list[ModelInfo], family_ids: list[str]) ->
         async with httpx.AsyncClient(
             timeout=20.0,
             follow_redirects=True,
-            headers={"Accept-Encoding": DEFAULT_ACCEPT_ENCODING},
+            headers=_hf_headers(),
         ) as client:
 
             async def resolve(sources: list[str]) -> None:
@@ -218,8 +231,8 @@ async def fetch_family_shapes(models: list[ModelInfo], family_ids: list[str]) ->
 
             await asyncio.gather(*(resolve(sources) for sources in pending))
         try:
-            _save_entries(entries)
+            _save_entries(entries, cache_file)
         except OSError as e:
             logger.debug(f"Could not save shape cache: {e}")
 
-    return attach_cached_shapes(models)
+    return attach_cached_shapes(models, cache_file)
