@@ -23,6 +23,7 @@ from whichllm.models.gguf import (
 from whichllm.models.hf import (
     _DEFAULT_HF_ENDPOINT,
     _FRONTIER_MODEL_IDS,
+    ModelFetchReport,
     _hf_api_url,
 )
 from whichllm.models.http import get_with_retries
@@ -56,7 +57,11 @@ from whichllm.models.sliding_window import (
 )
 
 
-async def fetch_models(limit: int = 300, include_vision: bool = True):
+async def fetch_models(
+    limit: int = 300,
+    include_vision: bool = True,
+    report: ModelFetchReport | None = None,
+):
     """Fetch popular models from HuggingFace Hub.
 
     The wrapper keeps legacy monkey-patching of ``fetcher.get_with_retries``
@@ -65,7 +70,9 @@ async def fetch_models(limit: int = 300, include_vision: bool = True):
     original = _hf_module.get_with_retries
     _hf_module.get_with_retries = get_with_retries
     try:
-        return await _hf_module.fetch_models(limit=limit, include_vision=include_vision)
+        return await _hf_module.fetch_models(
+            limit=limit, include_vision=include_vision, report=report
+        )
     finally:
         _hf_module.get_with_retries = original
 
@@ -76,6 +83,7 @@ async def fetch_model_published_at(model_ids: list[str]):
 
 
 __all__ = [
+    "ModelFetchReport",
     "_AUTHORITATIVE_PARAM_COUNTS",
     "_DEFAULT_HF_ENDPOINT",
     "_FRONTIER_MODEL_IDS",

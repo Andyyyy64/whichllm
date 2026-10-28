@@ -80,8 +80,9 @@ def main_command(
         load_benchmark_cache,
         save_benchmark_cache,
     )
-    from whichllm.models.cache import load_cache, save_cache
+    from whichllm.models.cache import load_cache, save_cache, update_cached_models
     from whichllm.models.fetcher import (
+        ModelFetchReport,
         dicts_to_models,
         fetch_model_published_at,
         fetch_models,
@@ -112,17 +113,23 @@ def main_command(
 
         # Step 2: Fetch models
         progress.update(task, description="Loading models...")
-        cached_data = None if refresh else load_cache()
+        include_vision = _include_vision_candidates(profile)
+        cached_data = None if refresh else load_cache(include_vision=include_vision)
         if cached_data is not None:
             models = dicts_to_models(cached_data)
             progress.update(task, description=f"Loaded {len(models)} models from cache")
         else:
             progress.update(task, description="Fetching models from HuggingFace...")
             try:
+                fetch_report = ModelFetchReport()
                 models = _run_async(
-                    fetch_models(include_vision=_include_vision_candidates(profile))
+                    fetch_models(include_vision=include_vision, report=fetch_report)
                 )
-                save_cache(models_to_dicts(models))
+                save_cache(
+                    models_to_dicts(models),
+                    include_vision=include_vision,
+                    complete=fetch_report.complete,
+                )
                 progress.update(task, description=f"Fetched {len(models)} models")
             except Exception as e:
                 console.print(
@@ -215,7 +222,7 @@ def main_command(
                 if _fill_missing_published_at(
                     all_models, results, fetch_model_published_at
                 ):
-                    save_cache(models_to_dicts(models))
+                    update_cached_models(models_to_dicts(models))
             except Exception as e:
                 progress.update(
                     task, description=f"Published date backfill skipped: {e}"

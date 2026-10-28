@@ -29,14 +29,26 @@ _HF_MISSING_REPO_MESSAGES = (
 def _load_models(refresh: bool, include_vision: bool = True):
     """Load models from cache or fetch from HuggingFace."""
     from whichllm.models.cache import load_cache, save_cache
-    from whichllm.models.fetcher import dicts_to_models, fetch_models, models_to_dicts
+    from whichllm.models.fetcher import (
+        ModelFetchReport,
+        dicts_to_models,
+        fetch_models,
+        models_to_dicts,
+    )
 
+    # Name lookups accept any current catalog; only a fresh fetch decides
+    # whether vision candidates are included.
     cached_data = None if refresh else load_cache()
     if cached_data is not None:
         return dicts_to_models(cached_data)
     try:
-        models = _run_async(fetch_models(include_vision=include_vision))
-        save_cache(models_to_dicts(models))
+        report = ModelFetchReport()
+        models = _run_async(fetch_models(include_vision=include_vision, report=report))
+        save_cache(
+            models_to_dicts(models),
+            include_vision=include_vision,
+            complete=report.complete,
+        )
         return models
     except Exception as e:
         console.print(f"[red]Error fetching models:[/] {_format_fetch_error(e)}")

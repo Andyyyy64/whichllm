@@ -438,7 +438,7 @@ def test_main_passes_gpu_only_fit_filter(monkeypatch):
     monkeypatch.setattr(
         "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
     )
-    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda **_kwargs: [])
     monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
     monkeypatch.setattr("whichllm.engine.ranker.rank_models", fake_rank_models)
     monkeypatch.setattr(
@@ -488,7 +488,7 @@ def test_main_passes_speed_preset_and_default_runtime_columns(monkeypatch):
     monkeypatch.setattr(
         "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
     )
-    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda **_kwargs: [])
     monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
     monkeypatch.setattr("whichllm.engine.ranker.rank_models", fake_rank_models)
     monkeypatch.setattr(
@@ -535,7 +535,7 @@ def test_main_passes_repeatable_lm_studio_paths(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
     )
-    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda **_kwargs: [])
     monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
     monkeypatch.setattr(
         "whichllm.engine.ranker.rank_models", lambda *args, **kwargs: [result]
@@ -592,7 +592,7 @@ def test_main_details_flag_restores_metadata_columns(monkeypatch):
     monkeypatch.setattr(
         "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
     )
-    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda **_kwargs: [])
     monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
     monkeypatch.setattr("whichllm.engine.ranker.rank_models", fake_rank_models)
     monkeypatch.setattr(
@@ -642,7 +642,7 @@ def test_main_markdown_alias_dispatches_markdown_output(monkeypatch):
     monkeypatch.setattr(
         "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
     )
-    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda **_kwargs: [])
     monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
     monkeypatch.setattr("whichllm.engine.ranker.rank_models", fake_rank_models)
     monkeypatch.setattr(
@@ -721,7 +721,7 @@ def test_main_empty_gpu_only_result_shows_fit_message(monkeypatch):
     monkeypatch.setattr(
         "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
     )
-    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda **_kwargs: [])
     monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
     monkeypatch.setattr("whichllm.engine.ranker.rank_models", fake_rank_models)
     monkeypatch.setattr(
@@ -739,7 +739,7 @@ def test_main_empty_gpu_only_result_shows_fit_message(monkeypatch):
 
 
 def test_plan_no_model_found_shows_error(monkeypatch):
-    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda **_kwargs: [])
     runner = CliRunner()
     result = runner.invoke(app, ["plan", "nonexistent_model_xyz_999"])
     assert result.exit_code != 0
@@ -760,7 +760,7 @@ def test_plan_fetches_exact_repo_id_when_missing_from_cache(monkeypatch):
     async def unexpected_fetch_models(*args, **kwargs):
         raise AssertionError("Exact Repo ID lookup must not fetch the bulk catalog")
 
-    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: None)
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda **_kwargs: None)
     monkeypatch.setattr(hf, "fetch_model_by_id", fake_fetch_model_by_id)
     monkeypatch.setattr(fetcher, "fetch_models", unexpected_fetch_models)
     monkeypatch.setattr(
@@ -786,7 +786,8 @@ def test_plan_uses_cached_exact_repo_without_network(monkeypatch):
         raise AssertionError(f"Unexpected direct fetch for {model_id}")
 
     monkeypatch.setattr(
-        "whichllm.models.cache.load_cache", lambda: models_to_dicts([cached_model])
+        "whichllm.models.cache.load_cache",
+        lambda **_kwargs: models_to_dicts([cached_model]),
     )
     monkeypatch.setattr(hf, "fetch_model_by_id", unexpected_fetch)
     monkeypatch.setattr(
@@ -816,7 +817,7 @@ def test_plan_reports_repo_fetch_http_errors(monkeypatch, status_code, expected)
         response = httpx.Response(status_code, request=request)
         raise httpx.HTTPStatusError("failed", request=request, response=response)
 
-    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda **_kwargs: [])
     monkeypatch.setattr(hf, "fetch_model_by_id", fake_fetch_model_by_id)
 
     result = CliRunner().invoke(app, ["plan", "org/Missing-8B"])
@@ -836,7 +837,7 @@ def test_plan_reports_missing_repo_from_hf_401_body(monkeypatch):
         )
         raise httpx.HTTPStatusError("failed", request=request, response=response)
 
-    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda **_kwargs: [])
     monkeypatch.setattr(hf, "fetch_model_by_id", fake_fetch_model_by_id)
 
     result = CliRunner().invoke(app, ["plan", "org/Typo-8B"])
@@ -855,7 +856,7 @@ def test_plan_reports_missing_repo_from_hf_plain_text_401(monkeypatch):
         response = httpx.Response(401, text="Invalid credentials", request=request)
         raise httpx.HTTPStatusError("failed", request=request, response=response)
 
-    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda **_kwargs: [])
     monkeypatch.setattr(hf, "fetch_model_by_id", fake_fetch_model_by_id)
 
     result = CliRunner().invoke(app, ["plan", "org/Typo-8B"])
@@ -880,7 +881,7 @@ def test_plan_reports_restricted_repo_401_body_as_access_error(monkeypatch):
         )
         raise httpx.HTTPStatusError("failed", request=request, response=response)
 
-    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda **_kwargs: [])
     monkeypatch.setattr(hf, "fetch_model_by_id", fake_fetch_model_by_id)
 
     result = CliRunner().invoke(app, ["plan", "org/Gated-8B"])
@@ -898,7 +899,7 @@ def test_plan_reports_repo_with_insufficient_metadata(monkeypatch):
     async def fake_fetch_model_by_id(model_id):
         return None
 
-    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda **_kwargs: [])
     monkeypatch.setattr(hf, "fetch_model_by_id", fake_fetch_model_by_id)
 
     result = CliRunner().invoke(app, ["plan", "org/Metadata-Free-Model"])
@@ -914,7 +915,7 @@ def test_plan_reports_repo_network_error(monkeypatch):
         request = httpx.Request("GET", f"https://huggingface.co/api/models/{model_id}")
         raise httpx.ConnectError("network unavailable", request=request)
 
-    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda **_kwargs: [])
     monkeypatch.setattr(hf, "fetch_model_by_id", fake_fetch_model_by_id)
 
     result = CliRunner().invoke(app, ["plan", "org/Remote-8B"])
@@ -934,7 +935,7 @@ def test_plan_does_not_fetch_malformed_repo_id(monkeypatch):
         requested.append(model_id)
         return _make_model(model_id)
 
-    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda: [])
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda **_kwargs: [])
     monkeypatch.setattr(hf, "fetch_model_by_id", fake_fetch_model_by_id)
 
     result = CliRunner().invoke(app, ["plan", "org/nested/Model-8B"])
@@ -1994,3 +1995,111 @@ def test_json_output_includes_resolved_artifact_fields():
     assert entry["artifact_filename"] == "Qwen3-4B-Thinking-2507-Q3_K_M.gguf"
     assert entry["local_match"] is True
     assert entry["local_path"] == "/models/Qwen3-4B-Thinking-2507-Q3_K_M.gguf"
+
+
+def test_main_vision_profile_requires_vision_cache_and_saves_coverage(monkeypatch):
+    import whichllm.models.fetcher as fetcher
+
+    load_calls: list[dict] = []
+    saved: list[dict] = []
+    fetch_calls: list[dict] = []
+
+    def fake_load_cache(**kwargs):
+        load_calls.append(kwargs)
+        return None
+
+    def fake_save_cache(models, **kwargs):
+        saved.append(kwargs)
+
+    async def fake_fetch_models(*, include_vision, report):
+        fetch_calls.append({"include_vision": include_vision})
+        report.failed.append("Qwen/Qwen3.8-27B")
+        return []
+
+    monkeypatch.setattr(
+        "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
+    )
+    monkeypatch.setattr("whichllm.models.cache.load_cache", fake_load_cache)
+    monkeypatch.setattr("whichllm.models.cache.save_cache", fake_save_cache)
+    monkeypatch.setattr(fetcher, "fetch_models", fake_fetch_models)
+    monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
+    monkeypatch.setattr(
+        "whichllm.engine.ranker.rank_models", lambda models, hardware, **kw: []
+    )
+    monkeypatch.setattr(
+        "whichllm.output.display.display_hardware", lambda hardware: None
+    )
+    monkeypatch.setattr(
+        "whichllm.output.display.display_ranking", lambda results, **kwargs: None
+    )
+
+    result = CliRunner().invoke(app, ["--profile", "vision"])
+
+    assert result.exit_code == 0, result.output
+    assert load_calls == [{"include_vision": True}]
+    assert fetch_calls == [{"include_vision": True}]
+    assert saved == [{"include_vision": True, "complete": False}]
+
+
+def test_main_backfill_does_not_extend_cache_lifetime(monkeypatch):
+    import whichllm.models.fetcher as fetcher
+
+    model = ModelInfo(
+        id="org/Test-7B",
+        family_id="test-7b",
+        name="Test-7B",
+        parameter_count=7_000_000_000,
+        downloads=1,
+        likes=1,
+    )
+    updated: list[list] = []
+
+    async def fake_published_at(model_ids):
+        return {"org/Test-7B": "2026-10-01T00:00:00.000Z"}
+
+    def fail_save_cache(*args, **kwargs):
+        raise AssertionError("backfill must not save a fresh cache")
+
+    monkeypatch.setattr(
+        "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
+    )
+    monkeypatch.setattr(
+        "whichllm.models.cache.load_cache",
+        lambda **_kwargs: fetcher.models_to_dicts([model]),
+    )
+    monkeypatch.setattr("whichllm.models.cache.save_cache", fail_save_cache)
+    monkeypatch.setattr(
+        "whichllm.models.cache.update_cached_models",
+        lambda models: updated.append(models),
+    )
+    monkeypatch.setattr(fetcher, "fetch_model_published_at", fake_published_at)
+    monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
+    monkeypatch.setattr(
+        "whichllm.engine.ranker.rank_models",
+        lambda models, hardware, **kw: [
+            CompatibilityResult(
+                model=next(m for m in models if m.id == "org/Test-7B"),
+                gguf_variant=None,
+                can_run=True,
+                vram_required_bytes=4 * 1024**3,
+                vram_available_bytes=8 * 1024**3,
+                fit_type="full_gpu",
+                quality_score=80.0,
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        "whichllm.models.lmstudio.discover_lmstudio_ggufs", lambda paths: []
+    )
+    monkeypatch.setattr(
+        "whichllm.output.display.display_hardware", lambda hardware: None
+    )
+    monkeypatch.setattr(
+        "whichllm.output.display.display_ranking", lambda results, **kwargs: None
+    )
+
+    result = CliRunner().invoke(app, ["--min-params", "1"])
+
+    assert result.exit_code == 0, result.output
+    assert len(updated) == 1
+    assert updated[0][0]["published_at"] == "2026-10-01T00:00:00.000Z"

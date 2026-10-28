@@ -43,7 +43,12 @@ def upgrade_command(
         save_benchmark_cache,
     )
     from whichllm.models.cache import load_cache, save_cache
-    from whichllm.models.fetcher import dicts_to_models, fetch_models, models_to_dicts
+    from whichllm.models.fetcher import (
+        ModelFetchReport,
+        dicts_to_models,
+        fetch_models,
+        models_to_dicts,
+    )
     from whichllm.models.grouper import group_models
     from whichllm.output.display import display_upgrade, display_upgrade_json
 
@@ -68,8 +73,9 @@ def upgrade_command(
         else:
             progress.update(task, description="Fetching models from HuggingFace...")
             try:
-                models = _run_async(fetch_models(include_vision=False))
-                save_cache(models_to_dicts(models))
+                report = ModelFetchReport()
+                models = _run_async(fetch_models(include_vision=False, report=report))
+                save_cache(models_to_dicts(models), complete=report.complete)
             except Exception as e:
                 console.print(
                     f"[red]Error fetching models:[/] {_format_fetch_error(e)}"
