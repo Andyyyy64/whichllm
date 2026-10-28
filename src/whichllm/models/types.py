@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from whichllm.models.shape import ModelShape
+
 
 @dataclass
 class GGUFVariant:
@@ -38,6 +40,9 @@ class ModelInfo:
     # full (global) attention (0.0 = pure SWA, 1.0 = fully dense).
     sliding_window: int | None = None
     sliding_window_global_ratio: float | None = None
+    # Layer and attention shape from the repository's config.json, when it
+    # has been fetched. None means only the parameter-count heuristics apply.
+    shape: ModelShape | None = None
 
 
 @dataclass
