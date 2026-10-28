@@ -1,0 +1,103 @@
+name: Build index
+
+# Builds the whichllm index daily and publishes it on GitHub Pages at
+# https://andyyyy64.github.io/whichllm/index/v1/index.json.gz. A build that
+# fails a quality gate publishes nothing, so the last good index stays live,
+# and an open issue tracks the failure.
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch whose builder to run
+        default: v0.6
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-index
+  cancel-in-progress: false
+
+env:
+  # The builder lives on the v0.6 branch until v0.6 ships.
+  BUILDER_REF: ${{ inputs.ref || 'v0.6' }}
+  INDEX_URL: https://andyyyy64.github.io/whichllm/index/v1/index.json.gz
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.BUILDER_REF }}
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: uv sync --locked --dev
+      - name: Restore config.json shape cache
+        uses: actions/cache@v4
+        with:
+          path: .cache/shapes.json
+          key: index-shapes-${{ github.run_id }}
+          restore-keys: index-shapes-
+      - name: Build index
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: >-
+          uv run --locked python scripts/build_index.py
+          --out site/index/v1
+          --previous "$INDEX_URL"
+          --shape-cache .cache/shapes.json
+          | tee build.log
+      - name: Summarize build
+        if: always()
+        run: |
+          {
+            echo '## Index build'
+            echo '```'
+            cat build.log 2>/dev/null || true
+            cat site/index/v1/index-meta.json 2>/dev/null || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  report-failure:
+    needs: build
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title='Daily index build is failing'
+          number=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "$title in:title" --json number --jq '.[0].number')
+          body="The scheduled index build failed: $RUN_URL. The last good index is still published."
+          if [ -n "$number" ]; then
+            gh issue comment "$number" -R "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh issue create -R "$GITHUB_REPOSITORY" --title "$title" --body "$body"
+          fi
