@@ -29,6 +29,10 @@ from whichllm.models.artifacts import (
     attach_resolved_artifacts,
 )
 
+# Extra ranked rows whose families get their config.json read, so a model
+# just below the cut can move up once its exact KV size is known.
+_SHAPE_LOOKAHEAD = 10
+
 
 def main_command(
     ctx: typer.Context,
@@ -89,6 +93,7 @@ def main_command(
         models_to_dicts,
     )
     from whichllm.models.grouper import group_models
+    from whichllm.models.shape_fetch import attach_cached_shapes, fetch_family_shapes
     from whichllm.output.display import (
         display_hardware,
         display_json,
@@ -171,37 +176,40 @@ def main_command(
             else min_params
         )
 
-        results = rank_models(
-            all_models,
-            hardware,
-            context_length=context_length,
-            top_n=top,
-            quant_filter=quant,
-            min_speed=speed_filter,
-            benchmark_scores=bench_scores,
-            task_profile=profile,
-            require_direct_top=True,
-            min_params_b=auto_min_params,
-            evidence_filter=evidence_mode,
-            fit_filter=fit_filter,
-        )
-
-        # 自動しきい値で候補ゼロなら緩和して表示を維持する
-        if not results and auto_min_params is not None and min_params is None:
-            results = rank_models(
-                all_models,
-                hardware,
+        def _rank(top_n: int) -> list:
+            rank_kwargs = dict(
                 context_length=context_length,
-                top_n=top,
+                top_n=top_n,
                 quant_filter=quant,
                 min_speed=speed_filter,
                 benchmark_scores=bench_scores,
                 task_profile=profile,
                 require_direct_top=True,
-                min_params_b=None,
                 evidence_filter=evidence_mode,
                 fit_filter=fit_filter,
             )
+            ranked = rank_models(
+                all_models, hardware, min_params_b=auto_min_params, **rank_kwargs
+            )
+            # 自動しきい値で候補ゼロなら緩和して表示を維持する
+            if not ranked and auto_min_params is not None and min_params is None:
+                ranked = rank_models(
+                    all_models, hardware, min_params_b=None, **rank_kwargs
+                )
+            return ranked
+
+        # Exact KV sizes need each model's config.json. Look shapes up only for
+        # the families near the top, then rank again with them.
+        attach_cached_shapes(all_models)
+        results = _rank(top + _SHAPE_LOOKAHEAD)
+        shapeless = [r.model.family_id for r in results if r.model.shape is None]
+        if shapeless:
+            progress.update(task, description="Reading model configs...")
+            try:
+                _run_async(fetch_family_shapes(all_models, shapeless))
+            except Exception as e:
+                progress.update(task, description=f"Model configs skipped: {e}")
+        results = _rank(top)
 
         # 上位候補の公開日時が欠けている場合のみ補完して表示品質を上げる
         if results:

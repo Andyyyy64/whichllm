@@ -6,6 +6,7 @@ from whichllm.models.parameters import (
     _normalize_param_count,
     _resolve_moe_active_params,
 )
+from whichllm.models.shape import ModelShape
 from whichllm.models.types import GGUFVariant, ModelInfo
 
 
@@ -42,6 +43,7 @@ def models_to_dicts(models: list[ModelInfo]) -> list[dict]:
                 "tags": list(m.tags),
                 "sliding_window": m.sliding_window,
                 "sliding_window_global_ratio": m.sliding_window_global_ratio,
+                "shape": m.shape.to_dict() if m.shape else None,
             }
         )
     return result
@@ -95,6 +97,7 @@ def dicts_to_models(data: list[dict]) -> list[ModelInfo]:
                 tags=tuple(d.get("tags", [])),
                 sliding_window=d.get("sliding_window"),
                 sliding_window_global_ratio=d.get("sliding_window_global_ratio"),
+                shape=ModelShape.from_dict(d.get("shape")),
             )
         )
     return models

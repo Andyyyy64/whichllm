@@ -2189,3 +2189,57 @@ def test_snippet_auto_pick_exits_when_nothing_runs(monkeypatch):
 
     assert result.exit_code == 1
     assert "No runnable model found" in result.stdout
+
+
+def test_main_reads_configs_for_top_families_then_reranks(monkeypatch):
+    import whichllm.models.shape_fetch as shape_fetch
+
+    model = ModelInfo(
+        id="org/Test-7B",
+        family_id="test-7b",
+        name="Test-7B",
+        parameter_count=7_000_000_000,
+        downloads=1,
+        likes=1,
+        published_at="2026-01-01T00:00:00.000Z",
+    )
+    rank_calls: list[int] = []
+    fetched: list[list[str]] = []
+
+    def fake_rank_models(models, hardware, **kwargs):
+        rank_calls.append(kwargs["top_n"])
+        return [
+            CompatibilityResult(
+                model=model,
+                gguf_variant=None,
+                can_run=True,
+                vram_required_bytes=4 * 1024**3,
+                vram_available_bytes=8 * 1024**3,
+                fit_type="full_gpu",
+                quality_score=80.0,
+            )
+        ]
+
+    async def fake_fetch_family_shapes(models, family_ids):
+        fetched.append(list(family_ids))
+        return 0
+
+    monkeypatch.setattr(
+        "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
+    )
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda **_kwargs: [])
+    monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
+    monkeypatch.setattr("whichllm.engine.ranker.rank_models", fake_rank_models)
+    monkeypatch.setattr(shape_fetch, "fetch_family_shapes", fake_fetch_family_shapes)
+    monkeypatch.setattr(
+        "whichllm.output.display.display_hardware", lambda hardware: None
+    )
+    monkeypatch.setattr(
+        "whichllm.output.display.display_ranking", lambda results, **kwargs: None
+    )
+
+    result = CliRunner().invoke(app, ["--top", "3", "--min-params", "1"])
+
+    assert result.exit_code == 0, result.output
+    assert fetched == [["test-7b"]]
+    assert rank_calls == [13, 3]

@@ -1,12 +1,14 @@
 """Maintain the golden ranking set in tests/golden/.
 
     uv run --locked python scripts/update_golden.py capture   # network
+    uv run --locked python scripts/update_golden.py shapes    # network
     uv run --locked python scripts/update_golden.py snapshot  # offline
     uv run --locked python scripts/update_golden.py report    # offline
 
-``capture`` fetches the live model catalog and merged benchmark scores, freezes
-them into ``tests/golden/catalog.json.gz``, then rewrites the snapshot.
-``snapshot`` rewrites ``tests/golden/top_picks.md`` from the current code and
+``capture`` fetches the live model catalog, merged benchmark scores and every
+family's config.json shape, freezes them into ``tests/golden/catalog.json.gz``,
+then rewrites the snapshot. ``shapes`` only refreshes the shapes of the
+existing frozen catalog. ``snapshot`` rewrites ``tests/golden/top_picks.md`` from the current code and
 frozen catalog. ``report`` prints the top picks and every constraint result
 without writing anything. Review the snapshot diff before committing.
 """
@@ -19,6 +21,7 @@ import gzip
 import json
 import subprocess
 import sys
+import tempfile
 import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,8 +30,14 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from tests.golden import harness  # noqa: E402
+from whichllm.models import shape_fetch  # noqa: E402
 from whichllm.models.benchmark import fetch_benchmark_scores  # noqa: E402
-from whichllm.models.fetcher import fetch_models, models_to_dicts  # noqa: E402
+from whichllm.models.fetcher import (  # noqa: E402
+    dicts_to_models,
+    fetch_models,
+    models_to_dicts,
+)
+from whichllm.models.grouper import group_models  # noqa: E402
 
 
 def _source_version() -> str:
@@ -57,8 +66,36 @@ async def _fetch() -> tuple[list, dict[str, float]]:
     return models, scores
 
 
+def _add_shapes(model_dicts: list[dict]) -> int:
+    """Read config.json for every family and store each model's shape.
+
+    The golden catalog carries shapes for all families, the state an index
+    build provides, while a plain run only looks up the top families.
+    """
+    models = dicts_to_models(model_dicts)
+    group_models(models)  # assigns the family ids shapes are shared within
+    with tempfile.TemporaryDirectory() as tmp:
+        shape_fetch.CACHE_DIR = Path(tmp)
+        shape_fetch.SHAPE_CACHE_FILE = Path(tmp) / "shapes.json"
+        shape_fetch.MAX_FAMILIES_PER_RUN = len(models)
+        families = list(dict.fromkeys(m.family_id for m in models))
+        asyncio.run(shape_fetch.fetch_family_shapes(models, families))
+    shapes = {m.id: m.shape.to_dict() for m in models if m.shape}
+    for data in model_dicts:
+        data["shape"] = shapes.get(data["id"])
+    return len(shapes)
+
+
+def _write_catalog(payload: dict) -> None:
+    data = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    # mtime=0 keeps the archive byte-identical for identical content.
+    harness.CATALOG_PATH.write_bytes(gzip.compress(data, mtime=0))
+
+
 def capture() -> None:
     models, scores = asyncio.run(_fetch())
+    model_dicts = models_to_dicts(models)
+    shaped = _add_shapes(model_dicts)
     payload = {
         "meta": {
             "captured_at": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
@@ -67,18 +104,27 @@ def capture() -> None:
             "model_count": len(models),
             "benchmark_count": len(scores),
             "include_vision": True,
+            "shape_count": shaped,
         },
-        "models": models_to_dicts(models),
+        "models": model_dicts,
         "benchmark_scores": dict(sorted(scores.items())),
     }
-    data = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
-    # mtime=0 keeps the archive byte-identical for identical content.
-    harness.CATALOG_PATH.write_bytes(gzip.compress(data, mtime=0))
+    _write_catalog(payload)
     size_kb = harness.CATALOG_PATH.stat().st_size / 1024
     print(
-        f"Captured {len(models)} models and {len(scores)} benchmark ids "
-        f"({size_kb:.0f} KiB) to {harness.CATALOG_PATH.relative_to(REPO_ROOT)}"
+        f"Captured {len(models)} models ({shaped} with shapes) and {len(scores)} "
+        f"benchmark ids ({size_kb:.0f} KiB) to "
+        f"{harness.CATALOG_PATH.relative_to(REPO_ROOT)}"
     )
+
+
+def shapes() -> None:
+    """Add config.json shapes to the existing frozen catalog."""
+    payload = harness.load_catalog()
+    shaped = _add_shapes(payload["models"])
+    payload["meta"]["shape_count"] = shaped
+    _write_catalog(payload)
+    print(f"Added shapes for {shaped} of {len(payload['models'])} catalog models")
 
 
 def snapshot() -> None:
@@ -112,10 +158,15 @@ def report() -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("command", choices=["capture", "snapshot", "report"])
+    parser.add_argument("command", choices=["capture", "shapes", "snapshot", "report"])
     args = parser.parse_args()
     if args.command == "capture":
         capture()
+        snapshot()
+    elif args.command == "shapes":
+        shapes()
+        harness.load_catalog.cache_clear()
+        harness.catalog_models.cache_clear()
         snapshot()
     elif args.command == "snapshot":
         snapshot()

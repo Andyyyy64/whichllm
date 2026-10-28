@@ -79,6 +79,15 @@ def plan_command(
     if model is None:
         model = _search_model(models, model_name)
 
+    # Exact KV sizes come from the model's config.json; without it the plan
+    # keeps the parameter-count estimate.
+    from whichllm.models.shape_fetch import fetch_family_shapes
+
+    try:
+        _run_async(fetch_family_shapes([model], [model.family_id]))
+    except Exception:
+        pass
+
     target_quant = quant.upper() if quant else "Q4_K_M"
 
     if json_output:

@@ -27,6 +27,7 @@ def pick_top_runnable(
     from whichllm.hardware.detector import detect_hardware
     from whichllm.models.benchmark import load_benchmark_cache
     from whichllm.models.grouper import group_models
+    from whichllm.models.shape_fetch import attach_cached_shapes
 
     hardware = detect_hardware()
     if cpu_only:
@@ -36,6 +37,7 @@ def pick_top_runnable(
     for family in group_models(models):
         all_models.append(family.base_model)
         all_models.extend(family.variants)
+    attach_cached_shapes(all_models)
 
     results = rank_models(
         all_models,

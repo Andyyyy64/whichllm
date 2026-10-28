@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Changed
+
+- The KV cache is computed per layer from each model's `config.json` instead
+  of from its parameter count. whichllm reads the config for the families
+  near the top of a ranking (and for the model `plan` shows), caches it for a
+  week, and ranks again. GQA models were undercounted by 4-5x at long context
+  (Qwen3-8B at 32K: 4.5 GiB, not 0.9 GiB), so at `-c 32k` and above some
+  models no longer claim a full-GPU fit. Hybrid models such as Qwen3.6, whose
+  linear-attention layers keep no K/V, now get their smaller cache. Sliding
+  windows, multi-head latent attention and recurrent state are handled; an
+  unrecognised layout keeps the old estimate.
+
 ## [0.5.22] - 2026-10-28
 
 ### Added

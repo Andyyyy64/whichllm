@@ -48,12 +48,20 @@ def _effective_kv_context(model: ModelInfo, context_length: int) -> float:
 def estimate_kv_cache(model: ModelInfo, context_length: int) -> int:
     """Estimate KV cache size in bytes for a given context length.
 
-    Dense models: KV ≈ 3 MB × params_b × ctx_k (FP16 K+V across all layers).
+    With a known model shape (from config.json) the cache is computed per
+    layer: FP16 K/V for attention layers, the window for honoured
+    sliding-window layers, latent K/V for MLA, and fixed recurrent state.
+
+    Without it the estimate falls back to parameter-count heuristics:
+    dense models: KV ≈ 3 MB × params_b × ctx_k (FP16 K+V across all layers).
     MoE models: scale from active params × an empirical multiplier because
     attention shares across experts.
     Sliding-window models cap local-layer KV at the window size (see
     :func:`_effective_kv_context`).
     """
+    if model.shape is not None:
+        return model.shape.kv_cache_bytes(context_length)
+
     if model.is_moe and model.parameter_count_active:
         # Active-params × MoE multiplier gives a reasonable proxy for the
         # attention-layer footprint without needing config.num_hidden_layers.

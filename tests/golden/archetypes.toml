@@ -73,6 +73,28 @@ ram_gb = 128
 os = "linux"
 cpu_cores = 24
 
+# --- Long context -------------------------------------------------------------
+# KV cache dominates here, so these cases show whether exact per-layer sizes
+# from config.json reach the ranking (agentic coding wants 32K-128K, #76).
+
+[[archetype]]
+id = "rtx3060-12gb-win-32k"
+gpus = ["RTX 3060"]
+vram_gb = 12
+ram_gb = 32
+os = "windows"
+cpu_cores = 6
+context_length = 32768
+profiles = ["general", "coding"]
+
+[[archetype]]
+id = "rtx4090-24gb-linux-128k"
+gpus = ["RTX 4090"]
+ram_gb = 64
+os = "linux"
+context_length = 131072
+profiles = ["general", "coding"]
+
 # --- Unified memory ----------------------------------------------------------
 
 [[archetype]]

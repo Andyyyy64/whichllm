@@ -170,10 +170,12 @@ whichllm is built to get right.
   discounted by confidence. Fabricated uploader claims and cross-family
   inheritance (a small fork borrowing its much larger base's score) are
   actively rejected.
-- **Architecture-aware estimates** — VRAM = weights + GQA KV cache +
-  activation + overhead; speed is bandwidth-bound with per-quant
-  efficiency, per-backend factors, MoE active-vs-total split, and
-  unified-memory vs discrete-PCIe partial-offload modeling.
+- **Architecture-aware estimates** — VRAM = weights + per-layer KV cache
+  from each model's config.json (GQA, sliding windows, latent attention,
+  hybrid recurrent layers) + activation + overhead; speed is
+  bandwidth-bound with per-quant efficiency, per-backend factors, MoE
+  active-vs-total split, and unified-memory vs discrete-PCIe
+  partial-offload modeling.
 - **One command, scriptable** — `whichllm` prints the answer; add
   `--json | jq` for pipelines. No TUI, no keybindings to memorize.
 - **Live data** — Models fetched directly from the HuggingFace API, with
