@@ -367,7 +367,8 @@ async def fetch_model_published_at(model_ids: list[str]) -> dict[str, str]:
 
         async def detail(model_id: str) -> httpx.Response:
             async with semaphore:
-                return await client.get(
+                return await get_with_retries(
+                    client,
                     _hf_api_url(f"models/{model_id}"),
                     params={"expand[]": ["createdAt", "lastModified"]},
                 )
