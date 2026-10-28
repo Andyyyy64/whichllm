@@ -1,0 +1,239 @@
+# Golden ranking set: hardware archetypes and the constraints their
+# recommendations must satisfy. See tests/golden/harness.py for how each
+# constraint kind is evaluated and scripts/update_golden.py to refresh.
+#
+# Constraints describe what a good recommendation must (not) look like,
+# never an exact ordering. `draft = true` marks constraints that still need
+# a maintainer's review. `xfail` maps "<archetype>/<profile>" to the reason a
+# constraint is known to fail today; the tests treat those as strict xfails,
+# so fixing the bug turns them into failures until the entry is removed.
+
+# --- Discrete GPUs ---------------------------------------------------------
+
+[[archetype]]
+id = "rtx2060-6gb-win"
+gpus = ["RTX 2060"]
+ram_gb = 16
+os = "windows"
+cpu_cores = 6
+note = "Small older card; the A3000 6 GB report (#76) lives here."
+
+[[archetype]]
+id = "rtx4060-8gb-win"
+gpus = ["RTX 4060"]
+ram_gb = 32
+os = "windows"
+cpu_cores = 8
+
+[[archetype]]
+id = "rtx3060-12gb-win"
+gpus = ["RTX 3060"]
+vram_gb = 12
+ram_gb = 32
+os = "windows"
+cpu_cores = 6
+profiles = ["general", "coding"]
+note = "The #104 report: 3060 12 GB with 32 GB RAM."
+
+[[archetype]]
+id = "rtx4060ti-16gb-win"
+gpus = ["RTX 4060 Ti"]
+vram_gb = 16
+ram_gb = 32
+os = "windows"
+cpu_cores = 8
+
+[[archetype]]
+id = "rtx5060ti-16gb-64gb-linux"
+gpus = ["RTX 5060 Ti"]
+vram_gb = 16
+ram_gb = 64
+os = "linux"
+profiles = ["general", "coding"]
+note = "16 GB card with plenty of RAM: the MoE expert-offload sweet spot."
+
+[[archetype]]
+id = "rtx4090-24gb-linux"
+gpus = ["RTX 4090"]
+ram_gb = 64
+os = "linux"
+profiles = ["general", "coding", "vision"]
+
+[[archetype]]
+id = "rtx5090-32gb-linux"
+gpus = ["RTX 5090"]
+ram_gb = 96
+os = "linux"
+profiles = ["general", "coding"]
+
+[[archetype]]
+id = "2x-rtx3090-48gb-linux"
+gpus = ["RTX 3090", "RTX 3090"]
+ram_gb = 128
+os = "linux"
+cpu_cores = 24
+
+# --- Unified memory ----------------------------------------------------------
+
+[[archetype]]
+id = "m4-16gb-mac"
+gpus = ["M4"]
+vram_gb = 16
+ram_gb = 16
+os = "darwin"
+cpu_cores = 10
+
+[[archetype]]
+id = "m3max-36gb-mac"
+gpus = ["M3 Max"]
+vram_gb = 36
+ram_gb = 36
+os = "darwin"
+cpu_cores = 14
+
+[[archetype]]
+id = "m4max-64gb-mac"
+gpus = ["M4 Max"]
+vram_gb = 64
+ram_gb = 64
+os = "darwin"
+profiles = ["general", "coding"]
+
+[[archetype]]
+id = "m4max-128gb-mac"
+gpus = ["M4 Max"]
+vram_gb = 128
+ram_gb = 128
+os = "darwin"
+
+[[archetype]]
+id = "strix-halo-128gb-linux"
+gpus = ["Ryzen AI MAX+ 395"]
+vram_gb = 96
+ram_gb = 128
+os = "linux"
+note = "96 GB of the 128 GB assigned to the iGPU in BIOS."
+
+# --- CPU only ----------------------------------------------------------------
+
+[[archetype]]
+id = "cpu-32gb-linux"
+ram_gb = 32
+os = "linux"
+cpu_cores = 8
+
+[[archetype]]
+id = "cpu-64gb-win"
+ram_gb = 64
+os = "windows"
+
+# --- Constraints -------------------------------------------------------------
+
+[[constraint]]
+id = "nonempty"
+kind = "nonempty"
+draft = false
+profiles = ["general", "coding", "vision"]
+rationale = "Every archetype gets runnable recommendations."
+
+[[constraint]]
+id = "no-pretrain-only"
+kind = "never_in_top"
+top = 10
+profiles = ["general", "coding", "vision"]
+rationale = """Pretrain-only checkpoints (Base, -pt, base Llama/Qwen2.5/Mistral)
+are not chat models and must never be recommended. The patterns are the known
+base checkpoints in the frozen catalog."""
+patterns = [
+    '-Base(-GGUF)?$',
+    '-pt$',
+    '^meta-llama/Llama-3\.\d-\d+B$',
+    '^allenai/Olmo-3-1025-7B$',
+    '^mistralai/Mistral-7B-v0\.\d$',
+    '^Qwen/Qwen2\.5-\d+(\.\d+)?B$',
+    'Qwen2\.5-Coder-\d+(\.\d+)?B(-GGUF)?$',
+    '^google/gemma-2b$',
+]
+xfail = { "*/coding" = "6-4 roles: the base Qwen2.5-Coder-7B and its GGUF reach the coding top 10" }
+
+[[constraint]]
+id = "qwen25-not-top1"
+kind = "never_in_top"
+top = 1
+min_gpu_memory_gb = 12
+rationale = """Qwen2.5 is two generations old. On 12 GB and up a newer model
+fits, so Qwen2.5 must not be the #1 pick (HN launch thread, #104)."""
+patterns = ['(?i)qwen2\.5']
+
+[[constraint]]
+id = "no-stale-generation-top3"
+kind = "stale_generation"
+top = 3
+profiles = ["general", "coding"]
+rationale = """When a newer official generation of the same family is runnable,
+an older generation must not sit in the top 3. "Newer" only counts official
+releases, so a renamed community fine-tune cannot satisfy it."""
+pairs = [
+    { old = '(?i)qwen2\.5-(?!coder)', new = '^Qwen/Qwen3\.[568]-' },
+    { old = '(?i)qwen2\.5-coder', new = '^Qwen/Qwen3-Coder-' },
+    { old = '(?i)gemma-2-', new = '^google/gemma-[34]-' },
+    { old = '(?i)phi-3', new = '(?i)^microsoft/phi-4' },
+]
+xfail = { "*/coding" = "6-4: Qwen2.5-Coder keeps carryover LiveBench / peer AA scores that escape recency demotion, so it outranks runnable Qwen3-Coder" }
+
+[[constraint]]
+id = "top1-offload-usable"
+kind = "top1_offload_speed"
+min_tok_per_sec = 4.0
+gpu = true
+profiles = ["general", "coding"]
+rationale = """A #1 pick that needs CPU offload must still be usable: at
+least 4 tok/s by whichllm's own estimate (#76, #104)."""
+
+[[constraint]]
+id = "coding-modern-top5"
+kind = "any_in_top"
+top = 5
+profiles = ["coding"]
+min_gpu_memory_gb = 12
+rationale = """On 12 GB and up the coding top 5 should include a current
+coding-capable model."""
+patterns = [
+    '(?i)devstral',
+    '(?i)gpt-oss',
+    '(?i)qwen3\.[68]-',
+    '(?i)qwen3-coder',
+]
+
+[[constraint]]
+id = "coding-not-name-gated"
+kind = "any_in_top"
+top = 10
+profiles = ["coding"]
+min_gpu_memory_gb = 12
+rationale = """Strong general models that code well (gpt-oss, Devstral,
+Qwen3.6/3.8-27B) belong in the coding top 10. Today --profile coding only
+admits repos whose names contain "coder" and similar words (#76)."""
+patterns = ['(?i)gpt-oss', '(?i)devstral', '^Qwen/Qwen3\.[68]-27B$']
+xfail = { "*" = "6-4: --profile coding only admits ids matching coder/codegen/starcoder/program/coding" }
+
+[[constraint]]
+id = "qwen38-top3-24gb"
+kind = "any_in_top"
+top = 3
+min_gpu_memory_gb = 24
+rationale = """Qwen3.8-27B is the newest dense 27B and fits 24 GB+. It must be
+in the top 3 there."""
+patterns = ['^Qwen/Qwen3\.8-27B$']
+xfail = { "*" = "#194: the AA fallback mixes scales; Qwen3.8-27B was added on AA's new scale (59.0) while Qwen3.6-27B keeps an old-scale 83.5" }
+
+[[constraint]]
+id = "moe-offload-16gb"
+kind = "any_in_top"
+top = 5
+archetypes = ["rtx5060ti-16gb-64gb-linux"]
+rationale = """With 16 GB VRAM and 64 GB RAM a large MoE with experts in RAM
+(gpt-oss-120b, Qwen3.6-35B-A3B) is the strongest practical option and should
+reach the top 5."""
+patterns = ['(?i)gpt-oss-120b', '(?i)qwen3\.[68]-35b-a3b']
+xfail = { "*" = "6-5: partial offload is scored as a whole model; routed experts in RAM are not modelled (gpt-oss-120b ranks #21, Qwen3.6-35B-A3B #11)" }

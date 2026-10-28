@@ -48,6 +48,20 @@ test the parts that matter, and be ready to explain or fix it.
 ### Adding GPU Support
 To add a new GPU to the bandwidth database, edit `src/whichllm/data/gpu.py` and add the GPU specs.
 
+### Ranking Changes
+`tests/test_golden_rankings.py` ranks a frozen model catalog for fixed hardware
+archetypes (`tests/golden/archetypes.toml`) and checks each result against
+constraints. If your change moves recommendations, regenerate the snapshot and
+include the diff of `tests/golden/top_picks.md` in your PR:
+
+```bash
+uv run --locked python scripts/update_golden.py snapshot
+```
+
+`report` prints every constraint result without writing files. When a fix makes
+a known failure pass, the strict xfail turns into a failure; remove its `xfail`
+entry from `archetypes.toml`.
+
 ## Code Style
 - Follow existing code conventions
 - Use type hints
