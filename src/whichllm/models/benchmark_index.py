@@ -102,6 +102,22 @@ def build_score_index(
     return ci_index, line_index
 
 
+def build_score_name_index(
+    scores: dict[str, float],
+) -> dict[str, list[tuple[int, str]]]:
+    """Build repo name -> [(position, score id)] for same-name matching.
+
+    The key is the lowercased last path segment of the score id. Positions
+    keep the score dict order, so matches from several names can be merged
+    back into that order.
+    """
+    index: dict[str, list[tuple[int, str]]] = {}
+    for position, score_id in enumerate(scores):
+        name = score_id.rsplit("/", 1)[-1].lower()
+        index.setdefault(name, []).append((position, score_id))
+    return index
+
+
 def build_line_bucket_index(
     scores: dict[str, float],
 ) -> dict[str, list[tuple[float | None, float]]]:
