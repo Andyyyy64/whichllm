@@ -27,7 +27,7 @@ _HF_MISSING_REPO_MESSAGES = (
 
 
 def _load_models(refresh: bool, include_vision: bool = True):
-    """Load models from cache or fetch from HuggingFace."""
+    """Load models from the whichllm index, the cache, or HuggingFace."""
     from whichllm.models.cache import load_cache, save_cache
     from whichllm.models.fetcher import (
         ModelFetchReport,
@@ -36,6 +36,11 @@ def _load_models(refresh: bool, include_vision: bool = True):
         models_to_dicts,
     )
 
+    from whichllm.models.index_client import load_index
+
+    catalog = load_index(refresh=refresh)
+    if catalog is not None:
+        return catalog.models
     # Name lookups accept any current catalog; only a fresh fetch decides
     # whether vision candidates are included.
     cached_data = None if refresh else load_cache()

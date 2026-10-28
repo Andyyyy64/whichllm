@@ -2243,3 +2243,89 @@ def test_main_reads_configs_for_top_families_then_reranks(monkeypatch):
     assert result.exit_code == 0, result.output
     assert fetched == [["test-7b"]]
     assert rank_calls == [13, 3]
+
+
+def _index_catalog_with(model):
+    from whichllm.models.index_client import IndexCatalog
+
+    return IndexCatalog(
+        models=[model],
+        benchmark_scores={model.id: 70.0},
+        built_at="2026-10-29T03:17:00Z",
+    )
+
+
+def _main_without_network(monkeypatch, captured):
+    import whichllm.models.fetcher as fetcher
+    import whichllm.models.shape_fetch as shape_fetch
+
+    def fake_rank_models(models, hardware, **kwargs):
+        captured["models"] = [m.id for m in models]
+        captured["scores"] = kwargs["benchmark_scores"]
+        return []
+
+    async def no_fetch(*args, **kwargs):
+        raise AssertionError("the index path must not fetch from the Hub")
+
+    monkeypatch.setattr(
+        "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
+    )
+    monkeypatch.setattr("whichllm.engine.ranker.rank_models", fake_rank_models)
+    monkeypatch.setattr(shape_fetch, "fetch_family_shapes", no_fetch)
+    monkeypatch.setattr(
+        "whichllm.output.display.display_hardware", lambda hardware: None
+    )
+    monkeypatch.setattr(
+        "whichllm.output.display.display_ranking", lambda results, **kwargs: None
+    )
+    return fetcher
+
+
+def test_main_ranks_from_the_index_without_hub_calls(monkeypatch):
+    captured: dict = {}
+    fetcher = _main_without_network(monkeypatch, captured)
+    model = _make_model("org/Indexed-8B")
+
+    async def no_fetch(*args, **kwargs):
+        raise AssertionError("the index path must not fetch from the Hub")
+
+    monkeypatch.setattr(fetcher, "fetch_models", no_fetch)
+    monkeypatch.setattr("whichllm.models.benchmark.fetch_benchmark_scores", no_fetch)
+    monkeypatch.setattr(
+        "whichllm.models.index_client.load_index",
+        lambda refresh=False: _index_catalog_with(model),
+    )
+
+    result = CliRunner().invoke(app, ["--min-params", "1"])
+
+    assert result.exit_code == 0, result.output
+    assert captured["models"] == ["org/Indexed-8B"]
+    assert captured["scores"] == {"org/Indexed-8B": 70.0}
+    assert "whichllm index built 2026-10-29 03:17:00 UTC" in result.output
+
+
+def test_main_live_flag_skips_the_index(monkeypatch):
+    captured: dict = {}
+    _main_without_network(monkeypatch, captured)
+
+    def unexpected_index(refresh=False):
+        raise AssertionError("--live must not read the index")
+
+    monkeypatch.setattr("whichllm.models.index_client.load_index", unexpected_index)
+    monkeypatch.setattr(
+        "whichllm.models.cache.load_cache",
+        lambda **_kwargs: models_to_dicts_for_cli([_make_model("org/Live-8B")]),
+    )
+    monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
+
+    result = CliRunner().invoke(app, ["--live", "--min-params", "1"])
+
+    assert result.exit_code == 0, result.output
+    assert captured["models"] == ["org/Live-8B"]
+    assert "fetched live" in result.output
+
+
+def models_to_dicts_for_cli(models):
+    from whichllm.models.fetcher import models_to_dicts
+
+    return models_to_dicts(models)

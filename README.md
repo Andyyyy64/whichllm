@@ -178,8 +178,10 @@ whichllm is built to get right.
   partial-offload modeling.
 - **One command, scriptable** — `whichllm` prints the answer; add
   `--json | jq` for pipelines. No TUI, no keybindings to memorize.
-- **Live data** — Models fetched directly from the HuggingFace API, with
-  curated frozen fallbacks for offline or rate-limited use.
+- **Fresh data, one request** — A daily index built from the HuggingFace
+  API, every model's config.json and the benchmark sources, checked by
+  quality gates before it is published. A cold start takes about a second;
+  `--live` fetches everything directly instead.
 
 ## Features
 
@@ -187,7 +189,7 @@ whichllm is built to get right.
 - **Smart ranking** — Scores models by VRAM fit, speed, and benchmark quality
 - **One-command chat** — `whichllm run` downloads and starts a chat session instantly
 - **Code snippets** — `whichllm snippet` prints ready-to-run Python for any model
-- **Live data** — Fetches models directly from HuggingFace (cached for performance)
+- **Daily index** — Models, shapes and benchmark scores in one prebuilt file (`--live` to fetch directly)
 - **Benchmark-aware** — Integrates real eval scores with confidence-based dampening
 - **Task profiles** — Filter by general, coding, vision, or math use cases
 - **GPU simulation** — Test with any GPU: `whichllm --gpu "RTX 4090"`
