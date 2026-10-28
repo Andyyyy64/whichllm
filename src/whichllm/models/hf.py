@@ -302,7 +302,7 @@ async def fetch_models(
                 trending_data_list = await _fetch_model_list(
                     client,
                     _model_list_params(
-                        limit, sort="trending", filter_value=filter_value
+                        limit, sort="trendingScore", filter_value=filter_value
                     ),
                 )
             except (httpx.HTTPError, ValueError) as e:
