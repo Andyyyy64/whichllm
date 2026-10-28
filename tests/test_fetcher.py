@@ -792,7 +792,7 @@ def test_failed_trending_list_marks_catalog_incomplete(monkeypatch):
 
     async def fake_get_with_retries(client, url: str, **kwargs):
         request = httpx.Request("GET", url)
-        if kwargs.get("params", {}).get("sort") == "trending":
+        if kwargs.get("params", {}).get("sort") == "trendingScore":
             return httpx.Response(429, request=request)
         if "/models/" in url:
             return httpx.Response(404, request=request)
@@ -804,3 +804,24 @@ def test_failed_trending_list_marks_catalog_incomplete(monkeypatch):
 
     assert report.failed == ["trending:all", "trending:gguf"]
     assert report.complete is False
+
+
+def test_trending_lists_use_the_hub_sort_key(monkeypatch):
+    """The Hub rejects sort=trending with HTTP 400; trendingScore is the key."""
+    monkeypatch.delenv("HF_ENDPOINT", raising=False)
+    sorts: list[str] = []
+
+    async def fake_get_with_retries(client, url: str, **kwargs):
+        request = httpx.Request("GET", url)
+        if "/models/" in url:
+            return httpx.Response(404, request=request)
+        sorts.append(kwargs["params"]["sort"])
+        return httpx.Response(200, json=[], request=request)
+
+    monkeypatch.setattr(fetcher, "get_with_retries", fake_get_with_retries)
+    report = fetcher.ModelFetchReport()
+    asyncio.run(fetcher.fetch_models(limit=1, include_vision=False, report=report))
+
+    assert sorts.count("trendingScore") == 2
+    assert "trending" not in sorts
+    assert report.complete
