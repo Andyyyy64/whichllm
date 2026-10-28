@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.5.23] - 2026-10-29
+
 ### Fixed
 
 - Trending models are fetched again. The Hugging Face API rejects
