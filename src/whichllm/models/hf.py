@@ -40,6 +40,8 @@ class ModelFetchReport:
 
 
 _DEFAULT_HF_ENDPOINT = "https://huggingface.co"
+# Concurrent per-model detail requests (publish-date backfill).
+_DETAIL_CONCURRENCY = 8
 
 _MODEL_EXPANDS = [
     "config",
@@ -157,6 +159,20 @@ def _hf_api_url(path: str) -> str:
     return f"{endpoint}/api/{path.lstrip('/')}"
 
 
+def _hf_headers() -> dict[str, str]:
+    """Request headers for Hugging Face calls.
+
+    HF_TOKEN (as used by huggingface_hub) raises rate limits and unlocks
+    configs of gated repositories the token has accepted. It is only sent to
+    the Hugging Face endpoint, which HF_ENDPOINT may point at a mirror.
+    """
+    headers = {"Accept-Encoding": DEFAULT_ACCEPT_ENCODING}
+    token = os.environ.get("HF_TOKEN", "").strip()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
 def _hf_file_url(repo_id: str, filename: str, revision: str = "main") -> str:
     """URL of a file in a model repository, honouring HF_ENDPOINT."""
     api_url = _hf_api_url("")
@@ -249,7 +265,7 @@ async def fetch_model_by_id(model_id: str) -> ModelInfo | None:
     async with httpx.AsyncClient(
         timeout=30.0,
         follow_redirects=True,
-        headers={"Accept-Encoding": DEFAULT_ACCEPT_ENCODING},
+        headers=_hf_headers(),
     ) as client:
         resp = await get_with_retries(
             client,
@@ -276,7 +292,7 @@ async def fetch_models(
     async with httpx.AsyncClient(
         timeout=30.0,
         follow_redirects=True,
-        headers={"Accept-Encoding": DEFAULT_ACCEPT_ENCODING},
+        headers=_hf_headers(),
     ) as client:
         logger.debug(f"Fetching models from HF API (limit={limit})")
         data_list = await _fetch_model_list(
@@ -345,16 +361,21 @@ async def fetch_model_published_at(model_ids: list[str]) -> dict[str, str]:
     async with httpx.AsyncClient(
         timeout=20.0,
         follow_redirects=True,
-        headers={"Accept-Encoding": DEFAULT_ACCEPT_ENCODING},
+        headers=_hf_headers(),
     ) as client:
-        tasks = [
-            client.get(
-                _hf_api_url(f"models/{model_id}"),
-                params={"expand[]": ["createdAt", "lastModified"]},
-            )
-            for model_id in unique_ids
-        ]
-        responses = await asyncio.gather(*tasks, return_exceptions=True)
+        semaphore = asyncio.Semaphore(_DETAIL_CONCURRENCY)
+
+        async def detail(model_id: str) -> httpx.Response:
+            async with semaphore:
+                return await get_with_retries(
+                    client,
+                    _hf_api_url(f"models/{model_id}"),
+                    params={"expand[]": ["createdAt", "lastModified"]},
+                )
+
+        responses = await asyncio.gather(
+            *(detail(model_id) for model_id in unique_ids), return_exceptions=True
+        )
 
     result: dict[str, str] = {}
     for model_id, resp in zip(unique_ids, responses, strict=False):
