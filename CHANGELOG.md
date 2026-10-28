@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.5.22] - 2026-10-28
+
+### Added
+
+- A golden ranking test set ranks a frozen catalog for 15 hardware
+  archetypes and checks the results against constraints, with a
+  reviewable top-pick snapshot. See CONTRIBUTING.md for updating it.
+
 ### Changed
 
 - Ranking is about three times faster. Matching a community repo to a
