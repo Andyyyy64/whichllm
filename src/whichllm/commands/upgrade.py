@@ -50,6 +50,7 @@ def upgrade_command(
         models_to_dicts,
     )
     from whichllm.models.grouper import group_models
+    from whichllm.models.shape_fetch import attach_cached_shapes
     from whichllm.output.display import display_upgrade, display_upgrade_json
 
     profile = _validate_profile(profile)
@@ -95,6 +96,7 @@ def upgrade_command(
         for family in group_models(models):
             all_models.append(family.base_model)
             all_models.extend(family.variants)
+        attach_cached_shapes(all_models)
 
         def _rank_for(hw: HardwareInfo):
             min_p = _auto_min_params_for_profile(hw, profile)

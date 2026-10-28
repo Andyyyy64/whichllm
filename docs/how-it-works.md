@@ -81,15 +81,40 @@ Parameter counts can come from safetensors metadata, GGUF metadata, config
 estimation, name hints, or a curated fallback table for important models with
 missing metadata.
 
+## Model shapes and KV cache
+
+The Hub API's model listing only includes `architectures` and `model_type`
+from each config, not layer counts or attention heads. After a first ranking
+pass, whichllm reads `config.json` for the families near the top (up to 25 per
+run), then ranks again. A quantized upload uses its base model's config, and a
+gated official repository borrows the shape of a same-size upload in its
+family. `plan` reads the config of the model it shows.
+
+With a shape, the KV cache is computed per layer, as llama.cpp allocates it by
+default:
+
+- FP16 K/V for attention layers: layers × KV heads × head dim × 2 × context
+- sliding-window layers sized to their window, for architectures that honour
+  it (Gemma 2/3/4, gpt-oss, Cohere 2, and configs that declare sliding layers)
+- the compressed latent for multi-head latent attention (DeepSeek, GLM)
+- a fixed per-sequence state for recurrent layers (Gated DeltaNet in
+  Qwen3-Next and Qwen3.5/3.6, LFM2 convolution, Mamba2 in Granite 4.0)
+
+Without a shape (no readable config, or a layout whichllm does not
+recognise) the estimate falls back to a parameter-count heuristic. That
+heuristic undercounts GQA models at long context, so use `whichllm plan` for
+the exact figure.
+
 ## Caches
 
-Both caches normally live under `~/.cache/whichllm/`. If `XDG_CACHE_HOME` is
+These caches normally live under `~/.cache/whichllm/`. If `XDG_CACHE_HOME` is
 set to an absolute path, whichllm uses `$XDG_CACHE_HOME/whichllm/` instead.
 
 | File | TTL | Contents |
 | --- | --- | --- |
-| `models.json` | 6 hours | Serialized `ModelInfo` data |
+| `models.json` | 6 hours (30 minutes if the fetch was incomplete) | Serialized `ModelInfo` data |
 | `benchmark.json` | 24 hours | Combined benchmark score map |
+| `shapes.json` | 7 days (1 day for missing configs) | Model shapes parsed from `config.json` |
 
 `--refresh` bypasses the relevant cache and writes a new one after fetching.
 

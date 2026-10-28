@@ -51,6 +51,7 @@ class Archetype:
     profiles: tuple[str, ...]
     vram_gb: float | None = None
     cpu_cores: int = 16
+    context_length: int = CONTEXT_LENGTH
     note: str = ""
 
     def hardware(self) -> HardwareInfo:
@@ -159,6 +160,7 @@ def load_spec() -> tuple[tuple[Archetype, ...], tuple[Constraint, ...]]:
             profiles=tuple(a.get("profiles", ("general",))),
             vram_gb=a.get("vram_gb"),
             cpu_cores=a.get("cpu_cores", 16),
+            context_length=a.get("context_length", CONTEXT_LENGTH),
             note=a.get("note", ""),
         )
         for a in raw["archetype"]
@@ -227,18 +229,26 @@ def rank_case(archetype: Archetype, profile: str) -> tuple[CompatibilityResult, 
     key = (archetype.id, profile)
     if key not in _ranking_cache:
         _ranking_cache[key] = tuple(
-            _rank(archetype.hardware(), profile, list(catalog_models()))
+            _rank(
+                archetype.hardware(),
+                profile,
+                list(catalog_models()),
+                archetype.context_length,
+            )
         )
     return _ranking_cache[key]
 
 
 def _rank(
-    hardware: HardwareInfo, profile: str, models: list[ModelInfo]
+    hardware: HardwareInfo,
+    profile: str,
+    models: list[ModelInfo],
+    context_length: int = CONTEXT_LENGTH,
 ) -> list[CompatibilityResult]:
     benchmark_scores = catalog_benchmarks()
     auto_min_params = _auto_min_params_for_profile(hardware, profile)
     kwargs = dict(
-        context_length=CONTEXT_LENGTH,
+        context_length=context_length,
         top_n=RANK_DEPTH,
         benchmark_scores=benchmark_scores,
         task_profile=profile,
@@ -355,7 +365,12 @@ def render_top_picks() -> str:
     ]
     for archetype in archetypes:
         for profile in archetype.profiles:
-            lines += ["", f"## {archetype.id} / {profile}", ""]
+            context = (
+                ""
+                if archetype.context_length == CONTEXT_LENGTH
+                else f" (context {archetype.context_length})"
+            )
+            lines += ["", f"## {archetype.id} / {profile}{context}", ""]
             results = rank_case(archetype, profile)[:SNAPSHOT_TOP_N]
             if not results:
                 lines.append("(no recommendations)")

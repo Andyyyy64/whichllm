@@ -157,6 +157,13 @@ def _hf_api_url(path: str) -> str:
     return f"{endpoint}/api/{path.lstrip('/')}"
 
 
+def _hf_file_url(repo_id: str, filename: str, revision: str = "main") -> str:
+    """URL of a file in a model repository, honouring HF_ENDPOINT."""
+    api_url = _hf_api_url("")
+    endpoint = api_url[: -len("/api/")]
+    return f"{endpoint}/{repo_id}/resolve/{revision}/{filename}"
+
+
 def _model_list_params(limit: int, sort: str, filter_value: str | None = None) -> dict:
     params = {
         "pipeline_tag": "text-generation",
