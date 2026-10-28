@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 
-import typer
-
 from whichllm.cli_models import (
     _load_models,
     _pick_gguf_variant,
@@ -12,6 +10,10 @@ from whichllm.cli_models import (
     _search_model,
 )
 from whichllm.cli_shared import console
+from whichllm.commands.autopick import pick_top_runnable
+
+# Matches the n_ctx written into the generated script.
+_SNIPPET_CONTEXT_LENGTH = 4096
 
 
 def snippet_command(
@@ -36,15 +38,13 @@ def snippet_command(
 
     if model_name:
         model = _search_model(models, model_name)
+        variant = _pick_gguf_variant(model, quant)
     else:
-        gguf_models = [m for m in models if m.gguf_variants]
-        if not gguf_models:
-            console.print("[red]No GGUF models found.[/]")
-            raise typer.Exit(code=1)
-        gguf_models.sort(key=lambda m: m.downloads, reverse=True)
-        model = gguf_models[0]
-
-    variant = _pick_gguf_variant(model, quant)
+        model, variant = pick_top_runnable(
+            models, context_length=_SNIPPET_CONTEXT_LENGTH, quant=quant
+        )
+        if variant is None:
+            variant = _pick_gguf_variant(model, quant)
     deps, _ = _resolve_model_deps(model, variant)
 
     if variant:
@@ -54,7 +54,7 @@ from llama_cpp import Llama
 llm = Llama.from_pretrained(
     repo_id={model.id!r},
     filename={variant.filename!r},
-    n_ctx=4096,
+    n_ctx={_SNIPPET_CONTEXT_LENGTH},
     n_gpu_layers=-1,  # -1 = all layers on GPU, 0 = CPU only
     verbose=False,
 )

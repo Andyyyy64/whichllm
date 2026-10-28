@@ -2103,3 +2103,89 @@ def test_main_backfill_does_not_extend_cache_lifetime(monkeypatch):
     assert result.exit_code == 0, result.output
     assert len(updated) == 1
     assert updated[0][0]["published_at"] == "2026-10-01T00:00:00.000Z"
+
+
+def test_snippet_auto_pick_uses_ranked_runnable_gguf(monkeypatch):
+    popular = ModelInfo(
+        id="org/Popular-1B-GGUF",
+        family_id="popular-1b",
+        name="Popular-1B-GGUF",
+        parameter_count=1_000_000_000,
+        downloads=9_000_000,
+        gguf_variants=[
+            GGUFVariant(filename="p.gguf", quant_type="Q4_K_M", file_size_bytes=1)
+        ],
+    )
+    ranked = ModelInfo(
+        id="Qwen/Qwen3.6-27B",
+        family_id="qwen3-27b",
+        name="Qwen3.6-27B",
+        parameter_count=27_000_000_000,
+        downloads=50_000,
+    )
+    real_gguf = ModelInfo(
+        id="unsloth/Qwen3.6-27B-GGUF",
+        family_id="qwen3-27b",
+        name="Qwen3.6-27B-GGUF",
+        parameter_count=27_000_000_000,
+        downloads=200_000,
+        base_model="Qwen/Qwen3.6-27B",
+        base_model_relation="quantized",
+        tags=("base_model:quantized:Qwen/Qwen3.6-27B",),
+        gguf_variants=[
+            GGUFVariant(
+                filename="q4.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=16_000_000_000,
+            )
+        ],
+    )
+    synthetic = GGUFVariant(
+        filename="Qwen3.6-27B.Q4_K_M.gguf",
+        quant_type="Q4_K_M",
+        file_size_bytes=16_000_000_000,
+    )
+
+    monkeypatch.setattr(
+        snippet_mod, "_load_models", lambda refresh: [popular, ranked, real_gguf]
+    )
+    monkeypatch.setattr(
+        "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(24)
+    )
+    monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
+    monkeypatch.setattr(
+        "whichllm.engine.ranker.rank_models",
+        lambda models, hardware, **kwargs: [
+            CompatibilityResult(
+                model=ranked,
+                gguf_variant=synthetic,
+                can_run=True,
+                vram_required_bytes=0,
+                vram_available_bytes=0,
+                quality_score=90.0,
+            )
+        ],
+    )
+
+    result = CliRunner().invoke(app, ["snippet"])
+
+    assert result.exit_code == 0, result.output
+    assert "repo_id='unsloth/Qwen3.6-27B-GGUF'" in result.stdout
+    assert "filename='q4.gguf'" in result.stdout
+    assert "Popular-1B" not in result.stdout
+
+
+def test_snippet_auto_pick_exits_when_nothing_runs(monkeypatch):
+    monkeypatch.setattr(snippet_mod, "_load_models", lambda refresh: [])
+    monkeypatch.setattr(
+        "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
+    )
+    monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
+    monkeypatch.setattr(
+        "whichllm.engine.ranker.rank_models", lambda models, hardware, **kw: []
+    )
+
+    result = CliRunner().invoke(app, ["snippet"])
+
+    assert result.exit_code == 1
+    assert "No runnable model found" in result.stdout
