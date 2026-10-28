@@ -6,9 +6,11 @@ import pytest
 
 import whichllm.models.benchmark_sources as benchmark_sources
 from whichllm.models.benchmark import (
+    _generate_score_name_candidates,
     _lineage_recency_factor,
     build_line_bucket_index,
     build_score_index,
+    build_score_name_index,
     fetch_benchmark_scores,
     lookup_benchmark,
     lookup_benchmark_evidence,
@@ -240,3 +242,37 @@ def test_lineage_recency_t5gemma_variants_are_not_demoted_as_old_gemma():
     assert _lineage_recency_factor("google/t5-gemma-4b") == 1.0
     assert _lineage_recency_factor("google/t5_gemma-4b") == 1.0
     assert _lineage_recency_factor("google/gemma-2-2b") < 1.0
+
+
+def test_score_name_candidates_keep_score_order_across_names():
+    scores = {
+        "b/Model-7B": 50.0,
+        "a/model-7b": 51.0,
+        "org/Other-7B": 40.0,
+        "c/MODEL-7B": 52.0,
+    }
+    index = build_score_name_index(scores)
+
+    by_index = _generate_score_name_candidates("org_Model-7B-GGUF", scores, index)
+    by_scan = _generate_score_name_candidates("org_Model-7B-GGUF", scores)
+
+    assert by_index == by_scan
+    assert by_index == ["org/Model-7B", "b/Model-7B", "a/model-7b", "c/MODEL-7B"]
+
+
+def test_lookup_uses_prebuilt_name_index():
+    scores = {"Qwen/Qwen3-8B": 60.0}
+    ci, line = build_score_index(scores)
+
+    evidence = lookup_benchmark_evidence(
+        "someone/Qwen3-8B-GGUF",
+        None,
+        scores,
+        ci_index=ci,
+        line_index=line,
+        line_bucket_index=build_line_bucket_index(scores),
+        name_index=build_score_name_index(scores),
+    )
+
+    assert evidence.source == "variant"
+    assert evidence.score == 60.0

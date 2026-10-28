@@ -22,6 +22,7 @@ from whichllm.models.benchmark_index import (
     _interpolate_line_score,
     build_line_bucket_index,
     build_score_index,
+    build_score_name_index,
 )
 from whichllm.models.benchmark_lineage import (
     _apply_lineage_recency_demotion,
@@ -82,6 +83,7 @@ __all__ = [
     "_try_lookup",
     "build_line_bucket_index",
     "build_score_index",
+    "build_score_name_index",
     "fetch_benchmark_scores",
     "load_benchmark_cache",
     "lookup_benchmark",

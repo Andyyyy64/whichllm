@@ -19,6 +19,7 @@ from whichllm.models.benchmark import (
     BenchmarkEvidence,
     build_line_bucket_index,
     build_score_index,
+    build_score_name_index,
     lookup_benchmark_evidence,
 )
 from whichllm.models.types import ModelInfo
@@ -68,13 +69,15 @@ def rank_models(
     # Sort models by downloads (popular first) to process best candidates first
     sorted_models = sorted(models, key=lambda m: m.downloads, reverse=True)
 
-    # Build benchmark indices once (case-insensitive + model line)
+    # Build benchmark indices once (case-insensitive, model line, repo name)
     if benchmark_scores:
         bench_ci_index, bench_line_index = build_score_index(benchmark_scores)
         bench_line_buckets = build_line_bucket_index(benchmark_scores)
+        bench_name_index = build_score_name_index(benchmark_scores)
     else:
         bench_ci_index, bench_line_index = {}, {}
         bench_line_buckets = {}
+        bench_name_index = {}
 
     best_gpu = None
     for gpu in hardware.gpus:
@@ -115,6 +118,7 @@ def rank_models(
                 line_bucket_index=bench_line_buckets,
                 self_reported_score=self_reported,
                 actual_params_b=actual_params_b,
+                name_index=bench_name_index,
             )
             # Family-size sanity check: if this model inherited benchmarks
             # via family/base_model lookup but its own params disagree

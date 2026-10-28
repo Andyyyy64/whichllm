@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Changed
+
+- Ranking is about three times faster. Matching a community repo to a
+  benchmark entry with the same model name used to scan every benchmark id
+  for each candidate model; a name index built once per ranking replaces the
+  scan. Matches and their order are unchanged.
+
 ### Fixed
 
 - Curated recent models that still fail to load after retries (rate limits,

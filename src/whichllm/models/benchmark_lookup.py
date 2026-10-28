@@ -8,6 +8,7 @@ from whichllm.models.benchmark_index import (
     _interpolate_line_score,
     build_line_bucket_index,
     build_score_index,
+    build_score_name_index,
 )
 from whichllm.models.benchmark_types import BenchmarkEvidence
 
@@ -58,9 +59,13 @@ def _strip_repo_suffix(model_id: str) -> str:
 
 
 def _generate_score_name_candidates(
-    model_id: str, scores: dict[str, float]
+    model_id: str,
+    scores: dict[str, float],
+    name_index: dict[str, list[tuple[int, str]]] | None = None,
 ) -> list[str]:
     """Match community repo names to benchmark IDs with the same model name."""
+    if name_index is None:
+        name_index = build_score_name_index(scores)
     stripped = _strip_repo_suffix(model_id)
     repo_name = stripped.rsplit("/", 1)[-1]
     model_names = [repo_name]
@@ -72,12 +77,13 @@ def _generate_score_name_candidates(
             _append_unique(explicit_candidates, f"{org}/{name}")
             _append_unique(model_names, name)
 
-    score_candidates: list[str] = []
     wanted_names = {name.lower() for name in model_names if name}
-    for score_id in scores:
-        score_name = score_id.rsplit("/", 1)[-1].lower()
-        if score_name in wanted_names:
-            _append_unique(score_candidates, score_id)
+    score_candidates = [
+        score_id
+        for _, score_id in sorted(
+            match for name in wanted_names for match in name_index.get(name, ())
+        )
+    ]
 
     return explicit_candidates + [
         candidate
@@ -126,6 +132,7 @@ def lookup_benchmark_evidence(
     line_bucket_index: dict[str, list[tuple[float | None, float]]] | None = None,
     self_reported_score: float | None = None,
     actual_params_b: float | None = None,
+    name_index: dict[str, list[tuple[int, str]]] | None = None,
 ) -> BenchmarkEvidence:
     """Look up benchmark evidence with confidence."""
     if ci_index is None or line_index is None:
@@ -138,7 +145,7 @@ def lookup_benchmark_evidence(
         return BenchmarkEvidence(score=direct_result, confidence=1.0, source="direct")
 
     variant_candidates = _generate_candidates(model_id)[1:]
-    for candidate in _generate_score_name_candidates(model_id, scores):
+    for candidate in _generate_score_name_candidates(model_id, scores, name_index):
         _append_unique(variant_candidates, candidate)
     for candidate in variant_candidates:
         result = _try_lookup(candidate, scores, ci_index)
