@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+
+- The whichllm index: a daily prebuilt file with the model catalog,
+  `config.json` shapes for every family, published dates and merged
+  benchmark scores, published on GitHub Pages. Recommendations, `plan`,
+  `upgrade`, `run` and `snippet` read it instead of making hundreds of
+  Hugging Face requests and scraping leaderboards, so a cold start takes
+  about a second and is unaffected by rate limits. The build refuses to
+  publish when quality gates fail. `--live` keeps the direct fetch, and
+  `WHICHLLM_INDEX_URL` points at a mirror or turns the index off.
+- `HF_TOKEN` is sent to the Hugging Face endpoint when set.
+
 ### Changed
 
 - The KV cache is computed per layer from each model's `config.json` instead

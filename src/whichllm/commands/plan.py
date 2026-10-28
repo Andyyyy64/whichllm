@@ -34,6 +34,7 @@ def plan_command(
         models_to_dicts,
     )
     from whichllm.models.hf import fetch_model_by_id
+    from whichllm.models.index_client import load_index
     from whichllm.output.display import display_plan, display_plan_json
 
     with Progress(
@@ -43,8 +44,12 @@ def plan_command(
         transient=True,
     ) as progress:
         task = progress.add_task("Loading models...", total=None)
-        cached_data = None if refresh else load_cache()
-        models = dicts_to_models(cached_data) if cached_data is not None else []
+        catalog = load_index(refresh=refresh)
+        cached_data = None if refresh or catalog is not None else load_cache()
+        if catalog is not None:
+            models = catalog.models
+        else:
+            models = dicts_to_models(cached_data) if cached_data is not None else []
         query_lower = model_name.lower()
         model = next((m for m in models if m.id.lower() == query_lower), None)
 
@@ -60,7 +65,7 @@ def plan_command(
                     "enough model metadata to estimate memory.[/]"
                 )
                 raise typer.Exit(code=1)
-        elif cached_data is None:
+        elif catalog is None and cached_data is None:
             progress.update(task, description="Fetching models from HuggingFace...")
             try:
                 report = ModelFetchReport()

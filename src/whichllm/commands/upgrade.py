@@ -50,6 +50,7 @@ def upgrade_command(
         models_to_dicts,
     )
     from whichllm.models.grouper import group_models
+    from whichllm.models.index_client import load_index
     from whichllm.models.shape_fetch import attach_cached_shapes
     from whichllm.output.display import display_upgrade, display_upgrade_json
 
@@ -68,8 +69,11 @@ def upgrade_command(
             current_hw.gpus = []
 
         progress.update(task, description="Loading models...")
-        cached_data = None if refresh else load_cache()
-        if cached_data is not None:
+        catalog = load_index(refresh=refresh)
+        cached_data = None if refresh or catalog is not None else load_cache()
+        if catalog is not None:
+            models = catalog.models
+        elif cached_data is not None:
             models = dicts_to_models(cached_data)
         else:
             progress.update(task, description="Fetching models from HuggingFace...")
@@ -84,7 +88,10 @@ def upgrade_command(
                 raise typer.Exit(code=1)
 
         progress.update(task, description="Loading benchmark data...")
-        bench_scores = None if refresh else load_benchmark_cache()
+        if catalog is not None:
+            bench_scores = catalog.benchmark_scores
+        else:
+            bench_scores = None if refresh else load_benchmark_cache()
         if bench_scores is None:
             try:
                 bench_scores = _run_async(fetch_benchmark_scores())

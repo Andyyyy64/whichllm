@@ -27,12 +27,16 @@ def pick_top_runnable(
     from whichllm.hardware.detector import detect_hardware
     from whichllm.models.benchmark import load_benchmark_cache
     from whichllm.models.grouper import group_models
+    from whichllm.models.index_client import load_index
     from whichllm.models.shape_fetch import attach_cached_shapes
 
     hardware = detect_hardware()
     if cpu_only:
         hardware.gpus = []
-    bench_scores = load_benchmark_cache() or {}
+    catalog = load_index()
+    bench_scores = (
+        catalog.benchmark_scores if catalog is not None else load_benchmark_cache()
+    ) or {}
     all_models = []
     for family in group_models(models):
         all_models.append(family.base_model)

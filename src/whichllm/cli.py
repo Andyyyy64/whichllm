@@ -158,6 +158,11 @@ def main(
         "--lm-studio-path",
         help="Additional LM Studio model library path (repeatable)",
     ),
+    live: bool = typer.Option(
+        False,
+        "--live",
+        help="Fetch from Hugging Face and benchmark sites instead of the daily index",
+    ),
 ):
     """Detect hardware and recommend the best local LLMs."""
     return main_command(
@@ -186,6 +191,7 @@ def main(
         vram_headroom=vram_headroom,
         ram_budget=ram_budget,
         lm_studio_path=lm_studio_path,
+        live=live,
     )
 
 

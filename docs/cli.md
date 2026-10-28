@@ -31,7 +31,8 @@ Common options:
 | `--min-params` | Minimum model knowledge capacity in billions of parameters |
 | `--json` | Print machine-readable JSON |
 | `--markdown`, `-m` | Print a pasteable GitHub-Flavored Markdown table |
-| `--refresh` | Ignore caches and fetch models/benchmarks again |
+| `--refresh` | Revalidate the whichllm index now; with `--live`, ignore caches and fetch models/benchmarks again |
+| `--live` | Fetch from HuggingFace and the benchmark sources instead of the daily whichllm index |
 | `--cpu-only` | Ignore GPUs and rank for CPU-only use |
 | `--gpu` | Simulate GPU(s) by name. Accepts repeated flags, comma-separated values, and count shorthand |
 | `--vram` | Override simulated GPU VRAM or detected GPU usable VRAM in GB |
@@ -46,6 +47,8 @@ Environment variables:
 
 | Variable | Meaning |
 | --- | --- |
+| `WHICHLLM_INDEX_URL` | Location of the whichllm index (default: GitHub Pages). Set to `off` to always fetch live |
+| `HF_TOKEN` | Hugging Face token sent to `HF_ENDPOINT` on the live path, for higher rate limits and gated configs |
 | `HF_ENDPOINT` | Hugging Face endpoint root used for whichllm's own model metadata API calls. Example: `https://huggingface.co` or a compatible mirror root |
 
 `--fit any` is the default. It can include full-GPU, partial-offload, and

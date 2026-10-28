@@ -34,6 +34,79 @@ from whichllm.models.artifacts import (
 _SHAPE_LOOKAHEAD = 10
 
 
+def _load_live_models(progress, task, refresh: bool, profile: str) -> list:
+    """Models from the model cache or a direct Hugging Face fetch."""
+    from whichllm.models.cache import load_cache, save_cache
+    from whichllm.models.fetcher import (
+        ModelFetchReport,
+        dicts_to_models,
+        fetch_models,
+        models_to_dicts,
+    )
+
+    include_vision = _include_vision_candidates(profile)
+    cached_data = None if refresh else load_cache(include_vision=include_vision)
+    if cached_data is not None:
+        models = dicts_to_models(cached_data)
+        progress.update(task, description=f"Loaded {len(models)} models from cache")
+        return models
+    progress.update(task, description="Fetching models from HuggingFace...")
+    try:
+        fetch_report = ModelFetchReport()
+        models = _run_async(
+            fetch_models(include_vision=include_vision, report=fetch_report)
+        )
+        save_cache(
+            models_to_dicts(models),
+            include_vision=include_vision,
+            complete=fetch_report.complete,
+        )
+        progress.update(task, description=f"Fetched {len(models)} models")
+        return models
+    except Exception as e:
+        console.print(f"[red]Error fetching models:[/] {_format_fetch_error(e)}")
+        sys.exit(1)
+
+
+def _load_live_benchmarks(progress, task, refresh: bool) -> dict[str, float]:
+    """Benchmark scores from the benchmark cache or the live sources."""
+    from whichllm.models.benchmark import (
+        fetch_benchmark_scores,
+        load_benchmark_cache,
+        save_benchmark_cache,
+    )
+
+    progress.update(task, description="Loading benchmark data...")
+    bench_scores = None if refresh else load_benchmark_cache()
+    if bench_scores is not None:
+        return bench_scores
+    try:
+        progress.update(task, description="Fetching benchmark scores...")
+        bench_scores = _run_async(fetch_benchmark_scores())
+        save_benchmark_cache(bench_scores)
+        return bench_scores
+    except Exception as e:
+        console.print(f"[yellow]Warning:[/] Benchmark data unavailable: {e}")
+        return {}
+
+
+def _print_data_source(catalog) -> None:
+    """Say which data the ranking used, and warn when it is old."""
+    if catalog is None:
+        console.print(
+            "  [dim]Data: fetched live from Hugging Face and benchmark sites.[/dim]"
+        )
+        return
+    built = catalog.built_at.replace("T", " ").replace("Z", " UTC")
+    console.print(f"  [dim]Data: whichllm index built {built}.[/dim]")
+    age = catalog.age_seconds
+    if catalog.offline and age is not None and age > 3 * 24 * 3600:
+        console.print(
+            f"  [yellow]Note:[/] offline, using an index {age / 86400:.0f} days "
+            "old. Recent releases may be missing."
+        )
+
+
 def main_command(
     ctx: typer.Context,
     *,
@@ -61,6 +134,7 @@ def main_command(
     vram_headroom: str,
     ram_budget: str | None,
     lm_studio_path: list[Path] | None,
+    live: bool = False,
 ) -> None:
     """Detect hardware and recommend the best local LLMs."""
     if ctx.invoked_subcommand is not None:
@@ -79,20 +153,10 @@ def main_command(
 
     from whichllm.engine.ranker import rank_models
     from whichllm.hardware.detector import detect_hardware
-    from whichllm.models.benchmark import (
-        fetch_benchmark_scores,
-        load_benchmark_cache,
-        save_benchmark_cache,
-    )
-    from whichllm.models.cache import load_cache, save_cache, update_cached_models
-    from whichllm.models.fetcher import (
-        ModelFetchReport,
-        dicts_to_models,
-        fetch_model_published_at,
-        fetch_models,
-        models_to_dicts,
-    )
+    from whichllm.models.cache import update_cached_models
+    from whichllm.models.fetcher import fetch_model_published_at, models_to_dicts
     from whichllm.models.grouper import group_models
+    from whichllm.models.index_client import load_index
     from whichllm.models.shape_fetch import attach_cached_shapes, fetch_family_shapes
     from whichllm.output.display import (
         display_hardware,
@@ -116,43 +180,17 @@ def main_command(
         )
         progress.update(task, description="Hardware detected")
 
-        # Step 2: Fetch models
-        progress.update(task, description="Loading models...")
-        include_vision = _include_vision_candidates(profile)
-        cached_data = None if refresh else load_cache(include_vision=include_vision)
-        if cached_data is not None:
-            models = dicts_to_models(cached_data)
-            progress.update(task, description=f"Loaded {len(models)} models from cache")
+        # Step 2: Load models and benchmark scores, from the prebuilt index
+        # unless --live asks for a direct fetch or the index is unreachable.
+        progress.update(task, description="Loading the whichllm index...")
+        catalog = None if live else load_index(refresh=refresh)
+        if catalog is not None:
+            models = catalog.models
+            bench_scores = catalog.benchmark_scores
+            progress.update(task, description=f"Loaded {len(models)} models")
         else:
-            progress.update(task, description="Fetching models from HuggingFace...")
-            try:
-                fetch_report = ModelFetchReport()
-                models = _run_async(
-                    fetch_models(include_vision=include_vision, report=fetch_report)
-                )
-                save_cache(
-                    models_to_dicts(models),
-                    include_vision=include_vision,
-                    complete=fetch_report.complete,
-                )
-                progress.update(task, description=f"Fetched {len(models)} models")
-            except Exception as e:
-                console.print(
-                    f"[red]Error fetching models:[/] {_format_fetch_error(e)}"
-                )
-                sys.exit(1)
-
-        # Step 3: Fetch benchmark scores
-        progress.update(task, description="Loading benchmark data...")
-        bench_scores = None if refresh else load_benchmark_cache()
-        if bench_scores is None:
-            try:
-                progress.update(task, description="Fetching benchmark scores...")
-                bench_scores = _run_async(fetch_benchmark_scores())
-                save_benchmark_cache(bench_scores)
-            except Exception as e:
-                console.print(f"[yellow]Warning:[/] Benchmark data unavailable: {e}")
-                bench_scores = {}
+            models = _load_live_models(progress, task, refresh, profile)
+            bench_scores = _load_live_benchmarks(progress, task, refresh)
 
         # Step 4: Group and rank
         progress.update(task, description="Ranking models...")
@@ -198,17 +236,19 @@ def main_command(
                 )
             return ranked
 
-        # Exact KV sizes need each model's config.json. Look shapes up only for
-        # the families near the top, then rank again with them.
+        # Exact KV sizes need each model's config.json. The index carries the
+        # shapes it could read; a live fetch looks them up only for the
+        # families near the top, then ranks again with them.
         attach_cached_shapes(all_models)
-        results = _rank(top + _SHAPE_LOOKAHEAD)
-        shapeless = [r.model.family_id for r in results if r.model.shape is None]
-        if shapeless:
-            progress.update(task, description="Reading model configs...")
-            try:
-                _run_async(fetch_family_shapes(all_models, shapeless))
-            except Exception as e:
-                progress.update(task, description=f"Model configs skipped: {e}")
+        if catalog is None:
+            results = _rank(top + _SHAPE_LOOKAHEAD)
+            shapeless = [r.model.family_id for r in results if r.model.shape is None]
+            if shapeless:
+                progress.update(task, description="Reading model configs...")
+                try:
+                    _run_async(fetch_family_shapes(all_models, shapeless))
+                except Exception as e:
+                    progress.update(task, description=f"Model configs skipped: {e}")
         results = _rank(top)
 
         # 上位候補の公開日時が欠けている場合のみ補完して表示品質を上げる
@@ -227,7 +267,7 @@ def main_command(
                 raise typer.Exit(code=1) from error
             attach_local_matches(results, local_models)
             try:
-                if _fill_missing_published_at(
+                if catalog is None and _fill_missing_published_at(
                     all_models, results, fetch_model_published_at
                 ):
                     update_cached_models(models_to_dicts(models))
@@ -263,4 +303,5 @@ def main_command(
             show_status=status or not details,
             empty_message=empty_message,
         )
+        _print_data_source(catalog)
         console.print()

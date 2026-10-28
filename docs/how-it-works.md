@@ -22,16 +22,33 @@ The default `whichllm` command follows this path:
 
 1. Validate CLI flags.
 2. Detect hardware.
-3. Load model cache or fetch from HuggingFace.
-4. Load benchmark cache or fetch benchmark sources.
-5. Group related model repos into families.
-6. Flatten families back into rankable candidates.
-7. Rank every candidate variant.
-8. Backfill missing published dates for top results.
-9. Print a Rich table or JSON.
+3. Load the whichllm index: models, shapes and benchmark scores in one file.
+   With `--live`, or when no index is reachable or cached, load the model and
+   benchmark caches or fetch from HuggingFace and the benchmark sources.
+4. Group related model repos into families.
+5. Flatten families back into rankable candidates.
+6. Rank every candidate variant. On the live path, read `config.json` for the
+   top families and rank again.
+7. On the live path, backfill missing published dates for top results.
+8. Print a Rich table or JSON.
 
 The `plan`, `upgrade`, `run`, `snippet`, and `hardware` subcommands reuse parts
 of the same pipeline.
+
+## The whichllm index
+
+A scheduled GitHub Actions job builds the index once a day and publishes it at
+`https://andyyyy64.github.io/whichllm/index/v1/index.json.gz` (about 300 KB).
+The build runs the same fetchers as a live run, plus `config.json` for every
+family and published dates for every repo. It refuses to publish when a
+quality gate fails: failed catalog requests, too few models or benchmark ids,
+missing curated recent models, low shape coverage, or a large drop from the
+previous index. A failed build leaves the last good index online.
+
+The client revalidates the index with its ETag every 6 hours. Offline, it
+uses the cached copy of any age, and says how old it is when that is more than
+three days. `--refresh` revalidates immediately. `WHICHLLM_INDEX_URL` points
+at a mirror, and `WHICHLLM_INDEX_URL=off` always uses the live path.
 
 ## Hardware detection
 
@@ -112,6 +129,7 @@ set to an absolute path, whichllm uses `$XDG_CACHE_HOME/whichllm/` instead.
 
 | File | TTL | Contents |
 | --- | --- | --- |
+| `index.json.gz`, `index-state.json` | Revalidated every 6 hours | The whichllm index and its ETag |
 | `models.json` | 6 hours (30 minutes if the fetch was incomplete) | Serialized `ModelInfo` data |
 | `benchmark.json` | 24 hours | Combined benchmark score map |
 | `shapes.json` | 7 days (1 day for missing configs) | Model shapes parsed from `config.json` |
