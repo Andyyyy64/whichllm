@@ -478,7 +478,7 @@ src/whichllm/
 ```bash
 git clone https://github.com/Andyyyy64/whichllm.git
 cd whichllm
-uv sync --dev
+uv sync --locked --dev
 uv run whichllm
 uv run pytest
 ```

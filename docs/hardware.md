@@ -152,6 +152,11 @@ whichllm --vram 8 --ram-bandwidth 68
 whichllm hardware --vram 8 --bandwidth 68
 ```
 
+Both flag names set the same value: the selected GPU's memory bandwidth. On an
+iGPU or unified-memory system that is the system RAM bandwidth. On a discrete
+GPU it replaces the VRAM bandwidth; it does not change how CPU offload is
+estimated.
+
 If multiple GPUs are detected, pass `--gpu-index` to choose the GPU shown by
 `whichllm hardware`:
 

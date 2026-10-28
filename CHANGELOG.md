@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed
+
+- Curated recent models that still fail to load after retries (rate limits,
+  server or network errors) are now reported on stderr with a count, and the
+  partial model list is cached for 30 minutes instead of 6 hours. Missing or
+  gated curated repositories do not shorten the cache.
+- `--profile vision` and `--profile any` no longer reuse a cached model list
+  that was fetched without vision candidates. Backfilling publish dates no
+  longer extends the age of the model cache.
+- The ranking footer shows the current benchmark snapshot month (2026-09)
+  instead of 2026-05. A test keeps it equal to the newest curated fallback.
+- `whichllm snippet` without a model name now prints code for the best ranked
+  model that has a runnable GGUF build, as the help text promised, instead of
+  the most-downloaded GGUF repository.
+- `--bandwidth` / `--ram-bandwidth` help and docs now say that both set the
+  selected GPU's memory bandwidth. On an iGPU or unified memory that is system
+  RAM bandwidth; on a discrete GPU it does not change CPU offload estimates.
+- `CONTRIBUTING.md` points at `src/whichllm/data/gpu.py` for GPU entries, the
+  pre-commit Ruff hook matches the locked Ruff version, and the README
+  development setup uses `uv sync --locked --dev`.
+
 ## [0.5.21] - 2026-10-19
 
 ### Fixed
