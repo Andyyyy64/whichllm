@@ -18,6 +18,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   windows, multi-head latent attention and recurrent state are handled; an
   unrecognised layout keeps the old estimate.
 
+## [0.5.23] - 2026-10-29
+
+### Fixed
+
+- Trending models are fetched again. The Hugging Face API rejects
+  `sort=trending` with HTTP 400, so the two trending lists were always
+  skipped and newly popular repositories only appeared once they ranked by
+  downloads. They now use `sort=trendingScore`. Since 0.5.22 the failing
+  lists also marked every model list as incomplete, which cached it for 30
+  minutes instead of 6 hours.
+
 ## [0.5.22] - 2026-10-28
 
 ### Added
