@@ -14,7 +14,6 @@ from whichllm.models.benchmark_sources.aa_index import (
     fetch_aa_index_scores,
     get_aa_curated_fallback,
 )
-from whichllm.models.benchmark_sources.aider import fetch_aider_polyglot_scores
 from whichllm.models.benchmark_sources.chatbot_arena import fetch_arena_scores
 from whichllm.models.benchmark_sources.livebench import (
     LIVEBENCH_ESTIMATED_IDS,
@@ -38,7 +37,6 @@ __all__ = [
     "BENCHMARK_SNAPSHOT",
     "LIVEBENCH_ESTIMATED_IDS",
     "fetch_aa_index_scores",
-    "fetch_aider_polyglot_scores",
     "fetch_arena_scores",
     "fetch_leaderboard_with_fallback",
     "fetch_vision_scores",

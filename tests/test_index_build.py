@@ -9,6 +9,7 @@ import json
 import pytest
 
 import whichllm.models.index_build as index_build
+from whichllm.models.benchmark_fetch import BenchmarkData
 from whichllm.models.fetcher import ModelFetchReport
 from whichllm.models.hf import _FRONTIER_MODEL_IDS
 from whichllm.models.index_format import (
@@ -35,6 +36,8 @@ def sources(monkeypatch):
     state = {
         "models": [_model("org/A-8B"), _model("org/B-8B", "2026-01-01T00:00:00.000Z")],
         "scores": {"org/A-8B": 70.0},
+        "tasks": {"coding": {"org/A-8B": 74.0}},
+        "benchmark_ids": [],
         "date_requests": [],
         "report_failed": [],
     }
@@ -44,8 +47,9 @@ def sources(monkeypatch):
         report.failed.extend(state["report_failed"])
         return state["models"]
 
-    async def fake_scores():
-        return state["scores"]
+    async def fake_benchmarks(model_ids):
+        state["benchmark_ids"].extend(model_ids)
+        return BenchmarkData(general=state["scores"], tasks=state["tasks"])
 
     async def fake_shapes(models, families, *, max_families, cache_file):
         assert max_families == len(families)
@@ -56,7 +60,7 @@ def sources(monkeypatch):
         return {i: "2026-02-02T00:00:00.000Z" for i in model_ids}
 
     monkeypatch.setattr(index_build, "fetch_models", fake_fetch_models)
-    monkeypatch.setattr(index_build, "fetch_benchmark_scores", fake_scores)
+    monkeypatch.setattr(index_build, "fetch_benchmark_data", fake_benchmarks)
     monkeypatch.setattr(index_build, "fetch_family_shapes", fake_shapes)
     monkeypatch.setattr(index_build, "fetch_model_published_at", fake_dates)
     return state
@@ -72,6 +76,10 @@ def test_build_produces_a_decodable_index(sources):
     assert payload["builder"] == {"whichllm_version": "0.6.0", "git_commit": "abc123"}
     assert payload["stats"]["models"] == 2
     assert payload["benchmark_scores"] == {"org/A-8B": 70.0}
+    assert payload["task_scores"] == {"coding": {"org/A-8B": 74.0}}
+    assert payload["stats"]["task_scores"] == {"coding": 1}
+    # AA display names are matched against the catalog's repo ids.
+    assert sources["benchmark_ids"] == ["org/A-8B", "org/B-8B"]
     assert decode_index(encode_index(payload)) == payload
 
 
@@ -111,7 +119,9 @@ def test_decode_rejects_invalid_files(raw):
         decode_index(raw)
 
 
-def _healthy_payload(models: int = 900, benchmarks: int = 3000) -> dict:
+def _healthy_payload(
+    models: int = 900, benchmarks: int = 3000, tasks: int = 60
+) -> dict:
     ids = list(_FRONTIER_MODEL_IDS) + [f"org/M{i}" for i in range(models)]
     return {
         "schema_version": INDEX_SCHEMA_VERSION,
@@ -119,6 +129,10 @@ def _healthy_payload(models: int = 900, benchmarks: int = 3000) -> dict:
         "stats": {"shapes": len(ids)},
         "models": [{"id": i} for i in ids],
         "benchmark_scores": {f"org/S{i}": 50.0 for i in range(benchmarks)},
+        "task_scores": {
+            "coding": {f"org/S{i}": 50.0 for i in range(tasks)},
+            "vision": {f"org/V{i}": 50.0 for i in range(tasks)},
+        },
     }
 
 
@@ -155,3 +169,31 @@ def test_large_drop_from_previous_index_is_refused():
         _healthy_payload(models=900), ModelFetchReport(), previous
     )
     assert any("models dropped" in p for p in problems)
+
+
+def test_index_without_task_scores_still_decodes():
+    payload = _healthy_payload()
+    del payload["task_scores"]
+    assert decode_index(encode_index(payload))["benchmark_scores"]
+
+
+def test_malformed_task_scores_are_rejected():
+    payload = _healthy_payload()
+    payload["task_scores"] = {"coding": {"org/S1": "high"}}
+    with pytest.raises(ValueError, match="task_scores"):
+        decode_index(encode_index(payload))
+
+
+def test_missing_task_scores_block_publishing():
+    problems = index_build.quality_problems(
+        _healthy_payload(tasks=3), ModelFetchReport()
+    )
+    assert any("only 3 coding task scores" in p for p in problems)
+    assert any("only 3 vision task scores" in p for p in problems)
+
+
+def test_large_task_score_drop_is_refused():
+    problems = index_build.quality_problems(
+        _healthy_payload(tasks=25), ModelFetchReport(), _healthy_payload(tasks=80)
+    )
+    assert any("coding task scores dropped from 80 to 25" in p for p in problems)

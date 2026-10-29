@@ -75,7 +75,8 @@ machine. The table marks how confident each estimate is.
 ## How it ranks
 
 Quality comes from Artificial Analysis and LiveBench, put on one scale and
-averaged, with Aider for coding and a vision index for image input. The Open
+averaged. `--profile coding`, `math` and `vision` rank on benchmarks for that
+task instead, such as SciCode and LiveCodeBench for coding. The Open
 LLM Leaderboard and Chatbot Arena are frozen, so they only score models
 nothing current covers, and older generations are demoted. Each match
 records how it was found (the exact repo, its base model, a same-family

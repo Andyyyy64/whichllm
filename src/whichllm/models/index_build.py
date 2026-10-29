@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from whichllm.models.benchmark import fetch_benchmark_scores
+from whichllm.models.benchmark_fetch import fetch_benchmark_data
 from whichllm.models.fetcher import ModelFetchReport, fetch_models, models_to_dicts
 from whichllm.models.grouper import group_models
 from whichllm.models.hf import _FRONTIER_MODEL_IDS, fetch_model_published_at
@@ -19,6 +19,9 @@ MIN_BENCHMARKS = 2000
 MIN_FRONTIER_COVERAGE = 0.8
 MIN_SHAPE_COVERAGE = 0.6
 MAX_DROP_FROM_PREVIOUS = 0.2
+# Task scores cover far fewer models; a profile below this lost its source.
+MIN_TASK_SCORES = {"coding": 20, "vision": 15}
+MAX_TASK_DROP_FROM_PREVIOUS = 0.5
 
 
 async def build_index(
@@ -36,7 +39,8 @@ async def build_index(
     """
     report = ModelFetchReport()
     models = await fetch_models(include_vision=True, report=report)
-    scores = await fetch_benchmark_scores()
+    benchmarks = await fetch_benchmark_data(m.id for m in models)
+    scores = benchmarks.general
 
     group_models(models)  # assigns the family ids shapes are shared within
     families = list(dict.fromkeys(m.family_id for m in models))
@@ -69,9 +73,13 @@ async def build_index(
             "shapes": sum(1 for m in models if m.shape),
             "published_dates": sum(1 for m in models if m.published_at),
             "frontier_failed": len(report.failed),
+            "task_scores": {p: len(s) for p, s in sorted(benchmarks.tasks.items())},
         },
         "models": model_dicts,
         "benchmark_scores": dict(sorted(scores.items())),
+        "task_scores": {
+            p: dict(sorted(s.items())) for p, s in sorted(benchmarks.tasks.items())
+        },
     }
     return payload, report
 
@@ -112,7 +120,22 @@ def quality_problems(
             f"(minimum {MIN_SHAPE_COVERAGE:.0%})"
         )
 
+    tasks = payload.get("task_scores") or {}
+    for profile, minimum in MIN_TASK_SCORES.items():
+        count = len(tasks.get(profile) or {})
+        if count < minimum:
+            problems.append(f"only {count} {profile} task scores (minimum {minimum})")
+
     if previous:
+        before_tasks = previous.get("task_scores") or {}
+        for profile, before_scores in before_tasks.items():
+            before = len(before_scores or {})
+            now = len(tasks.get(profile) or {})
+            if before and now < before * (1 - MAX_TASK_DROP_FROM_PREVIOUS):
+                problems.append(
+                    f"{profile} task scores dropped from {before} to {now} "
+                    "since the previous index"
+                )
         for key, now in (("models", len(models)), ("benchmark_scores", len(scores))):
             before = len(previous.get(key) or [])
             if before and now < before * (1 - MAX_DROP_FROM_PREVIOUS):

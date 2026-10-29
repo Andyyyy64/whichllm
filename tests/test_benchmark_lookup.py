@@ -46,7 +46,6 @@ def test_aa_zero_survives_aggregation_cache_and_lookup(
 
     for name in (
         "fetch_arena_scores",
-        "fetch_aider_polyglot_scores",
         "fetch_vision_scores",
     ):
         monkeypatch.setattr(benchmark_sources, name, empty_source)
@@ -87,7 +86,6 @@ def test_fetch_benchmark_scores_disables_brotli_accept_encoding(monkeypatch):
     )
     monkeypatch.setattr(benchmark_sources, "fetch_arena_scores", fake_source)
     monkeypatch.setattr(benchmark_sources, "fetch_aa_index_scores", fake_source)
-    monkeypatch.setattr(benchmark_sources, "fetch_aider_polyglot_scores", fake_source)
     monkeypatch.setattr(benchmark_sources, "fetch_vision_scores", fake_source)
     monkeypatch.setattr(benchmark_sources, "get_livebench_data", lambda: {})
 

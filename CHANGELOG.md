@@ -57,6 +57,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   an otherwise equal general one. `--profile vision` includes natively
   multimodal models (Gemma 3/4, Qwen3.5/3.6) through the Hub's
   `image-text-to-text` tag, not only names with "VL".
+- `--profile coding`, `math` and `vision` rank on benchmarks for that task
+  instead of the general score: Artificial Analysis's SciCode,
+  Terminal-Bench, LiveCodeBench and FrontierCode for coding, AIME 2025 for
+  math, and MMMU-Pro plus the curated vision index for vision. Each result is
+  mapped onto the general 0-100 scale through the models it shares with the
+  general index, so a model without task results keeps its general score.
+  On an RTX 3060, gpt-oss-20b and Qwen3-Coder-Next now rank above the dense
+  Qwen3.8-27B for coding, and the name-based 2-point edge only applies to
+  code-tuned models with no coding results. JSON rows gain
+  `benchmark_basis`, and the index gains an optional `task_scores` map.
+- New releases that neither LiveBench nor the pinned AA index covers get a
+  general score from at least three of AA's broad benchmarks, mapped the same
+  way, so models such as GLM-5.3-Flash, Qwen3.8-Flash-Next and Gemma 4 12B
+  are no longer unscored. On models that have both, the two agree within
+  about 4 points on average.
+- Aider polyglot is no longer used. Its leaderboard stopped at 2025-10 and its
+  display names no longer matched any model, so it contributed nothing. The
+  curated vision index no longer raises general scores (it made
+  Qwen3-VL-235B's general score its vision value).
 - Pretrain-only checkpoints are never recommended: `-Base`/`-pt` names,
   checkpoints whose publisher ships an instruct version derived from them
   (`Qwen2.5-7B`, `Qwen2.5-Coder-7B`, `Llama-3.1-8B`) and their quantized

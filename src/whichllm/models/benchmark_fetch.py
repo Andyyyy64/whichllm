@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Iterable
+from dataclasses import dataclass, field
 
 import httpx
 
@@ -14,26 +16,43 @@ from whichllm.utils import _current_version
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class BenchmarkData:
+    """General scores, plus task scores for the coding, math and vision profiles."""
+
+    general: dict[str, float]
+    tasks: dict[str, dict[str, float]] = field(default_factory=dict)
+
+
 async def fetch_benchmark_scores() -> dict[str, float]:
+    """General-ability scores (see :func:`fetch_benchmark_data`)."""
+    return (await fetch_benchmark_data()).general
+
+
+async def fetch_benchmark_data(model_ids: Iterable[str] = ()) -> BenchmarkData:
     """Fetch and combine benchmark scores from multiple sources.
 
-    Sources:
+    General sources:
       1. Open LLM Leaderboard v2 (archived 2025-06)
       2. Chatbot Arena ELO (frozen 2025-07-17)
       3. LiveBench (vendored snapshot)
       4. Artificial Analysis Intelligence Index
-      5. Aider polyglot (coding-specific)
-      6. Vision-language capability index
 
     The frozen sources (1-2) only score models no current source covers.
     LiveBench and AA are both general-ability indexes on AA's scale and are
-    averaged (see :func:`_merge_general_scores`); Aider and vision scores
-    can raise a model's score as specialist evidence.
+    averaged (see :func:`_merge_general_scores`).
 
-    Returns dict mapping model_id -> normalized score (0-100). All network
-    sources are fetched concurrently; failures are logged and skipped.
+    Task sources are AA's per-benchmark results and the curated vision index;
+    :func:`whichllm.models.task_scores.build_task_scores` puts them on the
+    general scale. ``model_ids`` are the repos AA display names may match,
+    on top of the ids the general sources already know.
+
+    Scores are keyed by model id and normalized to 0-100. All network sources
+    are fetched concurrently; failures are logged and skipped.
     """
     from whichllm.models import benchmark_sources
+    from whichllm.models.benchmark_sources import aa_evals
+    from whichllm.models.task_scores import AA_TASK_EVALS
 
     async with httpx.AsyncClient(
         timeout=30.0,
@@ -43,28 +62,18 @@ async def fetch_benchmark_scores() -> dict[str, float]:
             "User-Agent": f"whichllm/{_current_version()}",
         },
     ) as client:
-        leaderboard_task = asyncio.create_task(
-            benchmark_sources.fetch_leaderboard_with_fallback(client)
-        )
-        arena_task = asyncio.create_task(benchmark_sources.fetch_arena_scores(client))
-        aa_task = asyncio.create_task(benchmark_sources.fetch_aa_index_scores(client))
-        aider_task = asyncio.create_task(
-            benchmark_sources.fetch_aider_polyglot_scores(client)
-        )
-        vision_task = asyncio.create_task(benchmark_sources.fetch_vision_scores(client))
-
         (
             lb_result,
             arena_result,
             aa_result,
-            aider_result,
+            aa_evals_result,
             vision_result,
         ) = await asyncio.gather(
-            leaderboard_task,
-            arena_task,
-            aa_task,
-            aider_task,
-            vision_task,
+            benchmark_sources.fetch_leaderboard_with_fallback(client),
+            benchmark_sources.fetch_arena_scores(client),
+            benchmark_sources.fetch_aa_index_scores(client),
+            aa_evals.fetch_aa_eval_scores(client, AA_TASK_EVALS),
+            benchmark_sources.fetch_vision_scores(client),
             return_exceptions=True,
         )
 
@@ -93,35 +102,104 @@ async def fetch_benchmark_scores() -> dict[str, float]:
         aa_result = benchmark_sources.get_aa_curated_fallback()
     logger.debug(f"AA Index: {len(aa_result)} scores (current)")
 
-    current.update(
-        _merge_general_scores(
-            (livebench_result, benchmark_sources.LIVEBENCH_ESTIMATED_IDS),
-            (aa_result, benchmark_sources.AA_PEER_IDS),
-        )
+    general_sources = (
+        (livebench_result, benchmark_sources.LIVEBENCH_ESTIMATED_IDS),
+        (aa_result, benchmark_sources.AA_PEER_IDS),
     )
-
-    if isinstance(aider_result, BaseException):
-        logger.warning(f"Aider fetch failed: {aider_result}")
-    else:
-        for k, v in aider_result.items():
-            if current.get(k, 0.0) < v * 0.85:
-                current[k] = v * 0.85
-        logger.debug(f"Aider polyglot: {len(aider_result)} scores (current, 0.85x)")
-
-    if isinstance(vision_result, BaseException):
-        logger.warning(f"Vision fetch failed: {vision_result}")
-    else:
-        for k, v in vision_result.items():
-            if current.get(k, 0.0) < v:
-                current[k] = v
-        logger.debug(f"Vision: {len(vision_result)} scores (current)")
+    current.update(_merge_general_scores(*general_sources))
 
     combined: dict[str, float] = dict(frozen)
     combined.update(current)
     combined = _apply_lineage_recency_demotion(combined, frozen, current)
-
     logger.debug(f"Combined: {len(combined)} benchmark scores")
-    return combined
+
+    if isinstance(aa_evals_result, BaseException):
+        logger.warning(f"AA benchmarks fetch failed, using snapshot: {aa_evals_result}")
+        aa_evals_result = aa_evals.load_aa_eval_snapshot()
+    if isinstance(vision_result, BaseException):
+        logger.warning(f"Vision fetch failed: {vision_result}")
+        vision_result = {}
+
+    anchor = {
+        model_id: current[model_id]
+        for scores, estimated_ids in general_sources
+        for model_id in scores
+        if model_id not in estimated_ids and model_id in current
+    }
+    new_general, tasks = _task_scores(
+        aa_evals_result,
+        vision_result,
+        anchor,
+        combined,
+        [*model_ids, *combined],
+    )
+    combined.update(new_general)
+    return BenchmarkData(general=combined, tasks=tasks)
+
+
+def _task_scores(
+    aa_results: dict[str, dict[str, float]],
+    vision: dict[str, float],
+    anchor: dict[str, float],
+    general: dict[str, float],
+    model_ids: list[str],
+) -> tuple[dict[str, float], dict[str, dict[str, float]]]:
+    """General scores for releases the general index lacks, and task scores."""
+    from whichllm.models.benchmark_sources.aa_index import (
+        AA_NAME_TO_HF_IDS,
+        _canonical_name,
+    )
+    from whichllm.models.task_scores import (
+        TASK_EVALS,
+        build_task_scores,
+        match_names_to_ids,
+    )
+
+    matches = match_names_to_ids(aa_results, model_ids)
+    for display, ids in AA_NAME_TO_HF_IDS.items():
+        name = _canonical_name(display)
+        if name in aa_results:
+            matches[name] = sorted({*matches.get(name, ()), *ids})
+
+    # Repo ids differ in case between sources (gemma-4-31B-it, gemma-4-31b-it);
+    # key everything by the general index's spelling so the two line up.
+    spelling = {k.lower(): k for k in general}
+
+    def key(model_id: str) -> str:
+        return spelling.get(model_id.lower(), model_id)
+
+    evals_by_id: dict[str, dict[str, float]] = {}
+    # Every repo a display name matched shares that release's general score,
+    # so a single-benchmark profile score is steadied the same way for all.
+    release_general: dict[str, float] = dict(general)
+    for name, ids in matches.items():
+        ids = sorted({key(i) for i in ids})
+        known = [general[i] for i in ids if i in general]
+        for model_id in ids:
+            results = evals_by_id.setdefault(model_id, {})
+            for eval_id, value in aa_results[name].items():
+                results[eval_id] = max(value, results.get(eval_id, value))
+            if known and model_id not in release_general:
+                release_general[model_id] = max(known)
+    for model_id, value in vision.items():
+        evals_by_id.setdefault(key(model_id), {})["vision-index"] = value
+
+    fill = build_task_scores(evals_by_id, anchor, release_general, ["general"])
+    new_general = {
+        model_id: score
+        for model_id, score in fill.get("general", {}).items()
+        if model_id not in release_general
+    }
+    logger.debug(f"General scores from AA benchmarks: {len(new_general)} new models")
+    tasks = build_task_scores(
+        evals_by_id,
+        anchor,
+        {**release_general, **new_general},
+        [p for p in TASK_EVALS if p != "general"],
+    )
+    for profile, scores in tasks.items():
+        logger.debug(f"Task scores ({profile}): {len(scores)} models")
+    return new_general, tasks
 
 
 def _merge_general_scores(

@@ -145,7 +145,7 @@ whichllm separates sources into two tiers:
 
 | Tier | Sources | Treatment |
 | --- | --- | --- |
-| Current | LiveBench, Artificial Analysis, Aider, Vision | Overrides frozen scores for the same model |
+| Current | LiveBench, Artificial Analysis | Overrides frozen scores for the same model |
 | Frozen | Open LLM Leaderboard v2, Chatbot Arena ELO | Kept for older coverage, capped and recency-demoted |
 
 Current sources can use live scrapes when reachable and curated snapshots when
@@ -157,8 +157,26 @@ normalized scale with a fit over the models both sources measured (residual
 spread about 3 points), and a model's score is the mean of the values that
 measured it. Hand-estimated entries (LiveBench carryovers for models it no
 longer lists, AA "peer" entries for models AA does not track) count only when
-neither source measured the model. Aider and vision scores can still raise a
-model's score as specialist evidence.
+neither source measured the model.
+
+AA's leaderboard also lists, for each model, its results on the individual
+benchmarks AA runs. Each benchmark is mapped onto the general scale by
+matching its mean and spread over the models it shares with the general
+index. Two things come out of that:
+
+- **Task scores** for `--profile coding` (SciCode, Terminal-Bench,
+  LiveCodeBench, FrontierCode), `math` (AIME 2025) and `vision` (MMMU-Pro and
+  a curated vision index for older VLMs). A model with one such benchmark has
+  it averaged with its general score.
+- **A general score for new releases** that neither LiveBench nor the pinned
+  AA index covers yet, from at least three broad benchmarks (GPQA Diamond,
+  Humanity's Last Exam, IFBench, AA-LCR, tau2-bench, Terminal-Bench, SciCode).
+  On the models that have both, it lands within about 4 points of the general
+  score on average and runs a few points low on the strongest models.
+
+The per-benchmark results are read live and fall back to a committed
+snapshot, `src/whichllm/data/aa_evals.json` (refresh it with
+`scripts/update_aa_evals.py`).
 
 Within Artificial Analysis, mapped live scores replace stored AA scores even
 when lower or zero. The stored snapshot supplies models absent from the live

@@ -161,6 +161,11 @@ def catalog_benchmarks() -> dict[str, float]:
     return dict(load_catalog()["benchmark_scores"])
 
 
+def catalog_task_scores(profile: str) -> dict[str, float]:
+    """The profile's task scores; empty for general or an older catalog."""
+    return dict((load_catalog().get("task_scores") or {}).get(profile) or {})
+
+
 @lru_cache(maxsize=1)
 def load_spec() -> tuple[tuple[Archetype, ...], tuple[Constraint, ...]]:
     with ARCHETYPES_PATH.open("rb") as f:
@@ -267,6 +272,7 @@ def _rank(
         context_length=context_length,
         top_n=RANK_DEPTH,
         benchmark_scores=benchmark_scores,
+        task_scores=catalog_task_scores(profile),
         task_profile=profile,
         require_direct_top=True,
         evidence_filter="any",
