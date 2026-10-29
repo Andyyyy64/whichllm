@@ -10,389 +10,178 @@
   <a href="https://trendshift.io/repositories/30336" target="_blank"><img src="https://trendshift.io/api/badge/repositories/30336" alt="Andyyyy64%2Fwhichllm | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </p>
 
-**Find the best local LLM that actually runs on your hardware.**
+**The smartest model your PC can actually run, including ones you didn't know it could.**
 
-Auto-detects your GPU/CPU/RAM and ranks the top models from HuggingFace that fit your system.
+whichllm reads your GPU, RAM and memory bandwidth, works out which open
+models fit and how fast each one will generate, and ranks them by benchmark
+results. Then it prints the command that runs the top pick the way it was
+estimated.
 
 [日本語版はこちら](docs/README.ja.md)
 
 ## Quick start
 
-Run the recommendation command once, with no project setup.
-
 ```bash
 uvx whichllm@latest
 ```
 
-Simulate a GPU before you buy hardware.
+Shopping for a GPU? Simulate one:
 
 ```bash
 uvx whichllm@latest --gpu "RTX 4090"
 ```
 
-Install it when you use it often.
+To keep it around:
 
 ```bash
 uv tool install whichllm
-uv tool upgrade whichllm  # update an existing install
-```
-
-Other install paths.
-
-```bash
 brew install andyyyy64/whichllm/whichllm
 pip install whichllm
 ```
 
-## Want a safer pick?
+## Example
 
-By default, whichllm is ambitious. It ranks the best model that looks runnable
-on your machine, including partial RAM offload and near-edge VRAM fits when
-they seem usable.
-
-If you want a more comfortable LM Studio-style recommendation, start with:
-
-```bash
-uvx whichllm@latest --gpu-only --speed usable --vram-headroom 1GB
-```
-
-This keeps only models that fit fully in GPU VRAM, filters out slow estimates,
-and leaves extra VRAM for runtime overhead.
-
-If LM Studio still says the model is slightly too large, increase the headroom:
-
-```bash
-uvx whichllm@latest --gpu-only --speed usable --vram-headroom 1.5GB
-```
-
-## Common workflows
-
-After install, run `whichllm` directly. For one-off runs, replace `whichllm`
-with `uvx whichllm@latest`.
-
-```bash
-# Best models for this machine
-whichllm
-
-# Pretend you have a specific GPU
-whichllm --gpu "RTX 4090"
-
-# Override detected iGPU/unified-memory limits
-whichllm --vram 8 --ram-bandwidth 68
-
-# Only show models that fit fully in GPU VRAM
-whichllm --gpu-only
-whichllm --fit gpu
-
-# Simulate a multi-GPU workstation
-whichllm --gpu "2x RTX 4090"
-
-# Hide models that are technically runnable but too slow
-whichllm --speed usable
-whichllm --speed fast
-
-# Pasteable GitHub / Slack / Discord output
-whichllm --markdown
-
-# Compare upgrade candidates
-whichllm upgrade "RTX 4090" "RTX 5090" "H100"
-
-# Find the GPU needed for a model
-whichllm plan "llama 3 70b"
-
-# Start a chat with a model
-whichllm run "qwen 2.5 1.5b gguf"
-
-# Print copy-paste Python
-whichllm snippet "qwen 7b"
-
-# Return JSON for scripts
-whichllm --top 1 --json
-```
-
-![demo](assets/demo.gif)
-
-## See it
+A desktop with an 8 GB RTX 4060 and 32 GB of DDR4 (output trimmed):
 
 ```text
-$ whichllm --gpu "RTX 4090"
+$ whichllm
 
-#1  Qwen/Qwen3.6-27B     27.8B  Q5_K_M   score 92.8    27 t/s
-#2  Qwen/Qwen3-32B       32.0B  Q4_K_M   score 83.0    31 t/s
-#3  Qwen/Qwen3-30B-A3B   30.0B  Q5_K_M   score 82.7   102 t/s
+ #  Model                       Quant   Fit       Speed     Score
+ 1  Qwen/Qwen3.6-35B-A3B        Q5_K_M  GPU+RAM   20 tok/s   68.9
+ 2  Qwen/Qwen3.5-35B-A3B        Q5_K_M  GPU+RAM   20 tok/s   68.3
+ 3  google/gemma-4-26B-A4B-it   Q5_K_M  GPU+RAM   10 tok/s   65.3
+ 4  zai-org/GLM-4.7-Flash       Q5_K_M  GPU+RAM   15 tok/s   62.2
+ 5  Qwen/Qwen3.5-9B             Q4_K_M  Full GPU  28 tok/s   62.1
+
+  Run #1 with llama.cpp:
+    llama-server -hf unsloth/Qwen3.6-35B-A3B-GGUF:Q5_K_M -c 4096 -ngl 99 --n-cpu-moe 33 -fa on
 ```
 
-The 32B model **fits your card fine** — whichllm still ranks the 27B #1,
-because it scores higher on real benchmarks and is a newer generation.
-A size-only "what fits?" tool would hand you the bigger one. That gap is
-the whole point of whichllm. (Note #3: a MoE model at 102 t/s — speed is
-ranked on *active* params, quality on *total*.)
+The top pick is a 35B model on an 8 GB card. It is a mixture-of-experts
+model, so each token only uses about 3B of its parameters. whichllm keeps
+attention, the shared weights and the KV cache in VRAM and leaves the experts
+of 33 of its 40 layers in system RAM, which is what llama.cpp's `--n-cpu-moe`
+does. The speed estimate counts only what each token reads from each place.
+A fits-in-VRAM check would have skipped the model, and treating it as a
+plain partial offload would have rated it far too slow.
 
-## What can I run?
+On a 24 GB RTX 4090 the same logic picks Qwen3.8-27B, although Qwen3-32B
+also fits there at Q4_K_M. The 27B scores higher on current benchmarks, so
+the 32B ends up at #19.
 
-Real top picks (snapshot 2026-05 — your results track **live** HuggingFace
-data, this is not a static list):
+Speeds are estimates from memory bandwidth, not measurements of your
+machine. The table marks how confident each estimate is.
 
-| Hardware | VRAM | Top pick | Speed |
-|---|---|---|---|
-| RTX 5090 | 32 GB | `Qwen3.6-27B` · Q6_K · score 94.7 | ~40 t/s |
-| RTX 4090 / 3090 | 24 GB | `Qwen3.6-27B` · Q5_K_M · score 92.8 | ~27 t/s |
-| RTX 4060 | 8 GB | `Qwen3-14B` · Q3_K_M · score 71.0 | ~22 t/s |
-| Apple M3 Max | 36 GB | `Qwen3.6-27B` · Q5_K_M · score 89.4 | ~9 t/s |
-| CPU only | — | `gpt-oss-20b` (MoE) · Q4_K_M · score 45.2 | ~6 t/s |
+## How it ranks
 
-`whichllm --gpu "<your card>"` simulates any of these before you buy.
-By default, rankings include full-GPU, partial-offload, and CPU-only
-candidates when they are usable. Use `--gpu-only` or `--fit full-gpu` when
-you only want models that fit entirely in GPU VRAM.
-The default table shows memory, estimated generation speed, fit type, and
-published date. Speed is colored by practical usability: under 4 tok/s is red,
-4-10 is yellow, 10-30 is green, and 30+ is bright green. `~` / `?` still mark
-estimate confidence.
+Quality comes from Artificial Analysis and LiveBench, put on one scale and
+averaged, with Aider for coding and a vision index for image input. The Open
+LLM Leaderboard and Chatbot Arena are frozen, so they only score models
+nothing current covers, and older generations are demoted. Each match
+records how it was found (the exact repo, its base model, a same-family
+interpolation, or the uploader's own claim) and weaker matches count for
+less. whichllm never recommends pretrain-only base checkpoints.
 
-## Why whichllm?
+To check the fit, memory is counted as weights plus a KV cache computed
+layer by layer from the model's `config.json` (grouped-query and latent
+attention, sliding windows, recurrent layers), plus runtime buffers. When a
+model does not fit in VRAM, a mixture-of-experts model first moves experts
+to RAM; any other model spills whole layers.
 
-Fitting a model into your VRAM is the easy part. The hard part is knowing
-**which of the models that fit is actually the best** — and that is what
-whichllm is built to get right.
+Speed is bound by memory bandwidth: the GPU reads its share of the weights
+at VRAM speed and the CPU reads the rest at RAM speed. The CPU side is
+calibrated against llama.cpp runs. A model that fits but would generate
+1 tok/s is ranked down.
 
-- **Evidence-based ranking, not a size heuristic** — The top pick is
-  chosen from merged real benchmarks (LiveBench, Artificial Analysis,
-  Aider, multimodal/vision, Chatbot Arena ELO, Open LLM Leaderboard) —
-  never "the biggest model that happens to fit."
-- **Recency-aware** — Stale leaderboards are demoted along each model's
-  lineage, so a 2024 model can't outrank a current-generation one on an
-  outdated score. The benchmark snapshot date is printed under every
-  ranking, so a stale recommendation is self-evident instead of silently
-  trusted.
-- **Evidence-graded and guarded** — Every score is tagged
-  `direct` / `variant` / `base` / `interpolated` / `self-reported` and
-  discounted by confidence. Fabricated uploader claims and cross-family
-  inheritance (a small fork borrowing its much larger base's score) are
-  actively rejected.
-- **Architecture-aware estimates** — VRAM = weights + per-layer KV cache
-  from each model's config.json (GQA, sliding windows, latent attention,
-  hybrid recurrent layers) + activation + overhead; speed is
-  bandwidth-bound with per-quant efficiency, per-backend factors, MoE
-  active-vs-total split, and unified-memory vs discrete-PCIe
-  partial-offload modeling.
-- **One command, scriptable** — `whichllm` prints the answer; add
-  `--json | jq` for pipelines. No TUI, no keybindings to memorize.
-- **Fresh data, one request** — A daily index built from the HuggingFace
-  API, every model's config.json and the benchmark sources, checked by
-  quality gates before it is published. A cold start takes about a second;
-  `--live` fetches everything directly instead.
+The details are in [Scoring](docs/scoring.md) and
+[How it works](docs/how-it-works.md).
 
-## Features
+## How we test recommendations
 
-- **Auto-detect hardware** — NVIDIA, AMD, Intel, Apple Silicon, CPU-only
-- **Smart ranking** — Scores models by VRAM fit, speed, and benchmark quality
-- **One-command chat** — `whichllm run` downloads and starts a chat session instantly
-- **Code snippets** — `whichllm snippet` prints ready-to-run Python for any model
-- **Daily index** — Models, shapes and benchmark scores in one prebuilt file (`--live` to fetch directly)
-- **Benchmark-aware** — Integrates real eval scores with confidence-based dampening
-- **Task profiles** — Filter by general, coding, vision, or math use cases
-- **GPU simulation** — Test with any GPU: `whichllm --gpu "RTX 4090"`
-- **Multi-GPU simulation** — Repeat `--gpu`, use commas, or write `2x RTX 4090`
-- **Full-GPU filter** — `--gpu-only` / `--fit full-gpu` hides offload candidates
-- **Speed-aware filtering** — `--speed usable|fast` hides slow rows by threshold
-- **Markdown output** — `--markdown` / `-m` prints pasteable GFM tables
-- **Runtime memory budgets** — `--vram-headroom` and `--ram-budget` avoid edge fits
-- **LM Studio detection** — Marks exact, complete GGUF artifacts already installed
-- **Hardware planning** — Reverse lookup: `whichllm plan "llama 3 70b"`
-- **Upgrade planning** — Compare your current machine with candidate GPUs
-- **JSON output** — Pipe-friendly: `whichllm --json`
+A wrong recommendation is a bug, so the rankings have regression tests:
+[`tests/golden/`](tests/golden/).
 
-## Run & Snippet
+- 17 hardware archetypes, from a 6 GB RTX 2060 to a 128 GB M4 Max, plus
+  CPU-only boxes and 32K/128K-context setups, ranked against a frozen catalog
+  of 1,129 models.
+- 9 constraints describe what a good answer looks like instead of pinning an
+  exact order: no pretrain-only checkpoints, no outdated generation in the
+  top 3, a #1 that needs RAM offload must still reach 4 tok/s, the newest
+  dense 27B makes the top 3 on 24 GB+, a big MoE with experts in RAM makes the
+  top 5 on a 16 GB card with 64 GB of RAM, and coding picks are not limited
+  to models named "coder".
+- The top picks for every archetype are committed in
+  [`top_picks.md`](tests/golden/top_picks.md), so any ranking change shows up
+  as a diff in review.
+- A constraint that is known to fail is recorded with its reason as a strict
+  expected failure. Fixing the bug turns it into a test failure until the
+  record is removed.
 
-Try any model with a single command. No manual installs needed — whichllm
-creates an isolated environment via `uv`, installs dependencies, downloads the
-model, and starts an interactive chat.
+If whichllm picks something you would not run on your hardware, open an
+issue with the output. The 6 GB and RTX 3060 archetypes started as reports
+like that ([#76](https://github.com/Andyyyy64/whichllm/issues/76),
+[#104](https://github.com/Andyyyy64/whichllm/issues/104)).
+
+## Commands
+
+```bash
+whichllm                          # best models for this machine
+whichllm --gpu "RTX 5060 Ti"      # simulate a GPU (add --vram 16 for a variant)
+whichllm --gpu "2x RTX 3090"      # or several
+whichllm --profile coding         # general, coding, vision, math, any
+whichllm --context-length 64k     # long context changes what fits
+whichllm --gpu-only               # only models that fit entirely in VRAM
+whichllm --speed usable           # hide anything under 10 tok/s
+whichllm --markdown               # pasteable table for issues and chats
+whichllm --json                   # rows include placement and the run recipe
+
+whichllm hardware                 # what was detected
+whichllm plan "qwen3 32b"         # what GPU a model needs
+whichllm upgrade "RTX 4090" "RTX 5090"   # compare against candidate GPUs
+whichllm run                      # download the top pick and chat with it
+whichllm snippet                  # print Python that loads the top pick
+```
+
+Every option is in the [CLI reference](docs/cli.md).
+
+If LM Studio complains that a pick is slightly too large, ask for a more
+conservative fit:
+
+```bash
+whichllm --gpu-only --speed usable --vram-headroom 1.5GB
+```
+
+If an integrated GPU or unified memory is detected with the wrong limits,
+override them with `--vram` and `--ram-bandwidth` (see
+[Hardware](docs/hardware.md)).
+
+## Run and snippet
+
+`whichllm run` creates a throwaway environment with `uv`, downloads the model
+and opens a chat. Without a model name it takes the top pick and uses the
+layer split from the ranking.
 
 ![run demo](assets/demo-run.gif)
 
 ```bash
-# Chat with a model (auto-picks the best GGUF variant)
-whichllm run "qwen 2.5 1.5b gguf"
-
-# Auto-pick the best model for your hardware and chat
 whichllm run
-
-# CPU-only mode
+whichllm run "qwen 2.5 1.5b gguf"
 whichllm run "phi 3 mini gguf" --cpu-only
 ```
 
-Works with **all model formats**:
-- **GGUF** — via `llama-cpp-python` (lightweight, fast)
-- **AWQ / GPTQ** — via `transformers` + `autoawq` / `auto-gptq`
-- **FP16 / BF16** — via `transformers`
+GGUF models run through `llama-cpp-python`, others through `transformers`.
+llama-cpp-python cannot keep only the experts in RAM, so for an
+expert-offload pick `run` falls back to a slower layer split and prints the
+`llama-server` command that matches the estimate. See
+[Run and snippet](docs/run-snippet.md).
 
-Get a **copy-paste Python snippet** instead:
+## Where the data comes from
 
-```bash
-whichllm snippet "qwen 7b"
-```
-
-```python
-from llama_cpp import Llama
-
-llm = Llama.from_pretrained(
-    repo_id="Qwen/Qwen2.5-7B-Instruct-GGUF",
-    filename="qwen2.5-7b-instruct-q4_k_m.gguf",
-    n_ctx=4096,
-    n_gpu_layers=-1,
-    verbose=False,
-)
-
-output = llm.create_chat_completion(
-    messages=[{"role": "user", "content": "Hello!"}],
-)
-print(output["choices"][0]["message"]["content"])
-```
-
-## Usage
-
-```bash
-# Auto-detect hardware and show best models
-whichllm
-
-# Simulate a GPU (e.g. planning a purchase)
-whichllm --gpu "RTX 4090"
-whichllm --gpu "RTX 5090"
-# Specify variant
-whichllm --gpu "RTX 5060 16"
-# Override detected iGPU/unified-memory limits
-whichllm --vram 8 --ram-bandwidth 68
-# Simulate multiple GPUs
-whichllm --gpu "2x RTX 4090"
-whichllm --gpu "RTX 4090" --gpu "RTX 3090"
-whichllm --gpu "RTX 4090, RTX 3090"
-
-# Only show models that fit entirely in GPU VRAM
-whichllm --gpu-only
-whichllm --fit gpu
-whichllm --fit full-gpu
-
-# Avoid edge fits and background-RAM surprises
-whichllm --vram-headroom 1.5GB
-whichllm --ram-budget available
-whichllm --ram-budget 8GB
-
-# CPU-only mode
-whichllm --cpu-only
-
-# More results / filters
-whichllm --top 20
-whichllm --details          # show Downloads metadata instead of runtime columns
-whichllm --speed usable     # minimum 10 tok/s
-whichllm --speed fast       # minimum 30 tok/s
-whichllm --min-speed 4      # exact tok/s floor
-whichllm --markdown         # pasteable GitHub-Flavored Markdown table
-whichllm --profile coding
-whichllm --context-length 64k
-whichllm --quant Q4_K_M
-whichllm --min-speed 30     # exact tok/s floor
-whichllm --evidence base   # allow id/base-model matches
-whichllm --evidence strict # id-exact only (same as --direct)
-whichllm --direct
-
-# JSON output
-whichllm --json
-
-# Force refresh (ignore cache)
-whichllm --refresh
-
-# Show hardware info only
-whichllm hardware
-
-# Plan: what GPU do I need for a specific model?
-whichllm plan "llama 3 70b"
-whichllm plan "Qwen2.5-72B" --quant Q8_0
-whichllm plan "mistral 7b" --context-length 32768
-
-# Upgrade: compare your current machine against candidate GPUs
-whichllm upgrade "RTX 4090" "RTX 5090" "H100"
-whichllm upgrade "Apple M4 Max" --top 5
-
-# Run: download and chat with a model instantly
-whichllm run "qwen 2.5 1.5b gguf"
-whichllm run                       # auto-pick best for your hardware
-
-# Snippet: print ready-to-run Python code
-whichllm snippet "qwen 7b"
-whichllm snippet "llama 3 8b gguf" --quant Q5_K_M
-```
-
-Markdown output is intended for GitHub issues, READMEs, Slack, Discord, and
-blog posts:
-
-```bash
-whichllm --markdown
-whichllm -m --top 5 --gpu "RTX 4090"
-```
-
-JSON model rows include `fit_type`, `vram_required_bytes`,
-`vram_available_bytes`, `uses_multi_gpu`, `multi_gpu_effective_vram_bytes`,
-`estimated_tok_per_sec`, `speed_confidence`, `speed_range_tok_per_sec`,
-`speed_notes`, `benchmark_source`, and `benchmark_confidence`. The speed range
-is a planning range, not a live benchmark.
-
-## Integrations
-
-### Ollama
-
-Use JSON output to feed scripts that map HuggingFace IDs to your local Ollama
-model names:
-
-```bash
-# Pick the top HuggingFace model ID
-whichllm --top 1 --json | jq -r '.models[0].model_id'
-
-# Find the best coding model ID
-whichllm --profile coding --top 1 --json | jq -r '.models[0].model_id'
-```
-
-Ollama model names do not always match HuggingFace repo IDs, so a small mapping
-step is usually needed before `ollama run`.
-
-### Shell alias
-
-Add to your `.bashrc` / `.zshrc`:
-
-```bash
-alias bestllm='whichllm --top 1 --json | jq -r ".models[0].model_id"'
-# Usage: ollama run $(bestllm)
-```
-
-## Scoring
-
-Each model gets a 0-100 score. Benchmark quality and size form the core;
-evidence confidence and runtime fit then scale it, with speed, source
-trust, and popularity as adjustments.
-
-| Factor | Effect | Description |
-|--------|--------|-------------|
-| Benchmark quality | core | Merged LiveBench / Artificial Analysis / Aider / Vision / Arena ELO / Open LLM Leaderboard, weighted by source confidence |
-| Model size | up to 35 | `log2`-scaled world-knowledge proxy (MoE uses total params) |
-| Quantization | × penalty | Lower-bit quants discounted multiplicatively |
-| Evidence confidence | ×0.55–1.0 | none / self-reported ×0.55, inherited ×0.78, direct full |
-| Runtime fit | ×0.50–1.0 | partial-offload ×0.72, CPU-only ×0.50 |
-| Speed | -8 to +8 | Usability gate vs a fit-dependent tok/s floor; reported with confidence and range metadata |
-| Source trust | -5 to +5 | Official-org bonus, known-repackager penalty |
-| Popularity | tie-breaker | Downloads/likes; weight shrinks as evidence strengthens |
-
-Score markers:
-- **`~`** (yellow) — No direct benchmark; score inherited/interpolated from the model family
-- **`!sr`** (bright yellow) — Uploader-reported benchmark only, not independently verified
-- **`?`** (red) — No benchmark data available
-
-Speed display:
-- **red** — Slow generation speed (`<4 tok/s`)
-- **yellow** — Marginal generation speed (`4-10 tok/s`)
-- **green** — Usable generation speed (`10-30 tok/s`)
-- **bright green** — Fast local generation speed (`>=30 tok/s`)
-- **`~`** (yellow) — Estimated tok/s range is available
-- **`?`** (red) — Low-confidence speed estimate; backend/runtime sensitivity is high
+whichllm reads a prebuilt index: the Hugging Face model list, each family's
+`config.json` and the merged benchmark scores, rebuilt daily on GitHub
+Actions and published only if it passes quality checks. A cold start takes
+about a second and makes no Hugging Face API calls. `--live` fetches
+everything directly instead, and `HF_TOKEN` is used when set.
 
 ## Documentation
 
@@ -402,80 +191,6 @@ Speed display:
 - [Hardware detection and simulation](docs/hardware.md)
 - [Run and snippet](docs/run-snippet.md)
 - [Troubleshooting](docs/troubleshooting.md)
-
-## How it works
-
-### Data pipeline
-
-1. **Model fetching** — Fetches popular models from HuggingFace API:
-   - Text-generation (downloads + recently updated)
-   - GGUF-filtered (separate query for coverage)
-   - Vision models (`image-text-to-text`) when `--profile vision` or `any`
-2. **Benchmark sources** — *Current tier* (LiveBench, Artificial Analysis
-   Index, Aider) merged live when reachable, plus a curated multimodal /
-   vision index; *frozen tier* (Open LLM Leaderboard v2, Chatbot Arena
-   ELO). Tiers have separate caps and lineage-aware recency demotion so
-   stale leaderboards stop over-rewarding older generations.
-3. **Benchmark evidence** — Five resolution levels, increasingly discounted:
-   - `direct` — Exact model ID match
-   - `variant` — Suffix-stripped or -Instruct variant
-   - `base_model` — Base model from cardData
-   - `line_interp` — Size-aware interpolation within model family
-   - `self_reported` — Uploader-claimed eval (heavily discounted)
-
-   Inheritance is rejected when a model's params diverge more than 2× from
-   its family's dominant member, catching draft / MTP / abliterated forks
-   that share a `family_id` with a much larger base.
-4. **Cache** — normally `~/.cache/whichllm/`, or `$XDG_CACHE_HOME/whichllm/`
-   when `XDG_CACHE_HOME` is set to an absolute path:
-   - `models.json` — 6h TTL
-   - `benchmark.json` — 24h TTL
-
-### Ranking engine
-
-1. **Hardware detection** — NVIDIA (nvidia-ml-py), AMD (ROCm/dbgpu), Intel, Apple Silicon (Metal), CPU cores, RAM, disk
-2. **VRAM estimation** — Weights + KV cache + activation + framework overhead (~500MB)
-3. **Compatibility** — Full GPU / Partial Offload / CPU-only; compute capability and OS checks
-4. **Speed** — tok/s from GPU memory bandwidth, quantization, backend, fit type, and MoE active parameters
-5. **Scoring** — Benchmark (with confidence dampening), size, quantization penalty, fit type, speed, popularity, source trust (official vs repackager)
-6. **Backend filter** — Apple Silicon and CPU-only restrict to GGUF for stability; Linux+NVIDIA allows AWQ/GPTQ
-
-### Project structure
-
-```
-src/whichllm/
-├── cli.py              # Typer CLI: main, plan, run, snippet, hardware
-├── constants.py        # Backward-compatible exports for registry data
-├── data/               # GPU, quantization, framework, and lineage registries
-├── hardware/
-│   ├── detector.py     # Orchestrates GPU/CPU/RAM detection
-│   ├── nvidia.py       # NVIDIA GPU via nvidia-ml-py
-│   ├── amd.py          # AMD GPU (Linux)
-│   ├── apple.py        # Apple Silicon (Metal)
-│   ├── cpu.py          # CPU name, cores, AVX support
-│   ├── memory.py       # RAM and disk free
-│   ├── gpu_simulator.py # --gpu flag: synthetic GPU from name
-│   └── types.py        # GPUInfo, HardwareInfo
-├── models/
-│   ├── fetcher.py      # HuggingFace API, model parsing, evalResults
-│   ├── benchmark.py    # Arena ELO, Leaderboard (parquet/rows API)
-│   ├── grouper.py      # Family grouping by base_model and name
-│   ├── cache.py        # JSON cache with TTL
-│   └── types.py        # ModelInfo, GGUFVariant, ModelFamily
-├── engine/
-│   ├── vram.py         # VRAM = weights + KV cache + activation + overhead
-│   ├── compatibility.py# Fit type, disk check, compute/OS warnings
-│   ├── performance.py  # tok/s from bandwidth
-│   ├── quantization.py # Bytes per weight, quality penalty, non-GGUF inference
-│   ├── ranker.py       # Scoring, evidence filter, profile/match
-│   └── types.py        # CompatibilityResult
-└── output/
-    ├── ranking.py      # Rich hardware and recommendation tables
-    ├── json_output.py  # Ranking, plan, and upgrade JSON
-    ├── plan.py         # plan command display
-    ├── upgrade.py      # upgrade comparison display
-    └── display.py      # Compatibility re-export shim
-```
 
 ## Development
 
@@ -487,31 +202,23 @@ uv run whichllm
 uv run pytest
 ```
 
-## Contributing
-
-Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Ranking changes need a look at the golden snapshot:
+`uv run python scripts/update_golden.py report`. See
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Support
 
-If whichllm helped you find a model or avoid a bad hardware guess,
-sponsoring is appreciated. It helps keep the project maintained: hardware
-reports, packaging, test fixtures, benchmark updates, and support for more
-machines.
+If whichllm saved you a bad download or a bad hardware purchase, sponsoring
+helps keep it maintained: hardware reports, benchmark updates, packaging and
+support for more machines. It stays open source either way.
 
-whichllm will stay open-source either way. Issues and PRs are always welcome.
-
-Useful? A GitHub star helps other people find it, and I'd genuinely like to
-know what it picked for your rig. Drop it in [Issues](https://github.com/Andyyyy64/whichllm/issues).
+A star helps other people find it. I'd also like to hear what it picked for
+your machine, so feel free to drop it in
+[Issues](https://github.com/Andyyyy64/whichllm/issues).
 
 ## Star History
 
 [![Star History Chart](https://star-history.dera.page/svg?repos=Andyyyy64/whichllm&type=Date)](https://star-history.dera.page/#Andyyyy64/whichllm&Date)
-
-## Requirements
-
-- Python 3.11+
-- NVIDIA GPU detection via `nvidia-ml-py` (included by default)
-- AMD / Apple Silicon detected automatically
 
 ## License
 
