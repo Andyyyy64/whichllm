@@ -23,6 +23,12 @@ MAX_DROP_FROM_PREVIOUS = 0.2
 MIN_TASK_SCORES = {"coding": 20, "vision": 15}
 MAX_TASK_DROP_FROM_PREVIOUS = 0.5
 
+# A release counts as recent and popular when it was published in the last
+# RECENT_DAYS and has at least RECENT_MIN_DOWNLOADS downloads. The build lists
+# those without a benchmark score, so a gap shows up within a day.
+RECENT_DAYS = 45
+RECENT_MIN_DOWNLOADS = 5_000
+
 
 async def build_index(
     *,
@@ -77,11 +83,98 @@ async def build_index(
         },
         "models": model_dicts,
         "benchmark_scores": dict(sorted(scores.items())),
+        "sources": benchmarks.sources,
+        "coverage": recent_coverage(models, scores),
         "task_scores": {
             p: dict(sorted(s.items())) for p, s in sorted(benchmarks.tasks.items())
         },
     }
     return payload, report
+
+
+def recent_coverage(
+    models: list, scores: dict[str, float], now: datetime | None = None
+) -> dict:
+    """How many recent popular releases have a general benchmark score.
+
+    An original release without a score is listed by id. A derivative
+    (finetune, abliteration, merge) without one is listed by its base, and
+    only when nothing further up its lineage has a score either: then the gap
+    is the base's, not the derivative's.
+    """
+    from whichllm.engine.ranking_filters import _is_auxiliary_model
+    from whichllm.models.benchmark import (
+        build_line_bucket_index,
+        build_score_index,
+        build_score_name_index,
+        lookup_benchmark_evidence,
+    )
+    from whichllm.models.roles import find_base_checkpoints
+
+    now = now or datetime.now(timezone.utc)
+    base_checkpoints = find_base_checkpoints(models)
+    by_id = {model.id: model for model in models}
+    ci_index, line_index = build_score_index(scores)
+    bucket_index = build_line_bucket_index(scores)
+    name_index = build_score_name_index(scores)
+
+    def scored(model_id: str, base_model: str | None = None) -> bool:
+        evidence = lookup_benchmark_evidence(
+            model_id,
+            base_model,
+            scores,
+            ci_index=ci_index,
+            line_index=line_index,
+            line_bucket_index=bucket_index,
+            name_index=name_index,
+        )
+        return evidence.source in ("direct", "variant", "base_model")
+
+    def lineage(model) -> list[str]:
+        chain: list[str] = []
+        while model is not None and model.base_model:
+            if model.base_model == model.id or model.base_model in chain:
+                break
+            chain.append(model.base_model)
+            model = by_id.get(model.base_model)
+        return chain
+
+    recent, unscored, derivatives = 0, [], 0
+    unscored_bases: list[str] = []
+    for model in sorted(models, key=lambda m: -m.downloads):
+        if model.downloads < RECENT_MIN_DOWNLOADS or not model.published_at:
+            continue
+        if model.base_model_relation == "quantized" or model.id in base_checkpoints:
+            continue
+        if _is_auxiliary_model(model):
+            continue
+        try:
+            published = datetime.fromisoformat(
+                model.published_at.replace("Z", "+00:00")
+            )
+        except ValueError:
+            continue
+        if (now - published).days > RECENT_DAYS:
+            continue
+        recent += 1
+        if scored(model.id, model.base_model):
+            continue
+        chain = lineage(model)
+        if not chain:
+            unscored.append(model.id)
+        elif not any(scored(base) for base in chain[1:]):
+            derivatives += 1
+            if chain[0] not in unscored_bases:
+                unscored_bases.append(chain[0])
+    return {
+        "recent_days": RECENT_DAYS,
+        "recent_min_downloads": RECENT_MIN_DOWNLOADS,
+        "recent_models": recent,
+        "recent_unscored": unscored[:30],
+        "recent_unscored_count": len(unscored),
+        "recent_unscored_bases": unscored_bases[:30],
+        "recent_unscored_derivatives": derivatives,
+    }
 
 
 def quality_problems(

@@ -45,6 +45,15 @@ quality gate fails: failed catalog requests, too few models or benchmark ids,
 missing curated recent models, low shape coverage, or a large drop from the
 previous index. A failed build leaves the last good index online.
 
+Each index records its benchmark sources (name, the version or snapshot read,
+entry count) and the popular releases of the last 45 days that have no
+benchmark score. Original releases are listed by id; a finetune or
+abliteration is listed by its base, and only when nothing up its lineage has a
+score. The build log prints both, so a source that silently fell
+back to its snapshot, or a new model the sources do not cover yet, is visible
+the day it happens. `--json` output carries the build time and sources in its
+`data` object.
+
 The client revalidates the index with its ETag every 6 hours. Offline, it
 uses the cached copy of any age, and says how old it is when that is more than
 three days. `--refresh` revalidates immediately. `WHICHLLM_INDEX_URL` points

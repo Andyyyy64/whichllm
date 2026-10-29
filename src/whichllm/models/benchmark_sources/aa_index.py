@@ -129,6 +129,8 @@ _AA_INDEX_MAX = 50.0
 # another version are on a different scale, so fetch_aa_index_scores() returns
 # the snapshot when the leaderboard reports any other (or no) version.
 AA_INDEX_VERSION = "4.3.2"
+# The day the curated snapshot below was read.
+AA_SNAPSHOT_READ_AT = "2026-10-27"
 _AA_VERSION_RE = re.compile(r"Artificial Analysis Intelligence Index v(\d+(?:\.\d+)*)")
 
 AA_LEADERBOARD_URL = "https://artificialanalysis.ai/leaderboards/models"

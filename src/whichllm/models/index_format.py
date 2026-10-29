@@ -18,7 +18,9 @@ Layout (``schema_version`` 1)::
     }
 
 task_scores is optional: an index built before it existed, or a mirror
-that drops it, ranks every profile on benchmark_scores.
+that drops it, ranks every profile on benchmark_scores. So are sources (each
+benchmark source with the version or snapshot read and its entry count) and
+coverage (recent popular releases without a benchmark score).
 """
 
 from __future__ import annotations
@@ -79,4 +81,9 @@ def structure_problems(payload: object) -> list[str]:
         for scores in tasks.values()
     ):
         problems.append("task_scores must map profiles to id-number maps")
+    sources = payload.get("sources", [])
+    if not isinstance(sources, list) or not all(isinstance(s, dict) for s in sources):
+        problems.append("sources must be a list of objects")
+    if not isinstance(payload.get("coverage", {}), dict):
+        problems.append("coverage must be an object")
     return problems

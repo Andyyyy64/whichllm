@@ -139,6 +139,21 @@ def test_index_url_can_be_overridden_or_disabled(server, monkeypatch):
     assert index_client.load_index() is None
 
 
+def test_catalog_carries_the_benchmark_sources(server):
+    payload = _payload()
+    payload["sources"] = [{"name": "AA", "version": "v4.3.2", "entries": 3}]
+    server["responses"].append(_ok(payload))
+
+    catalog = index_client.load_index()
+
+    assert catalog.sources == payload["sources"]
+
+
+def test_catalog_from_an_older_index_has_no_sources(server):
+    server["responses"].append(_ok(_payload()))
+    assert index_client.load_index().sources == []
+
+
 def test_age_from_build_time():
     catalog = index_client.IndexCatalog(
         models=[], benchmark_scores={}, built_at="2026-01-01T00:00:00Z"

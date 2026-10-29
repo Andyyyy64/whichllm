@@ -22,6 +22,9 @@ class BenchmarkData:
 
     general: dict[str, float]
     tasks: dict[str, dict[str, float]] = field(default_factory=dict)
+    # One entry per source: what it scores, which version or snapshot was
+    # read, and how many entries it gave.
+    sources: list[dict] = field(default_factory=list)
 
 
 async def fetch_benchmark_scores() -> dict[str, float]:
@@ -80,11 +83,20 @@ async def fetch_benchmark_data(model_ids: Iterable[str] = ()) -> BenchmarkData:
     frozen: dict[str, float] = {}
     current: dict[str, float] = {}
 
+    sources: list[dict] = []
     if isinstance(lb_result, BaseException):
         logger.warning(f"Leaderboard fetch failed: {lb_result}")
     else:
         frozen.update(lb_result)
         logger.debug(f"Leaderboard: {len(lb_result)} scores (frozen)")
+        sources.append(
+            _source(
+                "Open LLM Leaderboard v2",
+                "general, frozen",
+                "archived 2025-06",
+                lb_result,
+            )
+        )
 
     if isinstance(arena_result, BaseException):
         logger.warning(f"Arena fetch failed, using fallback: {arena_result}")
@@ -93,6 +105,9 @@ async def fetch_benchmark_data(model_ids: Iterable[str] = ()) -> BenchmarkData:
             if frozen.get(k, 0.0) < v:
                 frozen[k] = v
         logger.debug(f"Arena: {len(arena_result)} scores (frozen)")
+        sources.append(
+            _source("Chatbot Arena", "general, frozen", "2025-07-17", arena_result)
+        )
 
     livebench_result = benchmark_sources.get_livebench_data()
     logger.debug(f"LiveBench: {len(livebench_result)} scores (current)")
@@ -101,6 +116,32 @@ async def fetch_benchmark_data(model_ids: Iterable[str] = ()) -> BenchmarkData:
         logger.warning(f"AA Index fetch failed, will use fallback: {aa_result}")
         aa_result = benchmark_sources.get_aa_curated_fallback()
     logger.debug(f"AA Index: {len(aa_result)} scores (current)")
+    from whichllm.models.benchmark_sources.aa_index import (
+        AA_INDEX_VERSION,
+        AA_SNAPSHOT_READ_AT,
+    )
+
+    aa_live = aa_result != benchmark_sources.get_aa_curated_fallback()
+    sources.append(
+        _source(
+            "Artificial Analysis Intelligence Index",
+            "general",
+            f"v{AA_INDEX_VERSION} "
+            + ("live, over the " if aa_live else "")
+            + f"{AA_SNAPSHOT_READ_AT} snapshot",
+            aa_result,
+            estimated=len(benchmark_sources.AA_PEER_IDS),
+        )
+    )
+    sources.append(
+        _source(
+            "LiveBench",
+            "general, fitted onto the AA scale",
+            "2026-01-08 snapshot",
+            livebench_result,
+            estimated=len(benchmark_sources.LIVEBENCH_ESTIMATED_IDS),
+        )
+    )
 
     general_sources = (
         (livebench_result, benchmark_sources.LIVEBENCH_ESTIMATED_IDS),
@@ -116,9 +157,22 @@ async def fetch_benchmark_data(model_ids: Iterable[str] = ()) -> BenchmarkData:
     if isinstance(aa_evals_result, BaseException):
         logger.warning(f"AA benchmarks fetch failed, using snapshot: {aa_evals_result}")
         aa_evals_result = aa_evals.load_aa_eval_snapshot()
+        aa_evals_version = f"snapshot read {aa_evals.snapshot_read_at()}"
+    else:
+        aa_evals_version = "live"
     if isinstance(vision_result, BaseException):
         logger.warning(f"Vision fetch failed: {vision_result}")
         vision_result = {}
+    sources.append(
+        {
+            "name": "Artificial Analysis benchmarks",
+            "scores": "coding, math, vision; general for releases the above miss",
+            "version": aa_evals_version,
+            "entries": len(aa_evals_result),
+            "benchmarks": sorted(AA_TASK_EVALS),
+        }
+    )
+    sources.append(_source("Curated vision index", "vision", "2026-05", vision_result))
 
     anchor = {
         model_id: current[model_id]
@@ -134,7 +188,21 @@ async def fetch_benchmark_data(model_ids: Iterable[str] = ()) -> BenchmarkData:
         [*model_ids, *combined],
     )
     combined.update(new_general)
-    return BenchmarkData(general=combined, tasks=tasks)
+    return BenchmarkData(general=combined, tasks=tasks, sources=sources)
+
+
+def _source(
+    name: str, scores: str, version: str, entries: dict, estimated: int = 0
+) -> dict:
+    source = {
+        "name": name,
+        "scores": scores,
+        "version": version,
+        "entries": len(entries),
+    }
+    if estimated:
+        source["hand_estimates"] = estimated
+    return source
 
 
 def _task_scores(

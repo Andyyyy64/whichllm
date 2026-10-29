@@ -106,6 +106,10 @@ whichllm --evidence strict
 whichllm --json | jq '.models[0]'
 ```
 
+`--json` output has a `data` object that says where the scores came from:
+`{"source": "index", "built_at": ..., "benchmark_sources": [...]}`, or
+`{"source": "live"}` with `--live`.
+
 `--markdown` is mutually exclusive with `--json`. It prints a plain Markdown
 table without the Rich hardware panel, colors, or box-drawing characters.
 

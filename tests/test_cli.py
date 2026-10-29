@@ -2499,6 +2499,28 @@ def test_main_ranks_from_the_index_without_hub_calls(monkeypatch):
     assert "whichllm index built 2026-10-29 03:17:00 UTC" in result.output
 
 
+def test_json_says_which_index_the_scores_came_from(monkeypatch):
+    import json as json_mod
+
+    captured: dict = {}
+    _main_without_network(monkeypatch, captured)
+    catalog = _index_catalog_with(_make_model("org/Indexed-8B"))
+    catalog.sources = [{"name": "AA", "version": "v4.3.2", "entries": 3}]
+    monkeypatch.setattr(
+        "whichllm.models.index_client.load_index", lambda refresh=False: catalog
+    )
+
+    result = CliRunner().invoke(app, ["--json", "--min-params", "1"])
+
+    assert result.exit_code == 0, result.output
+    data = json_mod.loads(result.stdout)["data"]
+    assert data == {
+        "source": "index",
+        "built_at": "2026-10-29T03:17:00Z",
+        "benchmark_sources": catalog.sources,
+    }
+
+
 def test_main_live_flag_skips_the_index(monkeypatch):
     captured: dict = {}
     _main_without_network(monkeypatch, captured)

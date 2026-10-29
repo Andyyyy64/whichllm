@@ -42,8 +42,13 @@ def display_json(
     results: list[CompatibilityResult],
     hardware: HardwareInfo,
     context_length: int | None = None,
+    data: dict | None = None,
 ) -> None:
-    """Output ranking results as JSON."""
+    """Output ranking results as JSON.
+
+    ``data`` says where the scores came from: the index's build time and its
+    benchmark sources, or a live fetch.
+    """
     output = {
         "hardware": {
             "gpus": [
@@ -113,6 +118,8 @@ def display_json(
             for i, r in enumerate(results, 1)
         ],
     }
+    if data is not None:
+        output["data"] = data
     _console.console.print_json(json.dumps(output, ensure_ascii=False))
 
 

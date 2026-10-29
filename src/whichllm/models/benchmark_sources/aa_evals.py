@@ -83,6 +83,16 @@ async def fetch_aa_eval_scores(
     return results
 
 
+def snapshot_read_at() -> str:
+    """The date the committed snapshot was read, or "unknown"."""
+    try:
+        return json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8")).get(
+            "read_at", "unknown"
+        )
+    except (OSError, ValueError):
+        return "unknown"
+
+
 def load_aa_eval_snapshot() -> dict[str, dict[str, float]]:
     """The committed snapshot, used when the live page cannot be read."""
     try:
