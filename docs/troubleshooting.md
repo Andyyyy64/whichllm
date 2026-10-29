@@ -326,7 +326,9 @@ GPUs.
 
 ## `run` says `uv is required`
 
-Install `uv` first:
+For GGUF models, installing llama.cpp is enough: `run` uses its `llama-cli`
+(`brew install llama.cpp`, `winget install ggml.llamacpp`). Otherwise install
+`uv`:
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh

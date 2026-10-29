@@ -5,7 +5,8 @@ whichllm can do more than print recommendations:
 - `whichllm run` starts an interactive chat with a selected model.
 - `whichllm snippet` prints a Python script for manual use.
 
-Both commands use the same model loading helpers in `cli.py`.
+Both commands use the same model loading helpers in `cli_models.py`, and
+without a model name both take the same top pick.
 
 ## `whichllm run`
 
@@ -36,25 +37,45 @@ whichllm run "llama 3 8b gguf" --quant Q5_K_M
 
 ## How `run` executes
 
-`run` requires `uv` in `PATH`.
+`run` needs llama.cpp's `llama-cli` (for GGUF models) or `uv` in `PATH`.
 
-At runtime, whichllm:
+At runtime, whichllm loads the models, selects a model and quantization, and
+then takes one of two paths.
 
-1. Loads models from cache or HuggingFace.
-2. Selects a model and quantization.
-3. Generates a temporary Python chat script.
-4. Runs that script with `uv run --no-project`.
-5. Adds the required dependencies with repeated `--with` flags.
-6. Deletes the temporary script after the chat exits.
+With `llama-cli` in `PATH` and a GGUF model, it runs
+
+```bash
+llama-cli -hf <repo>:<quant> -c <context> <flags>
+```
+
+where the flags are the printed recipe's (`-ngl 99 --n-cpu-moe 12 -fa on`, for
+example). llama-cli downloads the file into its own cache, keeps MoE experts in
+RAM when the ranking did, and uses the GPU. A named model gets no placement
+flags: llama.cpp's `--fit`, on by default, sizes the GPU layers and experts to
+the free memory. `--cpu-only` adds `-ngl 0`. On an RTX 5080, `whichllm run
+unsloth/Qwen3.5-2B-GGUF` this way answered in 4 seconds once the file was
+cached, at about 340 tok/s.
+
+Otherwise it:
+
+1. Generates a temporary Python chat script.
+2. Runs that script with `uv run --no-project`.
+3. Adds the required dependencies with repeated `--with` flags.
+4. Deletes the temporary script after the chat exits.
 
 This keeps the project environment clean. The temporary runtime dependencies
 are not added to `pyproject.toml`.
+
+PyPI ships `llama-cpp-python` only as source, so on this path the first GGUF
+run compiles it. On a Core Ultra 9 the first reply took 22.7 minutes, and the
+build has no GPU support. `run` prints a note about this before it starts.
+Later runs reuse uv's cached build.
 
 ## Supported model paths
 
 ### GGUF
 
-GGUF models use:
+Without llama-cli, GGUF models use:
 
 - `llama-cpp-python`
 - `huggingface-hub`
@@ -62,9 +83,9 @@ GGUF models use:
 The generated script downloads the selected GGUF file with `hf_hub_download`
 and loads it through `llama_cpp.Llama`.
 
-GPU behavior:
+GPU behavior, which only matters for a llama-cpp-python build with GPU support:
 
-- default: `n_gpu_layers=-1`
+- default: `n_gpu_layers=-1`, or the ranking's layer split for an auto pick
 - `--cpu-only`: `n_gpu_layers=0`
 
 ### AWQ
@@ -122,7 +143,8 @@ model.generate(...)
 ```
 
 The chat loop keeps the current conversation history in memory until the
-process exits. Type `exit`, `quit`, or `q` to stop.
+process exits. Type `exit`, `quit`, or `q` to stop. In llama-cli, type `/exit`
+or press Ctrl+C.
 
 ## `whichllm snippet`
 
@@ -139,9 +161,8 @@ whichllm snippet "qwen 7b"
 whichllm snippet "llama 3 8b gguf" --quant Q5_K_M
 ```
 
-If no model is provided, `snippet` picks the most-downloaded GGUF model from
-the fetched model list. This is different from `run`, which auto-ranks for the
-current hardware when no model name is provided.
+If no model is provided, `snippet` ranks models for the current hardware and
+prints code for the top pick, the same pick `run` makes.
 
 ## Manual execution
 

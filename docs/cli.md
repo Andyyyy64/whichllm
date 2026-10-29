@@ -240,9 +240,10 @@ whichllm upgrade "RTX 4090" --context-length 128k
 whichllm run [MODEL_NAME] [OPTIONS]
 ```
 
-Creates a temporary Python script, launches it through `uv run --no-project`,
-installs the needed inference packages into that isolated run, and starts an
-interactive chat.
+Downloads a model and starts an interactive chat. A GGUF model runs in
+llama.cpp's `llama-cli` when it is in `PATH`; otherwise `run` creates a
+temporary Python script, launches it through `uv run --no-project` and
+installs the needed inference packages into that isolated run.
 
 If `MODEL_NAME` is omitted, whichllm ranks models for the current hardware and
 uses the top result.
@@ -254,7 +255,7 @@ Options:
 | `--context-length`, `-c` | Context length for the generated chat script. Accepts integers or `k` shorthand such as `64k` |
 | `--quant`, `-q` | Preferred GGUF quantization |
 | `--refresh` | Ignore model cache and fetch again |
-| `--cpu-only` | Force CPU-only execution in the generated script |
+| `--cpu-only` | Force CPU-only execution (`-ngl 0` for llama-cli) |
 
 Examples:
 
@@ -265,13 +266,20 @@ whichllm run "phi 3 mini gguf" --cpu-only
 whichllm run "mistral 7b gguf" --context-length 64k
 ```
 
-`run` requires `uv` in `PATH`.
+`run` needs llama.cpp's `llama-cli` (GGUF models) or `uv` in `PATH`.
 
-When `run` picks the model itself, the generated script puts as many layers on
-the GPU as the ranking's fit allows (`n_gpu_layers`). llama-cpp-python cannot
+With llama-cli, a pick that `run` makes itself runs with the flags of the
+printed recipe (`-ngl`, `--n-cpu-moe`, `-fa`), and a named model is left to
+llama.cpp's `--fit`, which sizes the GPU layers to the free memory.
+
+Without it, GGUF models run on llama-cpp-python. PyPI ships it only as source,
+so the first run compiles it (22 minutes on a Core Ultra 9) into a CPU-only
+build, and `run` says so before it starts. The generated script asks for as
+many layers on the GPU as the ranking's fit allows (`n_gpu_layers`), which
+only matters for a GPU build you installed yourself. llama-cpp-python cannot
 keep only MoE experts in RAM, so for an expert-offload pick `run` uses the
-equivalent layer split, which is slower than the estimate, and prints the
-`llama-server` command that matches it.
+equivalent layer split and prints the `llama-server` command that matches the
+estimate.
 
 ## `snippet`
 

@@ -29,13 +29,17 @@ def run_command(
     refresh: bool,
     cpu_only: bool,
 ) -> None:
-    """Download and chat with a model. Picks the best one if none specified."""
+    """Download and chat with a model. Picks the best one if none specified.
 
-    if not shutil.which("uv"):
-        console.print("[red]uv is required.[/]")
-        console.print(
-            "Install: [bold]curl -LsSf https://astral.sh/uv/install.sh | sh[/]"
-        )
+    A GGUF model runs in llama.cpp's llama-cli when it is installed: it
+    downloads the file itself, uses the GPU and keeps MoE experts in RAM the
+    way the ranking estimated. Otherwise the chat runs on llama-cpp-python (or
+    transformers) in an isolated uv environment.
+    """
+
+    llama_cli = shutil.which("llama-cli")
+    if not llama_cli and not shutil.which("uv"):
+        _print_uv_required()
         raise typer.Exit(code=1)
 
     from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -68,7 +72,27 @@ def run_command(
 
     if variant is None:
         variant = _pick_gguf_variant(model, quant)
+
+    if llama_cli and variant is not None:
+        args = _llama_cli_args(
+            model, variant, picked, context_length, cpu_only=cpu_only
+        )
+        console.print(
+            f"\n[bold green]Running {model.id}[/] [dim]({variant.quant_type}) "
+            "with llama.cpp[/]"
+        )
+        console.print(
+            " ".join(["llama-cli", *args]), style="dim", markup=False, highlight=False
+        )
+        result = subprocess.run([llama_cli, *args])
+        raise typer.Exit(code=result.returncode)
+
+    if not shutil.which("uv"):
+        _print_uv_required()
+        raise typer.Exit(code=1)
     deps, script_type = _resolve_model_deps(model, variant)
+    if script_type == "gguf":
+        _print_llama_cpp_python_note()
     n_gpu_layers = None
     if picked is not None and variant is not None and not cpu_only:
         n_gpu_layers = python_gpu_layers(picked)
@@ -93,6 +117,36 @@ def run_command(
         raise typer.Exit(code=result.returncode)
     finally:
         os.unlink(script_path)
+
+
+def _llama_cli_args(
+    model, variant, picked, context_length: int, *, cpu_only: bool
+) -> list[str]:
+    """llama-cli arguments: the printed recipe for a ranked pick.
+
+    A named model has no placement, so llama.cpp's --fit (on by default)
+    sizes the GPU layers and MoE experts to the free memory.
+    """
+    recipe = build_recipe(picked, context_length) if picked is not None else None
+    if recipe is not None:
+        return recipe.llama_cpp.split()[1:]
+    args = ["-hf", f"{model.id}:{variant.quant_type}", "-c", str(context_length)]
+    return [*args, "-ngl", "0"] if cpu_only else args
+
+
+def _print_uv_required() -> None:
+    console.print("[red]uv is required[/] (or llama.cpp's llama-cli for GGUF models).")
+    console.print("Install: [bold]curl -LsSf https://astral.sh/uv/install.sh | sh[/]")
+
+
+def _print_llama_cpp_python_note() -> None:
+    console.print(
+        "[yellow]Note:[/] llama-cpp-python is compiled on this machine the first "
+        "time, which can take 20 minutes or more, and that build runs on the CPU "
+        "only. With llama.cpp installed (brew install llama.cpp, winget install "
+        "ggml.llamacpp, or https://github.com/ggml-org/llama.cpp), `whichllm run` "
+        "chats through its llama-cli on the GPU instead."
+    )
 
 
 def _print_expert_offload_hint(picked, context_length: int, n_gpu_layers: int) -> None:

@@ -112,7 +112,7 @@ whichllm --gpu-only --speed usable --vram-headroom 1.5GB
 
 ## run と snippet
 
-`whichllm run` は `uv` で使い捨ての環境を作り、モデルをダウンロードしてチャットを開きます。モデル名を省くと、1位のモデルをランキングで決めた層の分割で動かします。
+`whichllm run` はモデルをダウンロードしてチャットを開きます。モデル名を省くと1位のモデルを使います。
 
 ![run demo](../assets/demo-run.gif)
 
@@ -122,7 +122,9 @@ whichllm run "qwen 2.5 1.5b gguf"
 whichllm run "phi 3 mini gguf" --cpu-only
 ```
 
-GGUF のモデルは `llama-cpp-python`、それ以外は `transformers` で動かします。llama-cpp-python はエキスパートだけを RAM に置く配置に対応していません。そのため、エキスパートを RAM に置く推薦では、`run` は速度の落ちる層分割に切り替え、見積もりと同じ配置になる `llama-server` のコマンドを表示します。詳しくは [run と snippet](run-snippet.md) を参照してください。
+llama.cpp が入っていれば（`brew install llama.cpp`、`winget install ggml.llamacpp`）、GGUF のモデルは表示したレシピと同じフラグで `llama-cli` を使って動かします。GPU を使い、MoE のエキスパートはランキングの見積もりどおり RAM に置きます。モデル名を指定したときは、配置は llama.cpp の自動調整に任せます。
+
+llama-cli がなければ、`uv` で使い捨ての環境を作り、GGUF は `llama-cpp-python`、それ以外は `transformers` で動かします。PyPI の llama-cpp-python はソースしかないため、初回はその場でビルドします。Core Ultra 9 で 22 分かかり、できあがるのは CPU でしか動かない版です。詳しくは [run と snippet](run-snippet.md) を参照してください。
 
 ## データの出どころ
 
