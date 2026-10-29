@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-29
+
 ### Added
 
 - The whichllm index: a daily prebuilt file with the model catalog,
@@ -21,11 +23,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   but its attention, shared weights and KV cache do, whichllm keeps the
   routed experts of the first N layers in system RAM, as llama.cpp's
   `--n-cpu-moe N` does, and estimates speed from what each token actually
-  reads: its few active experts from RAM, the rest from VRAM. On a 16 GB
-  card with 64 GB of DDR5, gpt-oss-120b now ranks #5 at an estimated
-  18 tok/s (it was #21). The CPU side is calibrated against llama.cpp on an
-  RTX 5080 with DDR5-5600: Qwen3.6-35B-A3B at `--n-cpu-moe` 12-40 measured
-  44-83 tok/s, and the estimates land within 25% of the medians. The table
+  reads: its few active experts from RAM, the rest from VRAM. On an 8 GB
+  RTX 4060 with 32 GB of DDR4, Qwen3.6-35B-A3B with its experts in RAM is
+  the top pick at an estimated 20 tok/s, and a 16 GB card with 64 GB of
+  DDR5 runs gpt-oss-120b at 18 tok/s. The CPU side is calibrated against
+  llama.cpp on an RTX 5080 with DDR5-5600: Qwen3.6-35B-A3B at
+  `--n-cpu-moe` 12-40 measured 44-83 tok/s, and the estimates land within
+  25% of the medians. The table
   shows these fits as `GPU+RAM`, the warning names the `--n-cpu-moe` value,
   and JSON rows carry a `placement` object.
 - Run recipes. Below the ranking, whichllm prints the `llama-server`
@@ -50,7 +54,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   models spilling layers on a fast GPU are slower than before (Qwen3.6-27B
   at 128K context on an RTX 4090: 5 tok/s, not 16), CPU-only MoE models are
   faster, and CPU-only candidates must reach 4 tok/s to score as usable.
-
 - `--profile coding` is no longer limited to repositories with "coder" in
   their names: strong general models such as gpt-oss, Devstral and
   Qwen3.6-27B are eligible, and a code-tuned model gets a 2-point edge over
@@ -61,7 +64,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   checkpoints whose publisher ships an instruct version derived from them
   (`Qwen2.5-7B`, `Qwen2.5-Coder-7B`, `Llama-3.1-8B`) and their quantized
   uploads. The coding top 10 used to include the base `Qwen2.5-Coder-7B`.
-
 - The KV cache is computed per layer from each model's `config.json` instead
   of from its parameter count. whichllm reads the config for the families
   near the top of a ranking (and for the model `plan` shows), caches it for a
