@@ -21,9 +21,9 @@ from whichllm.engine.ranker import rank_models
 from whichllm.hardware.gpu_simulator import create_synthetic_gpu
 from whichllm.hardware.types import GPUInfo, HardwareInfo
 from whichllm.models.benchmark import _params_compatible
-from whichllm.models.benchmark_sources.aa_index import AA_INDEX_FALLBACK_2026_10_27
+from whichllm.models.benchmark_sources.aa_index import AA_INDEX_SNAPSHOT
 from whichllm.models.benchmark_sources.livebench import LIVEBENCH_RAW_DATA
-from whichllm.models.benchmark_sources.vision import VISION_FALLBACK_2026_05
+from whichllm.models.benchmark_sources.vision import VISION_SNAPSHOT
 from whichllm.models.grouper import group_models
 from whichllm.models.types import GGUFVariant, ModelInfo
 
@@ -273,7 +273,7 @@ class TestReasoningSurface:
 
     def test_qwq32b_has_curated_benchmarks(self):
         assert "Qwen/QwQ-32B" in LIVEBENCH_RAW_DATA
-        assert "Qwen/QwQ-32B" in AA_INDEX_FALLBACK_2026_10_27
+        assert "Qwen/QwQ-32B" in AA_INDEX_SNAPSHOT
 
     def test_r1_distill_family_has_curated_benchmarks(self):
         for mid in (
@@ -282,7 +282,7 @@ class TestReasoningSurface:
             "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
         ):
             assert mid in LIVEBENCH_RAW_DATA, f"{mid} missing in LB"
-            assert mid in AA_INDEX_FALLBACK_2026_10_27, f"{mid} missing in AA"
+            assert mid in AA_INDEX_SNAPSHOT, f"{mid} missing in AA"
 
     def test_qwq32b_surfaces_with_curated_score(self):
         qwq = ModelInfo(
@@ -322,7 +322,7 @@ class TestVisionGenerationOrder:
     current Qwen3-VL-32B even on an 80 GB GPU."""
 
     def test_curated_vision_scores_respect_generation(self):
-        v = VISION_FALLBACK_2026_05
+        v = VISION_SNAPSHOT
         # The whole point: newest generation must outscore the oldest.
         assert (
             v["Qwen/Qwen3-VL-32B-Instruct"]
@@ -352,12 +352,8 @@ class TestVisionGenerationOrder:
         )
         # Feed the curated vision scores exactly as the merge would.
         scores = {
-            "Qwen/Qwen3-VL-32B-Instruct": VISION_FALLBACK_2026_05[
-                "Qwen/Qwen3-VL-32B-Instruct"
-            ],
-            "Qwen/Qwen2-VL-7B-Instruct": VISION_FALLBACK_2026_05[
-                "Qwen/Qwen2-VL-7B-Instruct"
-            ],
+            "Qwen/Qwen3-VL-32B-Instruct": VISION_SNAPSHOT["Qwen/Qwen3-VL-32B-Instruct"],
+            "Qwen/Qwen2-VL-7B-Instruct": VISION_SNAPSHOT["Qwen/Qwen2-VL-7B-Instruct"],
         }
         hw = _hw(vram_gb=80)
         ranked = rank_models(

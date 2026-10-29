@@ -11,31 +11,39 @@ main benchmark merge pipeline does not abort.
 
 from whichllm.models.benchmark_sources.aa_index import (
     AA_PEER_IDS,
+    AA_SNAPSHOT_READ_AT,
     fetch_aa_index_scores,
     get_aa_curated_fallback,
 )
 from whichllm.models.benchmark_sources.chatbot_arena import fetch_arena_scores
 from whichllm.models.benchmark_sources.livebench import (
     LIVEBENCH_ESTIMATED_IDS,
+    LIVEBENCH_READ_AT,
     get_livebench_data,
 )
 from whichllm.models.benchmark_sources.open_llm_leaderboard import (
     fetch_leaderboard_with_fallback,
 )
-from whichllm.models.benchmark_sources.vision import fetch_vision_scores
+from whichllm.models.benchmark_sources.vision import (
+    VISION_READ_AT,
+    fetch_vision_scores,
+)
 
-# Newest curated-fallback date across all sources. Live scrapes are merged
+# Newest curated snapshot month across the sources. Live scrapes are merged
 # on top when reachable, but they frequently are not (the leaderboard
 # spaces change their JSON shape), so the user-visible ranking is anchored
 # to this snapshot. Surface it in the CLI so a stale recommendation is
-# self-evident rather than silently trusted. Bump this whenever any
-# *_FALLBACK_* dict is refreshed; a test checks it against their dates.
-BENCHMARK_SNAPSHOT = "2026-10"
+# self-evident rather than silently trusted. It follows the read_at dates of
+# the data/*.json snapshots.
+BENCHMARK_SNAPSHOT = max(AA_SNAPSHOT_READ_AT, LIVEBENCH_READ_AT, VISION_READ_AT)[:7]
 
 __all__ = [
     "AA_PEER_IDS",
+    "AA_SNAPSHOT_READ_AT",
     "BENCHMARK_SNAPSHOT",
     "LIVEBENCH_ESTIMATED_IDS",
+    "LIVEBENCH_READ_AT",
+    "VISION_READ_AT",
     "fetch_aa_index_scores",
     "fetch_arena_scores",
     "fetch_leaderboard_with_fallback",

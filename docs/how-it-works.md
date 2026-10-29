@@ -158,7 +158,19 @@ whichllm separates sources into two tiers:
 | Frozen | Open LLM Leaderboard v2, Chatbot Arena ELO | Kept for older coverage, capped and recency-demoted |
 
 Current sources can use live scrapes when reachable and curated snapshots when
-the upstream page shape changes. The snapshot month is printed below rankings.
+the upstream page shape changes. The snapshots are JSON files in
+`src/whichllm/data/`, each with the date it was read:
+
+- `aa_index.json`: the pinned AA index. Each entry is either read from an AA
+  model page (its slug is recorded) or a hand estimate for a model AA does not
+  track.
+- `aa_names.json`: AA display names and the Hugging Face repos that carry
+  their score.
+- `livebench.json`: LiveBench averages, refreshed with
+  `scripts/import_livebench_csv.py`, plus hand-estimated carryovers.
+- `vision.json`: the curated vision index.
+
+The month printed below rankings is the newest of their read dates.
 
 LiveBench and Artificial Analysis both measure general ability, so they are
 combined, not ranked against each other. LiveBench is mapped onto AA's
