@@ -125,10 +125,13 @@ def _resolve_speed_filter(speed: str, min_speed: float | None) -> float | None:
     """Resolve named speed presets while preserving --min-speed as exact input."""
     if min_speed is not None:
         return min_speed
+    from whichllm.engine.ranking_score import USABLE_SPEED_TOK_S
+
     mode = speed.lower().replace("_", "-")
+    # "usable" is the speed the ranking holds every placement to.
     presets = {
         "any": None,
-        "usable": 10.0,
+        "usable": USABLE_SPEED_TOK_S,
         "fast": 30.0,
     }
     if mode not in presets:

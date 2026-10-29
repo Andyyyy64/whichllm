@@ -155,7 +155,7 @@ green. The `~` and `?` markers are confidence markers for the estimate.
 Filter slow rows with:
 
 ```bash
-whichllm --speed usable  # >=10 tok/s
+whichllm --speed usable  # >=8 tok/s
 whichllm --speed fast    # >=30 tok/s
 whichllm --min-speed 4   # exact floor, if you want a lower threshold
 ```
@@ -299,8 +299,8 @@ Use `--details` only when you want download counts instead.
 Speed colors and markers:
 
 - red: slow generation speed, under 4 tok/s
-- yellow: marginal generation speed, 4-10 tok/s
-- green: usable generation speed, 10-30 tok/s
+- yellow: marginal generation speed, 4-8 tok/s
+- green: usable generation speed, 8-30 tok/s
 - bright green: fast local generation speed, 30+ tok/s
 - `~`: estimated speed range is available
 - `?`: low-confidence estimate; runtime/backend differences can be large

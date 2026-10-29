@@ -91,6 +91,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   gemma-4-26B-A4B at 25 tok/s instead of Qwen3.8-27B at 4, and a 3 tok/s
   Qwen3.8-27B leaves the RTX 3060 top 5. The golden constraint for a #1 that
   needs offload is replaced by one for the whole top 3.
+- `--speed usable` hides models under 8 tok/s, the same speed the ranking
+  holds every placement to (it was 10), and the speed column turns green
+  from 8 tok/s.
 - A model that fits on the largest GPU alone is no longer treated as a
   multi-GPU run, and a split's speed follows each card's bandwidth instead
   of a flat 0.7x. On two RTX 3090s, Qwen3.8-27B at Q5_K_M fits one card and
