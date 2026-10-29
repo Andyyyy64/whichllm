@@ -74,6 +74,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- `run`, `snippet` and `plan` resolve a model name to the model you meant.
+  Among repos with the same size label the one whose parameter count was
+  closest to the query used to win, and that count is often parsed from the
+  label itself, so obscure uploads came first: `qwen3 8b` picked a DFlash
+  draft head, `qwen 7b` CodeQwen1.5 and `gemma 3 12b` a Gemma 4 fine-tune.
+  Ties now go to the closest name (a VL, Coder or `-FP8` the query does not
+  mention counts against a repo), then the original over a quantized
+  upload, then downloads. Draft heads and pretrain-only checkpoints come
+  last unless the query names them.
 - LiveBench and Artificial Analysis are combined on one scale. They used to
   be merged by taking the higher value, but LiveBench's normalization runs
   about 17 points above AA for the same models, so any model with a
