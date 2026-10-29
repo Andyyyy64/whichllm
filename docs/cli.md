@@ -318,4 +318,13 @@ say which one was used in `benchmark_basis`.
 Pretrain-only (base) checkpoints are never recommended in any profile: names
 ending in `-Base` or `-pt`, checkpoints whose publisher ships an instruct
 version derived from them (`Qwen2.5-7B` for `Qwen2.5-7B-Instruct`), and
-quantized uploads of those.
+quantized uploads of those. Neither are speculative-decoding draft heads
+(DFlash, `-draft` uploads), which only run next to their target model, or
+diffusion language models such as DiffusionGemma, which llama.cpp, LM Studio
+and Ollama do not run as chat models.
+
+Non-GGUF checkpoints are only considered on Linux with an NVIDIA GPU. NVFP4
+and FP8 checkpoints also need compute capability 8.0 or newer (Ampere), since
+vLLM serves them through its Marlin kernels there. An NVFP4 pick on a GPU
+older than Blackwell carries a note that it runs through weight-only FP4
+kernels rather than native FP4.
