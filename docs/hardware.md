@@ -144,18 +144,19 @@ whichllm hardware --gpu "Unknown GPU" --vram 24
 ```
 
 For detected integrated or unified-memory GPUs, use `--vram` and
-`--bandwidth` / `--ram-bandwidth` to override the automatically detected usable
-capacity and memory bandwidth:
+`--ram-bandwidth` to override the automatically detected usable capacity and
+memory bandwidth:
 
 ```bash
 whichllm --vram 8 --ram-bandwidth 68
 whichllm hardware --vram 8 --bandwidth 68
 ```
 
-Both flag names set the same value: the selected GPU's memory bandwidth. On an
-iGPU or unified-memory system that is the system RAM bandwidth. On a discrete
-GPU it replaces the VRAM bandwidth; it does not change how CPU offload is
-estimated.
+`--bandwidth` sets the selected GPU's memory bandwidth. `--ram-bandwidth` sets
+system RAM bandwidth, which bounds everything the CPU reads: CPU-only runs,
+MoE experts kept in RAM and layers offloaded from a discrete GPU. An iGPU or
+unified-memory GPU reads from the same RAM, so `--ram-bandwidth` sets its
+bandwidth too unless `--bandwidth` is also given.
 
 If multiple GPUs are detected, pass `--gpu-index` to choose the GPU shown by
 `whichllm hardware`:
@@ -187,6 +188,21 @@ whichllm --gpu "RTX 4090, RTX 3090"
 simulation, use known GPU names so whichllm can resolve each card's VRAM from
 the GPU database.
 
+## System RAM bandwidth
+
+`whichllm hardware` shows the RAM bandwidth it assumed and where it came from:
+
+| Source | How |
+| --- | --- |
+| detected | Windows: memory modules' transfer rate times bus width (`Win32_PhysicalMemory`), capped at the CPU family's channel count |
+| unified | Apple Silicon: the chip's unified-memory bandwidth |
+| estimated | The CPU family's typical memory, e.g. DDR5-5600 dual channel for Core Ultra 200S or AM5 Ryzen |
+| assumed | Nothing known: dual-channel DDR4-3200, 51.2 GB/s |
+
+Linux and WSL cannot read the memory modules without root, so they use the
+CPU-family estimate. Pass the real figure with `--ram-bandwidth` (transfer
+rate in MT/s x 8 bytes x channels / 1000, e.g. DDR5-6000 dual channel = 96).
+
 ## Fit types
 
 Compatibility checks classify a candidate into one of three fit types:
@@ -199,6 +215,21 @@ Compatibility checks classify a candidate into one of three fit types:
 
 If neither GPU memory nor usable RAM can hold the model, the candidate is not
 ranked.
+
+A partial offload on a discrete GPU is placed one of two ways, shown in the
+JSON `placement` field:
+
+- **Expert offload** (`expert_offload`): for a mixture-of-experts model whose
+  attention, shared weights and KV cache fit in VRAM, the routed experts of
+  the first N layers stay in RAM, as llama.cpp's `--n-cpu-moe N` does. Each
+  token reads only its few active experts from RAM, so gpt-oss-120b runs at
+  interactive speed on a 16 GB card with 64 GB of RAM. The table shows these
+  as `GPU+RAM`, and the warning names the `--n-cpu-moe` value.
+- **Layer offload** (`layer_offload`): whole layers run on the CPU and read
+  every weight from RAM, so speed falls to roughly what RAM bandwidth allows.
+
+Unified-memory systems have no separate RAM pool to move experts to and keep
+the old shared-memory estimate.
 
 whichllm keeps a bounded system-RAM reserve for the OS and other processes.
 Use `--ram-budget available` to cap partial-offload planning to the current

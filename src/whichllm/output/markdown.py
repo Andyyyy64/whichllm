@@ -42,7 +42,9 @@ def _format_markdown_score(result: CompatibilityResult) -> str:
     return score
 
 
-def _format_markdown_fit(fit_type: str) -> str:
+def _format_markdown_fit(fit_type: str, placement: str | None = None) -> str:
+    if placement == "expert_offload":
+        return "GPU+RAM"
     labels = {
         "full_gpu": "Full GPU",
         "partial_offload": "Partial",
@@ -122,7 +124,10 @@ def display_markdown(
                 _format_markdown_model(result),
                 _format_markdown_params(result),
                 effective_quant_type(result.model, result.gguf_variant),
-                _format_markdown_fit(result.fit_type),
+                _format_markdown_fit(
+                    result.fit_type,
+                    result.placement.kind if result.placement else None,
+                ),
                 _format_bytes(result.vram_required_bytes),
                 _format_markdown_speed(result),
                 _format_published_at(result.model.published_at),

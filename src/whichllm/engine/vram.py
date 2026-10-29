@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from whichllm.constants import FRAMEWORK_OVERHEAD_BYTES
+from whichllm.engine.moe import routed_expert_fraction
 from whichllm.engine.quantization import estimate_weight_bytes
 from whichllm.models.types import GGUFVariant, ModelInfo
 
@@ -95,14 +98,43 @@ def _activation_bytes(model: ModelInfo, context_length: int) -> int:
     return base + param_term + ctx_term
 
 
+@dataclass(frozen=True)
+class MemoryBreakdown:
+    """Runtime memory of one model, split by what can live outside the GPU."""
+
+    weights: int
+    # Routed MoE expert weights, included in ``weights``. These are the
+    # tensors llama.cpp's ``--n-cpu-moe`` keeps in system RAM.
+    expert_weights: int
+    kv_cache: int
+    activation: int
+    overhead: int
+
+    @property
+    def total(self) -> int:
+        return self.weights + self.kv_cache + self.activation + self.overhead
+
+
+def estimate_memory_breakdown(
+    model: ModelInfo,
+    variant: GGUFVariant | None,
+    context_length: int = 4096,
+) -> MemoryBreakdown:
+    """Estimate runtime memory by component."""
+    weights = estimate_weight_bytes(model, variant)
+    return MemoryBreakdown(
+        weights=weights,
+        expert_weights=int(weights * routed_expert_fraction(model)),
+        kv_cache=estimate_kv_cache(model, context_length),
+        activation=_activation_bytes(model, context_length),
+        overhead=FRAMEWORK_OVERHEAD_BYTES,
+    )
+
+
 def estimate_vram(
     model: ModelInfo,
     variant: GGUFVariant | None,
     context_length: int = 4096,
 ) -> int:
     """Estimate total VRAM required to run a model."""
-    weights = estimate_weight_bytes(model, variant)
-    kv_cache = estimate_kv_cache(model, context_length)
-    activation = _activation_bytes(model, context_length)
-    framework = FRAMEWORK_OVERHEAD_BYTES
-    return weights + kv_cache + activation + framework
+    return estimate_memory_breakdown(model, variant, context_length).total

@@ -12,6 +12,20 @@ from whichllm.output import _console
 from whichllm.output.upgrade import _summarize_row
 
 
+def _placement_json(result: CompatibilityResult) -> dict | None:
+    placement = result.placement
+    if placement is None:
+        return None
+    return {
+        "kind": placement.kind,
+        "gpu_weight_bytes": placement.gpu_weight_bytes,
+        "cpu_weight_bytes": placement.cpu_weight_bytes,
+        "n_cpu_moe": placement.n_cpu_moe,
+        "n_gpu_layers": placement.n_gpu_layers,
+        "num_layers": placement.num_layers,
+    }
+
+
 def display_json(results: list[CompatibilityResult], hardware: HardwareInfo) -> None:
     """Output ranking results as JSON."""
     output = {
@@ -31,6 +45,8 @@ def display_json(results: list[CompatibilityResult], hardware: HardwareInfo) -> 
             "cpu_cores": hardware.cpu_cores,
             "ram_bytes": hardware.ram_bytes,
             "ram_budget_bytes": hardware.ram_budget_bytes,
+            "ram_bandwidth_gbps": hardware.ram_bandwidth_gbps,
+            "ram_bandwidth_source": hardware.ram_bandwidth_source,
             "budget_notes": hardware.budget_notes,
             "os": hardware.os,
         },
@@ -70,6 +86,7 @@ def display_json(results: list[CompatibilityResult], hardware: HardwareInfo) -> 
                 "benchmark_source": r.benchmark_source,
                 "benchmark_confidence": round(r.benchmark_confidence, 2),
                 "fit_type": r.fit_type,
+                "placement": _placement_json(r),
                 "can_run": r.can_run,
                 "warnings": r.warnings,
                 "license": r.model.license,

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from whichllm.engine.moe import active_expert_fraction, routed_expert_fraction
+from whichllm.engine.placement import Placement
 from whichllm.engine.quantization import estimate_weight_bytes
 from whichllm.engine.quantization import effective_quant_type
+from whichllm.hardware.ram_bandwidth import DEFAULT_RAM_BANDWIDTH_GBPS
 from whichllm.hardware.types import GPUInfo
 from whichllm.models.types import GGUFVariant, ModelInfo
 
@@ -73,6 +76,24 @@ _MOE_REFERENCE_BANDWIDTH_GBPS = 256.0
 _MOE_MIN_READ_RATIO_AT_REFERENCE = 0.05
 _MOE_MAX_READ_RATIO_FLOOR = 0.25
 
+# Fraction of theoretical RAM bandwidth that llama.cpp's CPU decode turns
+# into weight reads at the Q4_K_M reference quant; other quants scale by
+# their GPU efficiency ratio, since dequantization costs the CPU the same
+# way. Whole layers on the CPU (CPU-only runs, layer offload) also run
+# attention and the output head there, so they get less of the bandwidth
+# than expert FFNs alone. A split run also pays a fixed GPU/CPU sync per
+# token.
+#
+# Calibrated with llama.cpp b11977 on an RTX 5080 with dual-channel
+# DDR5-5600 (Core Ultra 9 285K, 89.6 GB/s theoretical), Qwen3.6-35B-A3B
+# Q4_K_M, medians of six tg128 runs: --n-cpu-moe 40/30/20/12 gave
+# 44/49/57/83 tok/s (0.38 ms per CPU expert layer, ~3 ms fixed), CPU-only
+# 13.6 tok/s.
+_CPU_DECODE_EFFICIENCY = 0.30
+_CPU_EXPERT_EFFICIENCY = 0.43
+_CPU_EFFICIENCY_MAX = 0.6
+_SPLIT_SYNC_SECONDS = 0.003
+
 _SPEED_CONFIDENCE_RANGE_FACTORS: dict[str, tuple[float, float]] = {
     "high": (0.85, 1.20),
     "medium": (0.60, 1.60),
@@ -99,17 +120,18 @@ def _quant_efficiency(model: ModelInfo, variant: GGUFVariant | None) -> float:
     return _QUANT_EFFICIENCY.get(quant.upper(), _DEFAULT_QUANT_EFFICIENCY)
 
 
-def _moe_effective_read_ratio(model: ModelInfo, gpu: GPUInfo) -> float:
-    """Return fraction of stored weights read per generated token for MoE."""
+def _active_ratio(model: ModelInfo) -> float:
+    """Share of all stored weights a MoE reads per token (1.0 for dense)."""
     if not model.is_moe or not model.parameter_count_active:
         return 1.0
     if model.parameter_count <= 0:
         return 1.0
-
     active_ratio = model.parameter_count_active / model.parameter_count
-    if active_ratio <= 0:
-        return 1.0
+    return min(1.0, active_ratio) if active_ratio > 0 else 1.0
 
+
+def _moe_read_floor(gpu: GPUInfo) -> float:
+    """Dispatch/kernel overhead of GPU MoE decode, as a read-ratio floor."""
     bandwidth = gpu.memory_bandwidth_gbps or 0.0
     if bandwidth > 0:
         floor = _MOE_MIN_READ_RATIO_AT_REFERENCE * max(
@@ -117,9 +139,69 @@ def _moe_effective_read_ratio(model: ModelInfo, gpu: GPUInfo) -> float:
         )
     else:
         floor = _MOE_MAX_READ_RATIO_FLOOR
-    floor = min(_MOE_MAX_READ_RATIO_FLOOR, floor)
+    return min(_MOE_MAX_READ_RATIO_FLOOR, floor)
 
-    return min(1.0, max(active_ratio, floor))
+
+def _moe_effective_read_ratio(model: ModelInfo, gpu: GPUInfo) -> float:
+    """Return fraction of stored weights read per generated token for MoE."""
+    active_ratio = _active_ratio(model)
+    if active_ratio >= 1.0:
+        return 1.0
+    return min(1.0, max(active_ratio, _moe_read_floor(gpu)))
+
+
+def _cpu_decode_bytes_per_sec(
+    model: ModelInfo,
+    variant: GGUFVariant | None,
+    ram_bandwidth_gbps: float | None,
+    efficiency: float = _CPU_DECODE_EFFICIENCY,
+) -> float:
+    efficiency = min(
+        efficiency * _quant_efficiency(model, variant) / _QUANT_EFFICIENCY["Q4_K_M"],
+        _CPU_EFFICIENCY_MAX,
+    )
+    return (ram_bandwidth_gbps or DEFAULT_RAM_BANDWIDTH_GBPS) * 1e9 * efficiency
+
+
+def _split_tok_per_sec(
+    model: ModelInfo,
+    variant: GGUFVariant | None,
+    gpu: GPUInfo,
+    placement: Placement,
+    gpu_bytes_per_sec: float,
+    ram_bandwidth_gbps: float | None,
+) -> float:
+    """Decode speed when the GPU and the CPU each hold part of the weights.
+
+    Per token, the GPU reads its share at VRAM speed and the CPU reads its
+    share from RAM; the two run one after the other, so the times add up.
+    With expert offload the CPU share is only the active experts.
+    """
+    model_size = estimate_weight_bytes(model, variant)
+    if placement.kind == "expert_offload":
+        experts = model_size * routed_expert_fraction(model)
+        active = active_expert_fraction(model)
+        gpu_experts = max(experts - placement.cpu_weight_bytes, 0.0)
+        gpu_read = (model_size - experts) + gpu_experts * active
+        cpu_read = placement.cpu_weight_bytes * active
+        cpu_efficiency = _CPU_EXPERT_EFFICIENCY
+        sync = _SPLIT_SYNC_SECONDS
+    else:
+        ratio = _active_ratio(model)
+        gpu_read = placement.gpu_weight_bytes * ratio
+        cpu_read = placement.cpu_weight_bytes * ratio
+        cpu_efficiency = _CPU_DECODE_EFFICIENCY
+        sync = 0.0
+    if model.is_moe:
+        gpu_read = max(gpu_read, placement.gpu_weight_bytes * _moe_read_floor(gpu))
+
+    seconds = (
+        gpu_read / gpu_bytes_per_sec
+        + cpu_read
+        / _cpu_decode_bytes_per_sec(model, variant, ram_bandwidth_gbps, cpu_efficiency)
+        + sync
+    )
+    return 1.0 / seconds if seconds > 0 else 0.0
 
 
 def _lower_speed_confidence(current: str, candidate: str) -> str:
@@ -143,6 +225,9 @@ def estimate_speed_uncertainty(
     gpu: GPUInfo | None,
     fit_type: str,
     estimated_tok_per_sec: float | None,
+    *,
+    placement: Placement | None = None,
+    ram_bandwidth_source: str = "default",
 ) -> tuple[str, tuple[float, float] | None, list[str]]:
     """Return confidence metadata for the speed point estimate.
 
@@ -163,10 +248,13 @@ def estimate_speed_uncertainty(
             notes + ["No usable bandwidth estimate was available for this setup."],
         )
 
+    ram_known = ram_bandwidth_source in ("detected", "unified", "override")
     if gpu is None or fit_type == "cpu_only":
-        confidence = "low"
+        confidence = "medium" if ram_known else "low"
         notes.append(
-            "CPU-only speed varies heavily with memory channels and BLAS/kernel path."
+            "CPU-only speed is bound by system RAM bandwidth"
+            + ("" if ram_known else ", which is estimated here")
+            + "."
         )
     else:
         if not gpu.memory_bandwidth_gbps:
@@ -175,7 +263,16 @@ def estimate_speed_uncertainty(
                 "GPU memory bandwidth is unknown, so speed is especially uncertain."
             )
 
-        if fit_type == "partial_offload":
+        if placement is not None and placement.kind == "expert_offload":
+            if not ram_known:
+                confidence = "low"
+            notes.append(
+                "MoE experts in system RAM run on the CPU; speed depends on RAM "
+                "bandwidth"
+                + ("" if ram_known else " (estimated here; set --ram-bandwidth)")
+                + "."
+            )
+        elif fit_type == "partial_offload":
             confidence = "low"
             if gpu.vendor == "apple" or gpu.shared_memory:
                 notes.append(
@@ -183,7 +280,7 @@ def estimate_speed_uncertainty(
                 )
             else:
                 notes.append(
-                    "Partial offload on a discrete GPU depends strongly on PCIe and CPU RAM bandwidth."
+                    "Layers offloaded from a discrete GPU run on the CPU at RAM bandwidth."
                 )
 
         if model.is_moe:
@@ -220,6 +317,9 @@ def estimate_tok_per_sec(
     variant: GGUFVariant | None,
     gpu: GPUInfo | None,
     fit_type: str = "full_gpu",
+    *,
+    placement: Placement | None = None,
+    ram_bandwidth_gbps: float | None = None,
 ) -> float:
     """Estimate tokens per second for inference.
 
@@ -230,19 +330,16 @@ def estimate_tok_per_sec(
     constant — this version separates them so a Q4_K_M model on CUDA scores
     differently from the same model running on Metal or with partial
     offload.
+
+    With a ``placement`` on a discrete GPU, the part of the weights kept in
+    system RAM is read at ``ram_bandwidth_gbps`` by the CPU. CPU-only runs
+    read everything from RAM.
     """
     if gpu is None or fit_type == "cpu_only":
-        params_b = model.parameter_count / 1e9
-        if model.is_moe and model.parameter_count_active:
-            params_b = model.parameter_count_active / 1e9
-        if params_b <= 0:
+        read = estimate_weight_bytes(model, variant) * _active_ratio(model)
+        if read <= 0:
             return 0.0
-        # Modern desktop CPUs sustain roughly 4-8 GB/s effective for the
-        # bandwidth-bound dequant+matmul loop on a single socket. Quantized
-        # 4-bit 7B → ~3.5 GB → ~1-2 tok/s. Approximate with an inverse-size
-        # heuristic that gets the right order of magnitude.
-        quant_factor = _quant_efficiency(model, variant) / _DEFAULT_QUANT_EFFICIENCY
-        return max(0.3, 18.0 / max(params_b, 0.5) * quant_factor)
+        return _cpu_decode_bytes_per_sec(model, variant, ram_bandwidth_gbps) / read
 
     model_size = estimate_weight_bytes(model, variant)
 
@@ -262,11 +359,28 @@ def estimate_tok_per_sec(
     # Real-world efficiency depends on quant kernel and backend.
     efficiency = _quant_efficiency(model, variant) * _backend_factor(gpu)
 
+    unified_memory = gpu.vendor == "apple" or gpu.shared_memory
+    if (
+        fit_type == "partial_offload"
+        and placement is not None
+        and placement.kind in ("expert_offload", "layer_offload")
+        and not unified_memory
+    ):
+        return _split_tok_per_sec(
+            model,
+            variant,
+            gpu,
+            placement,
+            bandwidth * efficiency,
+            ram_bandwidth_gbps,
+        )
+
     # Partial offload penalty depends on the memory architecture:
     #
-    # - Discrete GPU (NVIDIA/AMD/Intel): spilled weights live in CPU RAM
-    #   and are read across PCIe at ~1/10th of VRAM bandwidth. With ~40%
-    #   of the model offloaded the blended throughput lands near 0.45x.
+    # - Discrete GPU without a placement (the plan command's GPU table):
+    #   spilled weights are read from CPU RAM at a fraction of VRAM
+    #   bandwidth. With ~40% of the model offloaded the blended throughput
+    #   lands near 0.45x.
     # - Apple Silicon: GPU and CPU share one physical unified-memory pool.
     #   AMD shared-memory APUs such as Strix Halo have the same no-PCIe-cliff
     #   shape for model weights, even though their backend factor remains AMD.

@@ -26,6 +26,14 @@ class HardwareInfo:
     has_avx512: bool = False
     ram_bytes: int = 0
     ram_budget_bytes: int | None = None
+    # System RAM bandwidth in GB/s. It bounds CPU-side decode: CPU-only runs,
+    # MoE experts kept in RAM and layers that do not fit on the GPU.
+    ram_bandwidth_gbps: float | None = None
+    # "detected" (memory modules read), "estimated" (from the CPU name),
+    # "unified" (Apple or another unified-memory GPU), "override" (flag)
+    # or "default" (nothing known; dual-channel DDR4-3200 is assumed).
+    ram_bandwidth_source: str = "default"
+    ram_bandwidth_detail: str | None = None
     disk_free_bytes: int = 0
     os: str = "linux"  # "linux" | "darwin" | "windows"
     budget_notes: list[str] = field(default_factory=list)

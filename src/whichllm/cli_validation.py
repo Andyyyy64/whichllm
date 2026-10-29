@@ -18,6 +18,7 @@ from whichllm.cli_hardware import (
     _apply_memory_budgets,
     _format_budget_bytes,
     _apply_gpu_overrides,
+    _apply_ram_bandwidth,
     _auto_min_params_for_profile,
 )
 from whichllm.cli_metadata import (
@@ -42,6 +43,7 @@ __all__ = [
     "_apply_memory_budgets",
     "_format_budget_bytes",
     "_apply_gpu_overrides",
+    "_apply_ram_bandwidth",
     "_auto_min_params_for_profile",
     "_include_vision_candidates",
     "_fill_missing_published_at",

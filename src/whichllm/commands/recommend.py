@@ -9,6 +9,7 @@ import typer
 from whichllm.cli_shared import _format_fetch_error, _run_async, console
 from whichllm.cli_validation import (
     _apply_gpu_overrides,
+    _apply_ram_bandwidth,
     _apply_memory_budgets,
     _auto_min_params_for_profile,
     _fill_missing_published_at,
@@ -135,12 +136,13 @@ def main_command(
     ram_budget: str | None,
     lm_studio_path: list[Path] | None,
     live: bool = False,
+    ram_bandwidth: float | None = None,
 ) -> None:
     """Detect hardware and recommend the best local LLMs."""
     if ctx.invoked_subcommand is not None:
         return
 
-    _validate_gpu_flags(cpu_only, gpu, vram, bandwidth, gpu_index)
+    _validate_gpu_flags(cpu_only, gpu, vram, bandwidth, gpu_index, ram_bandwidth)
     _validate_output_flags(json_output, markdown_output)
     _validate_lmstudio_path_flags(lm_studio_path)
     _validate_ranking_flags(top, min_speed, min_params)
@@ -175,6 +177,9 @@ def main_command(
         task = progress.add_task("Detecting hardware...", total=None)
         hardware = detect_hardware()
         _apply_gpu_overrides(hardware, cpu_only, gpu, vram, bandwidth, gpu_index)
+        _apply_ram_bandwidth(
+            hardware, ram_bandwidth, gpu_bandwidth_set=bandwidth is not None
+        )
         _apply_memory_budgets(
             hardware, vram_headroom=vram_headroom, ram_budget=ram_budget
         )

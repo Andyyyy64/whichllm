@@ -156,7 +156,12 @@ def rank_models(
                 continue
 
             tok_per_sec = estimate_tok_per_sec(
-                model, variant, best_gpu, compat.fit_type
+                model,
+                variant,
+                best_gpu,
+                compat.fit_type,
+                placement=compat.placement,
+                ram_bandwidth_gbps=hardware.ram_bandwidth_gbps,
             )
             if compat.uses_multi_gpu:
                 tok_per_sec *= _MULTI_GPU_SPEED_FACTOR
@@ -185,6 +190,8 @@ def rank_models(
                 best_gpu,
                 compat.fit_type,
                 tok_per_sec,
+                placement=compat.placement,
+                ram_bandwidth_source=hardware.ram_bandwidth_source,
             )
             if compat.uses_multi_gpu:
                 compat.speed_confidence = "low"
@@ -204,6 +211,7 @@ def rank_models(
                 tok_per_sec,
                 compat.fit_type,
                 offload_ratio=compat.offload_ratio,
+                placement=compat.placement.kind if compat.placement else None,
                 family_downloads=family_max_downloads.get(fid, 0),
                 family_likes=family_max_likes.get(fid, 0),
                 benchmark_avg=bench_avg,

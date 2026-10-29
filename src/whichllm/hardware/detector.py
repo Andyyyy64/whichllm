@@ -11,6 +11,7 @@ from whichllm.hardware.cpu import detect_avx_support, detect_cpu_cores, detect_c
 from whichllm.hardware.intel import detect_intel_gpus
 from whichllm.hardware.memory import detect_disk_free_bytes, detect_ram_bytes
 from whichllm.hardware.nvidia import detect_nvidia_gpus
+from whichllm.hardware.ram_bandwidth import detect_ram_bandwidth
 from whichllm.hardware.types import HardwareInfo
 from whichllm.hardware.windows import detect_windows_gpus
 
@@ -43,6 +44,7 @@ def detect_hardware() -> HardwareInfo:
     # Memory
     ram_bytes = detect_ram_bytes()
     disk_free = detect_disk_free_bytes()
+    ram_bandwidth = detect_ram_bandwidth(os_name, cpu_name, gpus)
 
     return HardwareInfo(
         gpus=gpus,
@@ -51,6 +53,9 @@ def detect_hardware() -> HardwareInfo:
         has_avx2=has_avx2,
         has_avx512=has_avx512,
         ram_bytes=ram_bytes,
+        ram_bandwidth_gbps=ram_bandwidth.gbps,
+        ram_bandwidth_source=ram_bandwidth.source,
+        ram_bandwidth_detail=ram_bandwidth.detail,
         disk_free_bytes=disk_free,
         os=os_name,
     )

@@ -17,6 +17,7 @@ def _validate_gpu_flags(
     vram: float | None,
     bandwidth: float | None = None,
     gpu_index: int | None = None,
+    ram_bandwidth: float | None = None,
 ) -> None:
     """Validate mutual exclusivity of GPU-related flags."""
     if cpu_only and gpu:
@@ -30,6 +31,9 @@ def _validate_gpu_flags(
         raise typer.Exit(code=1)
     if bandwidth is not None and bandwidth <= 0:
         console.print("[red]Error:[/] --bandwidth must be greater than 0.")
+        raise typer.Exit(code=1)
+    if ram_bandwidth is not None and ram_bandwidth <= 0:
+        console.print("[red]Error:[/] --ram-bandwidth must be greater than 0.")
         raise typer.Exit(code=1)
     if gpu_index is not None and gpu_index < 0:
         console.print("[red]Error:[/] --gpu-index must be 0 or greater.")
