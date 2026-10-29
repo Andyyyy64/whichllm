@@ -123,6 +123,59 @@ def _is_excluded_model(model_id: str) -> bool:
     return False
 
 
+# Speculative-decoding draft heads (DFlash, "-draft" uploads) only run next to
+# their target model; their size comes from the name, so they would otherwise
+# pass for the full model.
+DRAFT_NAME_RE = re.compile(r"(?i)dflash|(?:^|[-_.])draft(?:[-_.]|$)")
+# Diffusion language models (DiffusionGemma, LLaDA, Dream) need their own
+# sampler; llama.cpp, LM Studio and Ollama do not run them as chat models.
+_DIFFUSION_RE = re.compile(r"(?i)diffusion|(?:^|[-_/])(llada|dream-v\d)")
+
+
+def _is_auxiliary_model(model: ModelInfo) -> bool:
+    """A draft head or a diffusion LM: not something to chat with directly."""
+    name = model.id.rsplit("/", 1)[-1]
+    if DRAFT_NAME_RE.search(name) or _DIFFUSION_RE.search(name):
+        return True
+    model_type = model.shape.model_type if model.shape else ""
+    return "diffusion" in (model_type or "").lower() or any(
+        "diffusion" in tag.lower() for tag in model.tags
+    )
+
+
+# Checkpoints vLLM serves through its Marlin kernels, which need Ampere or newer
+# (compute capability 8.0). Blackwell (10.0+) runs FP4 natively.
+_AMPERE_FORMATS = frozenset({"NVFP4", "FP8"})
+_MIN_COMPUTE_CAPABILITY = (8, 0)
+_NATIVE_FP4_CAPABILITY = (10, 0)
+
+
+def _non_gguf_format_note(quant_type: str, hardware: HardwareInfo) -> str | None:
+    """Why a non-GGUF checkpoint cannot run here (``""`` if fine), or a note.
+
+    Returns ``None`` when the format cannot run on this machine's GPU, an empty
+    string when it runs as expected, and a note when it runs with a caveat.
+    """
+    if quant_type not in _AMPERE_FORMATS:
+        return ""
+    capabilities = [
+        g.compute_capability
+        for g in hardware.gpus
+        if g.vendor == "nvidia" and g.compute_capability
+    ]
+    if not capabilities:
+        return ""  # unknown: do not block
+    best = max(capabilities)
+    if best < _MIN_COMPUTE_CAPABILITY:
+        return None
+    if quant_type == "NVFP4" and best < _NATIVE_FP4_CAPABILITY:
+        return (
+            "NVFP4 runs through vLLM's weight-only FP4 (Marlin) kernels here; "
+            "only Blackwell GPUs compute in FP4 natively"
+        )
+    return ""
+
+
 def _generation_bonus(model_id: str) -> float:
     """Return a small additive bonus reflecting model generation recency."""
     if not model_id:
@@ -269,6 +322,7 @@ __all__ = [
     "_detect_specializations",
     "_effective_params_b",
     "_generation_bonus",
+    "_is_auxiliary_model",
     "_is_excluded_model",
     "_is_gguf_only_backend",
     "_knowledge_capacity_b",

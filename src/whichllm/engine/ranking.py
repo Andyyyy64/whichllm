@@ -4,13 +4,16 @@ from __future__ import annotations
 
 from whichllm.engine.compatibility import check_compatibility
 from whichllm.engine.performance import estimate_speed_uncertainty, estimate_tok_per_sec
+from whichllm.engine.quantization import effective_quant_type
 from whichllm.engine.ranking_filters import (
     _detect_specializations,
     _is_excluded_model,
     _is_gguf_only_backend,
     _knowledge_capacity_b,
+    _is_auxiliary_model,
     _matches_profile,
     _newer_generation,
+    _non_gguf_format_note,
     _passes_evidence_filter,
 )
 from whichllm.engine.ranking_score import _compute_quality_score, _family_selection_key
@@ -166,6 +169,8 @@ def rank_models(
     for model in sorted_models:
         if _is_excluded_model(model.id) or model.id in base_checkpoints:
             continue
+        if _is_auxiliary_model(model):
+            continue
         if not _matches_profile(model, task_profile):
             continue
         if min_params_b is not None and _knowledge_capacity_b(model) < min_params_b:
@@ -210,9 +215,18 @@ def rank_models(
         for variant in candidates:
             if gguf_only_backend and variant is None:
                 continue
+            format_note = ""
+            if variant is None:
+                format_note = _non_gguf_format_note(
+                    effective_quant_type(model, None), hardware
+                )
+                if format_note is None:
+                    continue
             compat = check_compatibility(model, variant, hardware, context_length)
             if not compat.can_run:
                 continue
+            if format_note:
+                compat.warnings.append(format_note)
             if fit_filter == "full_gpu" and compat.fit_type != "full_gpu":
                 continue
 

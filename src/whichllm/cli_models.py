@@ -18,9 +18,6 @@ _ID_SIZE_RE = re.compile(r"(?:^|[-_/])(\d+(?:\.\d+)?)(b|m)(?:[-_.]|$)", re.IGNOR
 
 _HF_REPO_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$")
 
-# Speculative-decoding draft heads only run next to their target model. Their
-# size comes from the name, so they would otherwise tie with the real model.
-_DRAFT_NAME_RE = re.compile(r"(?i)dflash|(?:^|[-_.])draft(?:[-_.]|$)")
 
 # A format word in the query asks for a converted upload on purpose.
 _FORMAT_TERM_RE = re.compile(
@@ -181,6 +178,7 @@ def _search_model(models: list, model_name: str):
                 console.print(f"  • {m.id} ({p})")
         raise typer.Exit(code=1)
 
+    from whichllm.engine.ranking_filters import _is_auxiliary_model
     from whichllm.models.roles import find_base_checkpoints
 
     # Draft heads and pretrain-only checkpoints are not chat models; they win
@@ -189,9 +187,7 @@ def _search_model(models: list, model_name: str):
     prefer_original = not any(_FORMAT_TERM_RE.match(t) for t in terms)
 
     def _sort_key(m: ModelInfo) -> tuple:
-        not_chat = bool(_DRAFT_NAME_RE.search(m.id.rsplit("/", 1)[-1])) or (
-            m.id in base_ids
-        )
+        not_chat = _is_auxiliary_model(m) or m.id in base_ids
         # Closest name first, then the original over a quantized upload,
         # then downloads.
         relevance = (

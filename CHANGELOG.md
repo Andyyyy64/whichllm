@@ -109,6 +109,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - `run` without a model name ranks with the index's benchmark scores, as
   `snippet` does. It read only the `--live` benchmark cache, which the index
   path never writes, so its pick was ranked without any benchmarks.
+- Speculative-decoding draft heads (DFlash, `-draft`) and diffusion LMs are
+  never ranked. A draft's size is read from its name, so it passed for the
+  full model; `google/diffusiongemma-26B-A4B-it` was recommended at Q3_K_M
+  on CPU-only machines because official repos get assumed GGUF builds,
+  although llama.cpp does not run it.
+- NVFP4 and FP8 checkpoints need an Ampere or newer NVIDIA GPU. vLLM serves
+  them through Marlin kernels there, so a Turing card no longer gets them;
+  an NVFP4 pick before Blackwell notes that it runs weight-only.
 - `run`, `snippet` and `plan` resolve a model name to the model you meant.
   Among repos with the same size label the one whose parameter count was
   closest to the query used to win, and that count is often parsed from the

@@ -195,7 +195,7 @@ Catalog captured 2026-10-28 with whichllm 0.5.21 (9f3709f): 1129 models, 4728 be
 2. google/gemma-4-26B-A4B-it [Q3_K_M, cpu_only, 8.4 tok/s, score 39.1]
 3. openai/gpt-oss-20b [Q3_K_M, cpu_only, 8.9 tok/s, score 36.0]
 4. AtomicChat/LFM2.5-8B-A1B-GGUF [IQ4_XS, cpu_only, 29.0 tok/s, score 27.1]
-5. google/diffusiongemma-26B-A4B-it [Q3_K_M, cpu_only, 8.0 tok/s, score 25.8]
+5. microsoft/Phi-4-mini-instruct [Q3_K_M, cpu_only, 8.3 tok/s, score 25.4]
 
 ## cpu-64gb-win / general
 
