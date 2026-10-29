@@ -10,6 +10,7 @@ from rich.table import Table
 from rich.text import Text
 
 from whichllm.engine.quantization import effective_quant_type
+from whichllm.engine.recipe import build_recipe
 from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.types import HardwareInfo
 from whichllm.output import _console
@@ -175,6 +176,7 @@ def display_ranking(
     has_gpu: bool = True,
     show_status: bool = False,
     empty_message: str | None = None,
+    context_length: int | None = None,
 ) -> None:
     """Display ranked model table."""
     if not results:
@@ -378,3 +380,19 @@ def display_ranking(
         if r.warnings:
             for w in r.warnings:
                 _console.console.print(f"  [yellow]Warning #{i} {r.model.name}:[/] {w}")
+
+    if context_length is not None:
+        _print_recipe(results[0], context_length)
+
+
+def _print_recipe(result: CompatibilityResult, context_length: int) -> None:
+    recipe = build_recipe(result, context_length)
+    if recipe is None:
+        return
+    console = _console.console
+    console.print()
+    console.print("  [bold]Run #1 with llama.cpp:[/]")
+    console.print(Text(f"    {recipe.llama_cpp}", style="bold cyan"))
+    console.print(Text(f"  LM Studio: {recipe.lm_studio}", style="dim"))
+    for note in recipe.notes:
+        console.print(Text(f"  {note}", style="dim"))

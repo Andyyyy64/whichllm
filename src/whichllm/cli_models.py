@@ -216,10 +216,23 @@ def _resolve_model_deps(model, variant) -> tuple[list[str], str]:
     return base, "transformers"
 
 
-def _generate_chat_script(model, variant, context_length: int, cpu_only: bool) -> str:
-    """Generate a self-contained Python chat script for any model type."""
+def _generate_chat_script(
+    model,
+    variant,
+    context_length: int,
+    cpu_only: bool,
+    n_gpu_layers: int | None = None,
+) -> str:
+    """Generate a self-contained Python chat script for any model type.
+
+    ``n_gpu_layers`` is the GGUF layer split from the ranking (-1 = all on
+    the GPU); without it every layer goes to the GPU.
+    """
     if variant:
-        n_gpu = 0 if cpu_only else -1
+        if cpu_only:
+            n_gpu = 0
+        else:
+            n_gpu = n_gpu_layers if n_gpu_layers is not None else -1
         return f"""\
 from huggingface_hub import hf_hub_download
 from llama_cpp import Llama

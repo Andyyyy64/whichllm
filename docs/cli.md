@@ -108,6 +108,20 @@ whichllm --json | jq '.models[0]'
 `--markdown` is mutually exclusive with `--json`. It prints a plain Markdown
 table without the Rich hardware panel, colors, or box-drawing characters.
 
+Below the table, whichllm prints how to run the top pick the way it was
+estimated, when a GGUF build of it is known:
+
+```text
+  Run #1 with llama.cpp:
+    llama-server -hf ggml-org/gpt-oss-120b-GGUF:MXFP4 -c 4096 -ngl 99 --n-cpu-moe 29 -fa on
+  LM Studio: GPU Offload: max, Number of layers for which to force MoE weights onto CPU: 29
+```
+
+The flags follow the placement: `-ngl 99` for a full-GPU fit,
+`--n-cpu-moe N` (or `--cpu-moe`) when MoE experts stay in RAM, `-ngl N` for
+layer offload and `-ngl 0` for CPU-only. `--markdown` prints the command as a
+code block, and `--json` adds a `recipe` object to every row.
+
 Ranking JSON model rows include:
 
 | Field | Meaning |
@@ -127,6 +141,7 @@ Ranking JSON model rows include:
 | `benchmark_confidence` | Confidence in the benchmark match, `0.0`–`1.0` |
 | `local_match` | Whether a matching GGUF was found in an LM Studio library |
 | `local_path` | Absolute path to the matching local GGUF, or `null` |
+| `recipe` | How to run this row: `gguf_repo`, `quant`, `llama_cpp` (a `llama-server` command), `lm_studio` (load settings), `ollama` (command) and `notes`; `null` when no GGUF build is known |
 
 The top-level `hardware` object also includes `usable_vram_bytes` per GPU,
 `ram_budget_bytes`, and `budget_notes` when memory budgets are active, plus
@@ -239,6 +254,12 @@ whichllm run "mistral 7b gguf" --context-length 64k
 ```
 
 `run` requires `uv` in `PATH`.
+
+When `run` picks the model itself, the generated script puts as many layers on
+the GPU as the ranking's fit allows (`n_gpu_layers`). llama-cpp-python cannot
+keep only MoE experts in RAM, so for an expert-offload pick `run` uses the
+equivalent layer split, which is slower than the estimate, and prints the
+`llama-server` command that matches it.
 
 ## `snippet`
 

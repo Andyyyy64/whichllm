@@ -1829,7 +1829,7 @@ def test_run_auto_pick_resolves_ranked_gguf_before_launch(monkeypatch):
             )
         ]
 
-    def fake_generate_chat_script(model, variant, context_length, cpu_only):
+    def fake_generate_chat_script(model, variant, context_length, cpu_only, **kw):
         captured["model_id"] = model.id
         captured["variant"] = variant
         return "print('ok')"

@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import json
 
+from dataclasses import asdict
+
 from whichllm.engine.quantization import effective_quant_type, estimate_weight_bytes
+from whichllm.engine.recipe import build_recipe
 from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.types import HardwareInfo
 from whichllm.models.types import GGUFVariant, ModelInfo
@@ -26,7 +29,20 @@ def _placement_json(result: CompatibilityResult) -> dict | None:
     }
 
 
-def display_json(results: list[CompatibilityResult], hardware: HardwareInfo) -> None:
+def _recipe_json(
+    result: CompatibilityResult, context_length: int | None
+) -> dict | None:
+    if context_length is None:
+        return None
+    recipe = build_recipe(result, context_length)
+    return asdict(recipe) if recipe else None
+
+
+def display_json(
+    results: list[CompatibilityResult],
+    hardware: HardwareInfo,
+    context_length: int | None = None,
+) -> None:
     """Output ranking results as JSON."""
     output = {
         "hardware": {
@@ -87,6 +103,7 @@ def display_json(results: list[CompatibilityResult], hardware: HardwareInfo) -> 
                 "benchmark_confidence": round(r.benchmark_confidence, 2),
                 "fit_type": r.fit_type,
                 "placement": _placement_json(r),
+                "recipe": _recipe_json(r, context_length),
                 "can_run": r.can_run,
                 "warnings": r.warnings,
                 "license": r.model.license,

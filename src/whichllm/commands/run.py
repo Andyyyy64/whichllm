@@ -17,6 +17,7 @@ from whichllm.cli_models import (
     _search_model,
 )
 from whichllm.cli_shared import console
+from whichllm.engine.recipe import build_recipe, python_gpu_layers
 
 
 from whichllm.models.artifacts import (
@@ -54,6 +55,7 @@ def run_command(
         progress.remove_task(task)
 
     variant = None
+    picked = None
     if model_name:
         model = _search_model(models, model_name)
     else:
@@ -103,11 +105,15 @@ def run_command(
                         )
                     model = resolved_model
                     quant = variant.quant_type
+                    ranked.artifact_model = resolved_model
+                    ranked.artifact_variant = variant
+                    picked = ranked
                     break
                 skipped_gguf.append(ranked.model.id)
                 continue
 
             model = ranked.model
+            picked = ranked
             break
 
         if skipped_gguf:
@@ -131,7 +137,13 @@ def run_command(
     if variant is None:
         variant = _pick_gguf_variant(model, quant)
     deps, script_type = _resolve_model_deps(model, variant)
-    script = _generate_chat_script(model, variant, context_length, cpu_only)
+    n_gpu_layers = None
+    if picked is not None and variant is not None and not cpu_only:
+        n_gpu_layers = python_gpu_layers(picked)
+        _print_expert_offload_hint(picked, context_length, n_gpu_layers)
+    script = _generate_chat_script(
+        model, variant, context_length, cpu_only, n_gpu_layers=n_gpu_layers
+    )
 
     fmt = variant.quant_type if variant else script_type.upper()
     console.print(f"\n[bold green]Running {model.id}[/] [dim]({fmt})[/]")
@@ -149,3 +161,18 @@ def run_command(
         raise typer.Exit(code=result.returncode)
     finally:
         os.unlink(script_path)
+
+
+def _print_expert_offload_hint(picked, context_length: int, n_gpu_layers: int) -> None:
+    placement = picked.placement
+    if placement is None or placement.kind != "expert_offload":
+        return
+    recipe = build_recipe(picked, context_length)
+    console.print(
+        "[yellow]Note:[/] llama-cpp-python cannot keep only the MoE experts in "
+        f"RAM, so this chat runs {n_gpu_layers} layers on the GPU and is slower "
+        "than the estimate."
+    )
+    if recipe is not None:
+        console.print("[dim]For the estimated speed, serve it with llama.cpp:[/]")
+        console.print(f"  {recipe.llama_cpp}", markup=False, highlight=False)
