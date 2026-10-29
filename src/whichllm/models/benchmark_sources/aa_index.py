@@ -34,14 +34,20 @@ AA_NAME_TO_HF_IDS: dict[str, list[str]] = {
     # AA's "Kimi K2" row links its weights to Kimi-K2-Instruct (modelWeightsSourceUrl).
     # No AA row evaluates Kimi-K2-Base, so it is left unmapped.
     "Kimi K2": ["moonshotai/Kimi-K2-Instruct"],
+    # AA's "Kimi K2 0905" row links its weights to Kimi-K2-Instruct-0905.
+    "Kimi K2 0905": ["moonshotai/Kimi-K2-Instruct-0905"],
     "Kimi K2-Thinking": ["moonshotai/Kimi-K2-Thinking"],
     "DeepSeek V3": ["deepseek-ai/DeepSeek-V3"],
     "DeepSeek V3 0324": ["deepseek-ai/DeepSeek-V3-0324"],
     "DeepSeek V3.1": ["deepseek-ai/DeepSeek-V3.1"],
     "DeepSeek V3.2": ["deepseek-ai/DeepSeek-V3.2"],
     "DeepSeek V3.2-Exp": ["deepseek-ai/DeepSeek-V3.2-Exp"],
-    "DeepSeek V4 Pro": ["deepseek-ai/DeepSeek-V4-Pro"],
-    "DeepSeek V4 Flash": ["deepseek-ai/DeepSeek-V4-Flash"],
+    # AA splits DeepSeek V4 into dated releases. Each row's modelWeightsSourceUrl
+    # names its own repo: 0424 and 0420 are the original undated repos.
+    "DeepSeek V4 Pro 0424": ["deepseek-ai/DeepSeek-V4-Pro"],
+    "DeepSeek V4 Pro 0813": ["deepseek-ai/DeepSeek-V4-Pro-0813"],
+    "DeepSeek V4 Flash 0420": ["deepseek-ai/DeepSeek-V4-Flash"],
+    "DeepSeek V4 Flash 0731": ["deepseek-ai/DeepSeek-V4-Flash-0731"],
     "DeepSeek R1": ["deepseek-ai/DeepSeek-R1"],
     "DeepSeek R1-0528": ["deepseek-ai/DeepSeek-R1-0528"],
     "DeepSeek R1-Distill 32B": ["deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"],
@@ -105,130 +111,146 @@ AA_NAME_TO_HF_IDS: dict[str, list[str]] = {
 }
 
 # Bounds used to normalize raw AA index values onto the 0-100 scale the rest
-# of the ranking system uses. AA reworked their Intelligence Index in
-# 2026-Q2 and the open-weights distribution compressed sharply (top open model
-# ~44, 8B-class ~7, weakest mapped repos ~3). The window is anchored by the
-# same two-point fit as before: top open frontier (DeepSeek-V4-Pro = 44.3) → 95
-# normalized, and 8B-class (Qwen3-8B = 7.4) → 40 normalized. This keeps a strong
-# 8B model competitive with frozen-OLLB 7B scores while leaving headroom for
-# frontier-tier models. On the reworked scale that fit puts the floor below
-# zero; that is fine, live AA values are always positive and clamp at 0.
-_AA_INDEX_MIN = -19.4
-_AA_INDEX_MAX = 47.6
+# of the ranking system uses. AA rescaled their Intelligence Index again after
+# the 2026-06-29 refresh (most open-weights values dropped by about a third;
+# the values read on 2026-09-14 already match the 2026-10-27 ones). The window is
+# anchored by the same two-point fit as before: top open frontier on AA
+# (MiMo-V2.6-Pro = 46.3 on AA_LEADERBOARD_URL, not mapped here) → 95 normalized,
+# and 8B-class (Qwen3-8B = 6.0, an AA estimate, /models/qwen3-8b-instruct) → 40
+# normalized, both read 2026-10-27. This keeps a strong 8B model
+# competitive with frozen-OLLB 7B scores while leaving headroom for
+# frontier-tier models, including open releases not mapped yet. The fit puts
+# the floor below zero; that is fine, live AA values are always positive and
+# clamp at 0.
+_AA_INDEX_MIN = -23.3
+_AA_INDEX_MAX = 50.0
+
+# The AA index version the bounds and snapshot were read on. Raw values from
+# another version are on a different scale, so fetch_aa_index_scores() returns
+# the snapshot when the leaderboard reports any other (or no) version.
+AA_INDEX_VERSION = "4.3.2"
+_AA_VERSION_RE = re.compile(r"Artificial Analysis Intelligence Index v(\d+(?:\.\d+)*)")
 
 AA_LEADERBOARD_URL = "https://artificialanalysis.ai/leaderboards/models"
 
-# Snapshot of the AA Intelligence Index (open-weights only), refreshed on
-# 2026-06-29 from artificialanalysis.ai against their reworked index, with the
-# Qwen3.5 / Qwen3.6 / Qwen3.8 and coder entries read on 2026-09-14. Used as a
-# fallback when the live HTML scrape returns no results (e.g. because the
-# Next.js payload format changes again). Entries are raw AA index values,
-# normalized through _normalize_aa_index() in get_aa_curated_fallback().
+# Snapshot of the AA Intelligence Index v4.3.2 (open-weights only). Every "live"
+# entry was read on 2026-10-27 from https://artificialanalysis.ai/models/<slug>, where
+# <slug> is named in the entry's comment (e.g. "kimi-k2" is
+# https://artificialanalysis.ai/models/kimi-k2) and is the highest variant of the
+# release, as fetch_aa_index_scores() takes it. "estimated" marks values AA
+# flags as estimated rather than measured. Used as a fallback when the live
+# HTML scrape returns no results (e.g. because the Next.js payload format
+# changes again), and for mapped models whose AA release is deprecated: the
+# leaderboard page no longer carries an index for those (Kimi K2, GLM-5, ...),
+# so even a successful live fetch falls back to these values. Entries are raw
+# AA index values, normalized through _normalize_aa_index() in
+# get_aa_curated_fallback().
 #
-# Entries marked "live" are real values from the reworked index. Entries marked
-# "peer" are models AA does not track; their raw value is set so that, under the
-# current bounds, they reproduce their previous normalized score (hand-estimated
-# LB-equivalents). On the reworked scale several peers fall below the index
-# floor and read as negative raw; that is an artifact of reusing the AA-index
+# Entries marked "peer" are models AA does not track; their raw value is set so
+# that, under the current bounds, they reproduce their previous normalized score
+# (hand-estimated LB-equivalents). Several peers fall below the index floor
+# and read as negative raw; that is an artifact of reusing the AA-index
 # field for non-AA estimates. _normalize_aa_index() clamps them at 0, so the
 # normalized output stays correct. (We could instead store this snapshot as
 # already-normalized 0-100 values, which would drop the negatives and decouple
 # the fallback from future bound retunes, but that is a larger change than this
 # issue calls for and is left for a follow-up if you want it.)
-AA_INDEX_FALLBACK_2026_09_14: dict[str, float] = {
+AA_INDEX_FALLBACK_2026_10_27: dict[str, float] = {
     # Frontier MoE / very large
-    "moonshotai/Kimi-K2-Thinking": 32.7,  # live
-    "moonshotai/Kimi-K2-Instruct": 19.4,  # live
-    "XiaomiMiMo/MiMo-V2.5-Pro": 42.2,  # live
-    "XiaomiMiMo/MiMo-V2.5": 40.1,  # live
-    "deepseek-ai/DeepSeek-V4-Pro": 44.3,  # live
-    "deepseek-ai/DeepSeek-V4-Flash": 40.3,  # live
-    "deepseek-ai/DeepSeek-V3.2": 33.4,  # live
-    "deepseek-ai/DeepSeek-V3.2-Exp": 25.4,  # live
-    "deepseek-ai/DeepSeek-V3.1": 21.0,  # live
-    "deepseek-ai/DeepSeek-V3-0324": 10.4,  # live
-    "deepseek-ai/DeepSeek-V3": 10.4,  # live
-    "deepseek-ai/DeepSeek-R1-0528": 20.1,  # live
-    "deepseek-ai/DeepSeek-R1": 12.6,  # live
-    "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B": 10.5,  # peer
-    "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": 1.3,  # peer
-    "deepseek-ai/DeepSeek-R1-Distill-Llama-8B": -7.9,  # peer
-    "Qwen/QwQ-32B": 13.4,  # live
-    "Qwen/Qwen3-4B-Thinking-2507": -4.8,  # peer
-    "zai-org/GLM-5.1": 40.2,  # live
-    "zai-org/GLM-5": 39.5,  # live
-    "zai-org/GLM-5-FP8": 39.5,  # live
-    "zai-org/GLM-5.1-FP8": 40.2,  # live
-    "zai-org/GLM-4.7-Flash": 22.9,  # live
-    "zai-org/GLM-4.6": 25.1,  # live
-    "zai-org/GLM-4.5": 19.5,  # live
-    "zai-org/GLM-4.5-Air": 19.5,  # live
+    "moonshotai/Kimi-K2-Thinking": 22.0,  # live, estimated: kimi-k2-thinking
+    "moonshotai/Kimi-K2-Instruct": 12.7,  # live, estimated: kimi-k2
+    "moonshotai/Kimi-K2-Instruct-0905": 15.3,  # live, estimated: kimi-k2-0905
+    "XiaomiMiMo/MiMo-V2.5-Pro": 26.0,  # live: mimo-v2-5-pro
+    "XiaomiMiMo/MiMo-V2.5": 21.8,  # live: mimo-v2-5-0424
+    "deepseek-ai/DeepSeek-V4-Pro": 30.4,  # live: deepseek-v4-pro-0424
+    "deepseek-ai/DeepSeek-V4-Flash": 24.4,  # live: deepseek-v4-flash-0420-high
+    "deepseek-ai/DeepSeek-V4-Pro-0813": 36.0,  # live: deepseek-v4-pro
+    "deepseek-ai/DeepSeek-V4-Flash-0731": 34.3,  # live: deepseek-v4-flash
+    "deepseek-ai/DeepSeek-V3.2": 21.5,  # live, estimated: deepseek-v3-2-reasoning
+    "deepseek-ai/DeepSeek-V3.2-Exp": 16.6,  # live, estimated: deepseek-v3-2-reasoning-0925
+    "deepseek-ai/DeepSeek-V3.1": 13.7,  # live, estimated: deepseek-v3-1
+    "deepseek-ai/DeepSeek-V3-0324": 9.7,  # live: deepseek-v3-0324
+    "deepseek-ai/DeepSeek-V3": 8.5,  # live: deepseek-v3
+    "deepseek-ai/DeepSeek-R1-0528": 13.1,  # live, estimated: deepseek-r1
+    "deepseek-ai/DeepSeek-R1": 11.4,  # live: deepseek-r1-0120
+    "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B": 9.4,  # peer
+    "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": -0.65,  # peer
+    "deepseek-ai/DeepSeek-R1-Distill-Llama-8B": -10.7,  # peer
+    "Qwen/QwQ-32B": 9.5,  # live, estimated: qwq-32b
+    "Qwen/Qwen3-4B-Thinking-2507": -7.3,  # peer
+    "zai-org/GLM-5.1": 26.1,  # live: glm-5-1
+    "zai-org/GLM-5": 27.9,  # live, estimated: glm-5
+    "zai-org/GLM-5-FP8": 27.9,  # live, estimated: glm-5
+    "zai-org/GLM-5.1-FP8": 26.1,  # live: glm-5-1
+    "zai-org/GLM-4.7-Flash": 14.9,  # live, estimated: glm-4-7-flash
+    "zai-org/GLM-4.6": 18.5,  # live, estimated: glm-4-6-reasoning
+    "zai-org/GLM-4.5": 12.8,  # live, estimated: glm-4.5
+    "zai-org/GLM-4.5-Air": 11.1,  # live, estimated: glm-4-5-air
     # Qwen family
-    "Qwen/Qwen3.6-27B": 21.9,  # live (2026-09-14; was a 32.0 hand estimate)
-    "Qwen/Qwen3.5-397B-A17B": 33.7,  # live
-    "Qwen/Qwen3-Next-80B-A3B-Instruct": 19.8,  # live
-    "Qwen/Qwen3-235B-A22B": 13.4,  # live
-    "Qwen/Qwen3-Coder-30B-A3B-Instruct": 9.6,  # live (2026-09-14; was 19.7 peer)
-    "Qwen/Qwen3-32B": 11.5,  # live
-    "Qwen/Qwen3-14B": 10.1,  # live
-    "Qwen/Qwen3-8B": 7.4,  # live
-    "Qwen/Qwen3-4B-Instruct-2507": 4.4,  # peer
-    "Qwen/Qwen3-4B": 1.3,  # peer
-    "Qwen/Qwen3-1.7B": -7.9,  # peer
-    "Qwen/Qwen3-0.6B": -14.0,  # peer
-    # Qwen3.5 / Qwen3.6 / Qwen3.8 releases and the current coder line. Raw
-    # values read from the live AA index (v4.3) on 2026-09-14, taking the
-    # highest variant per model as fetch_aa_index_scores() does.
-    "Qwen/Qwen3.8-27B": 33.9,  # live
-    "Qwen/Qwen3.6-35B-A3B": 18.8,  # live
-    "Qwen/Qwen3.5-27B": 22.9,  # live
-    "Qwen/Qwen3.5-122B-A10B": 17.7,  # live
-    "Qwen/Qwen3.5-35B-A3B": 19.3,  # live
-    "Qwen/Qwen3.5-9B": 13.7,  # live
-    "Qwen/Qwen3.5-4B": 13.1,  # live
-    "Qwen/Qwen3-Coder-Next": 10.1,  # live
-    "Qwen/Qwen3-Coder-480B-A35B-Instruct": 11.9,  # live
-    "Qwen/Qwen2.5-Coder-32B-Instruct": 6.7,  # live
-    "Qwen/Qwen2.5-Coder-7B-Instruct": 5.8,  # live
+    "Qwen/Qwen3.6-27B": 21.4,  # live: qwen3-6-27b
+    "Qwen/Qwen3.5-397B-A17B": 21.4,  # live, estimated: qwen3-5-397b-a17b-non-reasoning
+    "Qwen/Qwen3-Next-80B-A3B-Instruct": 11.2,  # live, estimated: qwen3-next-80b-a3b-reasoning
+    "Qwen/Qwen3-235B-A22B": 9.5,  # live, estimated: qwen3-235b-a22b-instruct-reasoning
+    "Qwen/Qwen3-Coder-30B-A3B-Instruct": 9.6,  # live, estimated: qwen3-coder-30b-a3b-instruct
+    "Qwen/Qwen3-32B": 7.3,  # live, estimated: qwen3-32b-instruct
+    "Qwen/Qwen3-14B": 6.7,  # live, estimated: qwen3-14b-instruct
+    "Qwen/Qwen3-8B": 6.0,  # live, estimated: qwen3-8b-instruct
+    "Qwen/Qwen3-4B-Instruct-2507": 2.7,  # peer
+    "Qwen/Qwen3-4B": -0.65,  # peer
+    "Qwen/Qwen3-1.7B": -10.7,  # peer
+    "Qwen/Qwen3-0.6B": -17.36,  # peer
+    # Qwen3.5 / Qwen3.6 / Qwen3.8 releases and the current coder line.
+    "Qwen/Qwen3.8-27B": 33.7,  # live: qwen3-8-27b
+    "Qwen/Qwen3.6-35B-A3B": 18.2,  # live: qwen3-6-35b-a3b
+    "Qwen/Qwen3.5-27B": 22.9,  # live, estimated: qwen3-5-27b
+    "Qwen/Qwen3.5-122B-A10B": 17.7,  # live, estimated: qwen3-5-122b-a10b-non-reasoning
+    "Qwen/Qwen3.5-35B-A3B": 19.3,  # live, estimated: qwen3-5-35b-a3b
+    "Qwen/Qwen3.5-9B": 13.3,  # live, estimated: qwen3-5-9b-non-reasoning
+    "Qwen/Qwen3.5-4B": 13.1,  # live, estimated: qwen3-5-4b
+    "Qwen/Qwen3-Coder-Next": 9.2,  # live: qwen3-coder-next
+    "Qwen/Qwen3-Coder-480B-A35B-Instruct": 11.9,  # live, estimated: qwen3-coder-480b-a35b-instruct
+    "Qwen/Qwen2.5-Coder-32B-Instruct": 6.7,  # live, estimated: qwen2-5-coder-32b-instruct
+    "Qwen/Qwen2.5-Coder-7B-Instruct": 5.8,  # live, estimated: qwen2-5-coder-7b-instruct
     # 8B-class peers (no AA tracking but realistic LB-equivalents)
-    "meta-llama/Llama-3.1-8B-Instruct": -4.8,  # peer
-    "meta-llama/Meta-Llama-3-8B-Instruct": -7.9,  # peer
-    "google/gemma-2-9b-it": -3.3,  # peer
-    "microsoft/Phi-4-mini-instruct": -1.8,  # peer
-    "mistralai/Mistral-7B-Instruct-v0.3": -7.9,  # peer
-    "Qwen/Qwen2.5-7B-Instruct": -4.8,  # peer
-    "Qwen/Qwen2.5-14B-Instruct": 1.3,  # peer
-    "Qwen/Qwen2.5-32B-Instruct": 7.4,  # peer
-    "Qwen/Qwen3-30B-A3B": 10.5,  # peer
+    "meta-llama/Llama-3.1-8B-Instruct": -7.3,  # peer
+    "meta-llama/Meta-Llama-3-8B-Instruct": -10.7,  # peer
+    "google/gemma-2-9b-it": -5.7,  # peer
+    "microsoft/Phi-4-mini-instruct": -4.0,  # peer
+    "mistralai/Mistral-7B-Instruct-v0.3": -10.7,  # peer
+    "Qwen/Qwen2.5-7B-Instruct": -7.3,  # peer
+    "Qwen/Qwen2.5-14B-Instruct": -0.65,  # peer
+    "Qwen/Qwen2.5-32B-Instruct": 6.0,  # peer
+    "Qwen/Qwen3-30B-A3B": 9.4,  # peer
     # Other major open releases
-    "openai/gpt-oss-120b": 23.8,  # live
-    "openai/gpt-oss-20b": 14.9,  # live
-    "meta-llama/Llama-4-Maverick-17B-128E-Instruct": 14.3,  # live
-    "meta-llama/Llama-4-Scout-17B-16E-Instruct": 10.0,  # live
-    "meta-llama/Llama-3.3-70B-Instruct": 12.0,  # peer
-    "google/gemma-4-31b-it": 29.4,  # live
-    "google/gemma-4-26b-a4b-it": 25.7,  # live
-    "google/gemma-3-27b-it": 12.0,  # peer
-    "google/gemma-3-12b-it": 7.4,  # peer
-    "microsoft/phi-4": 4.9,  # live
-    "mistralai/Mistral-Large-Instruct-2411": 9.1,  # live
-    "mistralai/Mistral-Small-3.2-24B-Instruct-2506": 10.5,  # peer
-    "mistralai/Mistral-Small-3.1-24B-Instruct-2503": 7.4,  # peer
-    "mistralai/Devstral-Small-2505": 11.8,  # live
-    "MiniMaxAI/MiniMax-M2.5": 33.7,  # live
-    "stepfun-ai/Step-3.5-Flash": 19.7,  # peer
-    "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16": 16.6,  # peer
-    "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16": 12.0,  # peer
+    "openai/gpt-oss-120b": 11.6,  # live: gpt-oss-120b
+    "openai/gpt-oss-20b": 10.0,  # live, estimated: gpt-oss-20b-low
+    "meta-llama/Llama-4-Maverick-17B-128E-Instruct": 9.3,  # live: llama-4-maverick
+    "meta-llama/Llama-4-Scout-17B-16E-Instruct": 6.5,  # live: llama-4-scout
+    "meta-llama/Llama-3.3-70B-Instruct": 11.1,  # peer
+    "google/gemma-4-31b-it": 14.7,  # live: gemma-4-31b
+    "google/gemma-4-26b-a4b-it": 16.7,  # live, estimated: gemma-4-26b-a4b
+    "google/gemma-3-27b-it": 11.1,  # peer
+    "google/gemma-3-12b-it": 6.0,  # peer
+    "microsoft/phi-4": 5.9,  # live, estimated: phi-4
+    "mistralai/Mistral-Large-Instruct-2411": 7.6,  # live, estimated: mistral-large-2
+    "mistralai/Mistral-Small-3.2-24B-Instruct-2506": 9.4,  # peer
+    "mistralai/Mistral-Small-3.1-24B-Instruct-2503": 6.0,  # peer
+    "mistralai/Devstral-Small-2505": 8.7,  # live, estimated: devstral-small-2505
+    "CohereForAI/c4ai-command-a-03-2025": 7.0,  # live, estimated: command-a
+    "MiniMaxAI/MiniMax-M2.5": 22.8,  # live, estimated: minimax-m2-5
+    "stepfun-ai/Step-3.5-Flash": 19.5,  # peer
+    "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16": 16.06,  # peer
+    "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16": 11.1,  # peer
     # Correct IDs for OLMo / Granite / Codestral families (the earlier
     # forecast IDs like "OLMo-3-32B-Instruct" or "granite-4.1-30b-instruct"
     # never shipped publicly under those names).
-    "allenai/Olmo-3-7B-Instruct": -4.8,  # peer
-    "allenai/Olmo-3-1025-7B": -4.8,  # peer
-    "ibm-granite/granite-4.0-h-small": 7.4,  # peer
-    "ibm-granite/granite-4.0-h-tiny": -4.8,  # peer
-    "ibm-granite/granite-3.3-8b-instruct": -3.3,  # peer
-    "ibm-granite/granite-3.3-2b-instruct": -12.5,  # peer
-    "mistralai/Codestral-22B-v0.1": 4.4,  # peer
+    "allenai/Olmo-3-7B-Instruct": -7.3,  # peer
+    "allenai/Olmo-3-1025-7B": -7.3,  # peer
+    "ibm-granite/granite-4.0-h-small": 6.0,  # peer
+    "ibm-granite/granite-4.0-h-tiny": -7.3,  # peer
+    "ibm-granite/granite-3.3-8b-instruct": -5.7,  # peer
+    "ibm-granite/granite-3.3-2b-instruct": -15.75,  # peer
+    "mistralai/Codestral-22B-v0.1": 2.7,  # peer
 }
 
 
@@ -347,10 +369,20 @@ async def fetch_aa_index_scores(client: httpx.AsyncClient) -> dict[str, float]:
     Returns ``{hf_id: normalized_score_0_100}`` for every model AA reports
     that we can map back to a HuggingFace repo via :data:`AA_NAME_TO_HF_IDS`.
 
+    Returns the curated snapshot instead when the leaderboard reports an
+    index version other than :data:`AA_INDEX_VERSION`, or none.
+
     Raises on HTTP / parse failure.
     """
     resp = await get_with_retries(client, AA_LEADERBOARD_URL)
     resp.raise_for_status()
+    versions = set(_AA_VERSION_RE.findall(resp.text))
+    if versions != {AA_INDEX_VERSION}:
+        logger.debug(
+            f"AA index: leaderboard reports version {', '.join(sorted(versions)) or 'unknown'}, "
+            f"bounds are calibrated on v{AA_INDEX_VERSION}; using the snapshot"
+        )
+        return get_aa_curated_fallback()
     # Primary: Next.js App Router RSC stream (current site format).
     pairs = _extract_aa_pairs_from_html(resp.text)
     # Legacy fallback: classic __NEXT_DATA__ JSON blob (older site format).
@@ -403,14 +435,13 @@ async def fetch_aa_index_scores(client: httpx.AsyncClient) -> dict[str, float]:
 def get_aa_curated_fallback() -> dict[str, float]:
     """Return the curated snapshot, normalized to the 0-100 scale.
 
-    Mixed dates: 2026-06-29 base, with the Qwen3.5 / Qwen3.6 / Qwen3.8 and
-    coder entries refreshed on 2026-09-14.
+    All live entries read on 2026-10-27 (AA index v4.3.2).
 
-    Used whenever the live HTML scrape cannot extract data — for example
-    when artificialanalysis.ai changes its Next.js payload shape.
+    Used when the live fetch fails or reports another index version, and
+    for mapped models AA no longer lists.
     """
     result: dict[str, float] = {}
-    for hf_id, raw in AA_INDEX_FALLBACK_2026_09_14.items():
+    for hf_id, raw in AA_INDEX_FALLBACK_2026_10_27.items():
         normalized = _normalize_aa_index(raw)
         if normalized > 0:
             result[hf_id] = normalized
