@@ -61,6 +61,26 @@ def test_unknown_split_keeps_every_expert_on_the_cpu():
     assert recipe is not None
     assert "--cpu-moe" in recipe.llama_cpp
     assert "--n-cpu-moe" not in recipe.llama_cpp
+    # LM Studio has no all-experts toggle: the layer count goes to the maximum.
+    assert recipe.lm_studio.endswith("force MoE weights onto CPU: 36")
+
+
+def test_all_experts_without_a_layer_count_says_max():
+    placement = Placement("expert_offload", 10, 50, n_cpu_moe=None, num_layers=None)
+    recipe = build_recipe(_result(placement), 4096)
+    assert recipe is not None
+    assert recipe.lm_studio.endswith("force MoE weights onto CPU: max")
+
+
+def test_ollama_note_only_when_the_model_is_split():
+    full = build_recipe(_result(Placement("gpu", 60, 0, n_gpu_layers=36)), 4096)
+    layers = build_recipe(
+        _result(Placement("layer_offload", 40, 20, n_gpu_layers=24, num_layers=36)),
+        4096,
+    )
+    assert full is not None and full.notes == ()
+    assert layers is not None
+    assert any("Ollama picks its own" in note for note in layers.notes)
 
 
 def test_full_gpu_layer_offload_and_cpu_recipes():
