@@ -361,7 +361,7 @@ def test_resolve_fit_filter_rejects_unknown_mode():
 
 def test_resolve_speed_filter_presets_and_min_speed_override():
     assert _resolve_speed_filter("any", min_speed=None) is None
-    assert _resolve_speed_filter("usable", min_speed=None) == 10.0
+    assert _resolve_speed_filter("usable", min_speed=None) == 8.0
     assert _resolve_speed_filter("fast", min_speed=None) == 30.0
     assert _resolve_speed_filter("fast", min_speed=2.5) == 2.5
 
@@ -499,7 +499,7 @@ def test_main_passes_speed_preset_and_default_runtime_columns(monkeypatch):
     result = CliRunner().invoke(app, ["--speed", "usable"])
 
     assert result.exit_code == 0
-    assert captured["min_speed"] == 10.0
+    assert captured["min_speed"] == 8.0
     assert captured["show_status"] is True
 
 

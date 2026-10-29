@@ -89,7 +89,7 @@ whichllm --gpu "2x RTX 3090"      # 複数枚も指定できる
 whichllm --profile coding         # general, coding, vision, math, any
 whichllm --context-length 64k     # コンテキストが長いと収まるモデルが変わる
 whichllm --gpu-only               # VRAM に全部載るモデルだけ
-whichllm --speed usable           # 10 tok/s 未満を隠す
+whichllm --speed usable           # 8 tok/s 未満を隠す
 whichllm --markdown               # issue やチャットに貼れる表
 whichllm --json                   # 配置と実行コマンドも含む
 

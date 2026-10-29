@@ -20,7 +20,7 @@ Common options:
 | `--context-length`, `-c` | Context length used for KV cache estimation. Accepts integers or `k` shorthand such as `64k`. Default: `4096` |
 | `--quant`, `-q` | Keep only a quantization type such as `Q4_K_M` |
 | `--min-speed` | Keep only models above an exact tok/s estimate |
-| `--speed` | Named speed floor: `any`, `usable` (`10 tok/s`), or `fast` (`30 tok/s`) |
+| `--speed` | Named speed floor: `any`, `usable` (`8 tok/s`, the speed the ranking holds every placement to), or `fast` (`30 tok/s`) |
 | `--fit` | Runtime fit filter: `any`, `gpu`, or `full-gpu` |
 | `--gpu-only` | Alias for `--fit full-gpu`; excludes partial offload and CPU-only candidates |
 | `--profile` | Ranking profile: `general`, `coding`, `vision`, `math`, `any` |
@@ -60,7 +60,7 @@ CPU-only candidates when they are runnable. `--fit gpu`, `--fit full-gpu`, and
 The default table shows memory required, estimated generation speed, fit type,
 and published date. Use `--details` when you want download counts instead.
 Speed colors are absolute usability hints: red is under `4 tok/s`, yellow is
-`4-10 tok/s`, green is `10-30 tok/s`, and bright green is `30+ tok/s`. The `~`
+`4-8 tok/s`, green is `8-30 tok/s`, and bright green is `30+ tok/s`. The `~`
 and `?` markers still refer to estimate confidence, not speed quality.
 
 `--vram-headroom auto` subtracts a small budget from each GPU before fit

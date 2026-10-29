@@ -152,7 +152,7 @@ speed confidence:
 | `high` | `0.85x`-`1.20x` | Reserved for future measured-speed data |
 
 Speed cells are colored by absolute usability: red is under `4 tok/s`, yellow
-is `4-10 tok/s`, green is `10-30 tok/s`, and bright green is `30+ tok/s`. `~`
+is `4-8 tok/s`, green is `8-30 tok/s`, and bright green is `30+ tok/s`. `~`
 marks medium-confidence estimates with a range, and `?` marks low-confidence
 estimates. JSON exposes the same uncertainty data as `speed_confidence`,
 `speed_range_tok_per_sec`, and `speed_notes`.
