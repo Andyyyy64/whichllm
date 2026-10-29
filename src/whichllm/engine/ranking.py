@@ -147,6 +147,13 @@ def rank_models(
             family_dominant_downloads[fid] = m.downloads
             family_dominant_params[fid] = m.parameter_count
 
+    # GGUF uploads by the repo they quantize: an official repo's synthetic
+    # variants take the real size of the upload file they resolve to.
+    gguf_uploads: dict[str, list[ModelInfo]] = {}
+    for m in models:
+        if m.gguf_variants and m.base_model and m.base_model_relation == "quantized":
+            gguf_uploads.setdefault(m.base_model.casefold(), []).append(m)
+
     # Deduplicate by family: pick best variant per family
     seen_families: set[str] = set()
 
@@ -175,7 +182,9 @@ def rank_models(
         if min_params_b is not None and _knowledge_capacity_b(model) < min_params_b:
             continue
 
-        candidates = _iter_candidate_variants(model, quant_filter)
+        candidates = _iter_candidate_variants(
+            model, quant_filter, gguf_uploads.get(model.id.casefold(), ())
+        )
         if not candidates:
             continue
 

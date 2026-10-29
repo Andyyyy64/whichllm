@@ -7,6 +7,7 @@ import re
 from whichllm.constants import QUANT_BYTES_PER_WEIGHT, QUANT_PREFERENCE_ORDER
 from whichllm.engine.quantization import effective_quant_type
 from whichllm.engine.ranking_sources import _OFFICIAL_ORGS
+from whichllm.models.artifacts import resolve_ranked_gguf_artifact
 from whichllm.models.types import GGUFVariant, ModelInfo
 
 _SYNTHETIC_QUANTS = ("Q3_K_M", "Q4_K_M", "Q5_K_M", "Q6_K", "Q8_0")
@@ -17,7 +18,9 @@ _PREQUANTIZED_REPO_RE = re.compile(
 
 
 def _synthesize_variants_for_official_repo(
-    model: ModelInfo, quant_filter_upper: str | None
+    model: ModelInfo,
+    quant_filter_upper: str | None,
+    gguf_uploads: list[ModelInfo] | tuple[ModelInfo, ...] = (),
 ) -> list[GGUFVariant]:
     """Return synthetic GGUF variants for popular safetensors-only repos.
 
@@ -32,6 +35,12 @@ def _synthesize_variants_for_official_repo(
     (``...-AWQ``, ``...-GPTQ``, ``...-FP8`` etc.) — those are non-GGUF formats
     and synthesizing a Q4_K_M alternative would misrepresent what the repo
     actually contains.
+
+    ``gguf_uploads`` are the catalog's GGUF quantizations of ``model``. When a
+    quant resolves to one of their files and the index knows its real size,
+    the variant takes that size, so fit and speed are those of the file the
+    recipe downloads (unsloth's Qwen3.6-35B-A3B Q4_K_M is 22.1 GB, not the
+    20.2 GB the parameter count gives).
     """
     org = model.id.split("/", 1)[0] if "/" in model.id else ""
     if org not in _OFFICIAL_ORGS:
@@ -43,26 +52,36 @@ def _synthesize_variants_for_official_repo(
         if quant_filter_upper and quant != quant_filter_upper:
             continue
         bpw = QUANT_BYTES_PER_WEIGHT.get(quant, 0.5625)
-        out.append(
-            GGUFVariant(
-                filename=f"{model.name}.{quant}.gguf",
-                quant_type=quant,
-                file_size_bytes=int(model.parameter_count * bpw),
-                is_estimated=True,
-            )
+        variant = GGUFVariant(
+            filename=f"{model.name}.{quant}.gguf",
+            quant_type=quant,
+            file_size_bytes=int(model.parameter_count * bpw),
+            is_estimated=True,
         )
+        resolved = (
+            resolve_ranked_gguf_artifact(model, variant, list(gguf_uploads))
+            if gguf_uploads
+            else None
+        )
+        if resolved is not None and not resolved[1].is_estimated:
+            variant.file_size_bytes = resolved[1].file_size_bytes
+            variant.is_estimated = False
+        out.append(variant)
     return out
 
 
 def _iter_candidate_variants(
     model: ModelInfo,
     quant_filter: str | None = None,
+    gguf_uploads: list[ModelInfo] | tuple[ModelInfo, ...] = (),
 ) -> list[GGUFVariant | None]:
     """Build candidate variants to evaluate for a model."""
     quant_filter_upper = quant_filter.upper() if quant_filter else None
 
     if not model.gguf_variants:
-        synthetic = _synthesize_variants_for_official_repo(model, quant_filter_upper)
+        synthetic = _synthesize_variants_for_official_repo(
+            model, quant_filter_upper, gguf_uploads
+        )
         if synthetic:
             return list(synthetic)
         quant_type = effective_quant_type(model, None)

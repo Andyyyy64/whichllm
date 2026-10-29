@@ -51,7 +51,7 @@ def _model(size_gb: float) -> tuple[ModelInfo, GGUFVariant]:
 
 
 def test_a_model_past_the_working_set_spills_into_unified_memory():
-    model, variant = _model(8.5)
+    model, variant = _model(10.0)
     result = check_compatibility(model, variant, _mac(16))
     assert result.can_run
     assert result.fit_type == "partial_offload"

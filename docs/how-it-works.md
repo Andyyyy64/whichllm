@@ -135,7 +135,18 @@ default:
   it (Gemma 2/3/4, gpt-oss, Cohere 2, and configs that declare sliding layers)
 - the compressed latent for multi-head latent attention (DeepSeek, GLM)
 - a fixed per-sequence state for recurrent layers (Gated DeltaNet in
-  Qwen3-Next and Qwen3.5/3.6, LFM2 convolution, Mamba2 in Granite 4.0)
+  Qwen3-Next and Qwen3.5/3.6, LFM2 convolution, Mamba2 in Granite 4.0),
+  counted for llama-server's 4 default slots: they share one K/V pool but
+  each keeps its own state
+
+On top of the K/V cache come a compute buffer (150 MB plus 0.01 byte per
+parameter and 10 MB per 4K tokens) and 500 MB for the runtime. Against
+llama-server on an RTX 5080 at 4K tokens, that is two to three times the
+compute buffer it allocated (56 MiB for Qwen3.5-2B, 146 MiB for Qwen3.8-27B,
+316 MiB for Qwen3.6-35B-A3B). The weights also count the token embeddings,
+which llama.cpp keeps in system RAM (682 MiB for Qwen3.8-27B), so the estimate
+stays on the safe side: Qwen3.8-27B at Q3_K_M is estimated at 14.2 GiB and
+used 12.8 GiB.
 
 Without a shape (no readable config, or a layout whichllm does not
 recognise) the estimate falls back to a parameter-count heuristic. That
@@ -264,6 +275,10 @@ For each `ModelInfo`, `engine/ranker.py` builds candidate variants:
   `--quant`.
 - Official safetensors-only repos can receive synthetic GGUF estimates for
   common community conversions such as `Q4_K_M`, `Q5_K_M`, `Q6_K`, and `Q8_0`.
+  When the catalog has a GGUF upload of the repo that the recipe would
+  download, and the index knows that file's real size, the variant takes it:
+  unsloth's Qwen3.6-35B-A3B at Q4_K_M is 22.1 GB, not the 20.2 GB the
+  parameter count gives.
 - Pre-quantized repos such as AWQ, GPTQ, FP8, and BF16 are not given synthetic
   GGUF variants.
 
