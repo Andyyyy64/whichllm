@@ -59,6 +59,42 @@ system RAM for fit checks.
 Compute capability is used to warn when a card is below the minimum expected by
 common local inference tools.
 
+## NVIDIA Jetson Orin
+
+Jetson (Tegra) boards are unified-memory SoCs, and neither signal desktop
+detection relies on works there. The driver reports one generic name per SoC
+generation — every Orin module is `Orin (nvgpu)`, from a 4 GB Orin Nano to a
+64 GB AGX Orin — and the memory queries return `NVML_ERROR_NOT_SUPPORTED` or
+`[N/A]`, so the memory-clock trick that separates same-name desktop variants is
+unavailable too.
+
+Only Orin is handled. Xavier and earlier stop at a JetPack that ships neither a
+Tegra NVML nor a Tegra `nvidia-smi`, so no GPU name reaches this code there.
+
+whichllm resolves the module from the kernel device tree instead, which needs
+no root and no NVIDIA tooling:
+
+```bash
+cat /proc/device-tree/compatible | tr '\0' '\n'
+# nvidia,p3768-0000+p3767-0000   carrier board + module
+# nvidia,p3767-0000              module
+# nvidia,tegra234                SoC generation
+```
+
+The module name replaces the generic one, so the curated tables resolve it like
+any other GPU, and system RAM is used for fit checks as it is for DGX Spark. A
+module that is not recognised keeps its generic name and resolves no bandwidth,
+rather than a product being guessed from the SoC generation — `tegra210` alone
+covers both Jetson Nano and TX1. Detection still requires the driver to
+enumerate the GPU, so a board with a broken or absent CUDA stack reports none.
+
+Bandwidth values are data-sheet peaks. Orin NX 16GB is the one verified against
+measured throughput; the other Orin modules come from the module data sheets.
+JetPack 6.2 "Super Mode" raises Orin Nano bandwidth (8 GB to 102, 4 GB to 51)
+under a higher nvpmodel profile with no hardware change — the base value is
+kept, and `--ram-bandwidth` covers that case. Orin NX is unchanged at 102 GB/s
+in both modes.
+
 ## AMD
 
 On Linux, AMD detection tries `rocm-smi` first:
