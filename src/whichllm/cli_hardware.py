@@ -227,6 +227,16 @@ def _apply_ram_bandwidth(
             for gpu in hardware.gpus:
                 if gpu.shared_memory or gpu.vendor == "apple":
                     gpu.memory_bandwidth_gbps = ram_bandwidth
+            discrete = [
+                g for g in hardware.gpus if not (g.shared_memory or g.vendor == "apple")
+            ]
+            if discrete:
+                # Before 0.6 the flag also set a discrete GPU's bandwidth.
+                hardware.budget_notes.append(
+                    "--ram-bandwidth sets system RAM bandwidth (CPU-side reads); "
+                    f"{discrete[0].name} keeps its VRAM bandwidth. Use "
+                    "--bandwidth to change that."
+                )
         return hardware
 
     from whichllm.hardware.ram_bandwidth import unified_bandwidth

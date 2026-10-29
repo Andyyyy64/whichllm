@@ -49,7 +49,8 @@ Environment variables:
 | Variable | Meaning |
 | --- | --- |
 | `WHICHLLM_INDEX_URL` | Location of the whichllm index (default: GitHub Pages). Set to `off` to always fetch live |
-| `HF_TOKEN` | Hugging Face token sent to `HF_ENDPOINT` on the live path, for higher rate limits and gated configs |
+| `HF_TOKEN` | Hugging Face token for higher rate limits and gated configs on the live path. Sent to huggingface.co over https; a mirror in `HF_ENDPOINT` gets it only with `WHICHLLM_HF_TOKEN_TO_ENDPOINT=1`, never over http |
+| `WHICHLLM_HF_TOKEN_TO_ENDPOINT` | `1` sends `HF_TOKEN` to the `HF_ENDPOINT` mirror (https only) |
 | `HF_ENDPOINT` | Hugging Face endpoint root used for whichllm's own model metadata API calls. Example: `https://huggingface.co` or a compatible mirror root |
 
 `--fit any` is the default. It can include full-GPU, partial-offload, and
