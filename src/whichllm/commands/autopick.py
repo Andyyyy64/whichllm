@@ -95,5 +95,9 @@ def pick_top_runnable(
             "[red]Error:[/] Top recommendations require GGUF builds, "
             "but no matching GGUF repos were found."
         )
+        console.print(
+            "[dim]Try specifying a GGUF model explicitly, for example "
+            '`whichllm run "qwen gguf"`.[/]'
+        )
         raise typer.Exit(code=1)
     return picked

@@ -1996,6 +1996,66 @@ def test_run_auto_pick_resolves_ranked_gguf_before_launch(monkeypatch):
     assert "transformers" not in captured["cmd"]
 
 
+def test_run_auto_pick_ranks_with_the_index_benchmarks(monkeypatch):
+    """`run` without a name used to rank with the --live benchmark cache only,
+    which is empty on the index path, so it picked without any benchmarks."""
+    from whichllm.models.index_client import IndexCatalog
+
+    model = ModelInfo(
+        id="org/Model-8B-GGUF",
+        family_id="org/model-8b",
+        name="Model-8B-GGUF",
+        parameter_count=8_000_000_000,
+        gguf_variants=[
+            GGUFVariant(
+                filename="m.gguf", quant_type="Q4_K_M", file_size_bytes=5 * 10**9
+            )
+        ],
+    )
+    index_scores = {"org/Model-8B": 61.0}
+    captured: dict[str, object] = {}
+
+    def fake_rank_models(models, hardware, **kwargs):
+        captured["benchmark_scores"] = kwargs.get("benchmark_scores")
+        return [
+            CompatibilityResult(
+                model=model,
+                gguf_variant=model.gguf_variants[0],
+                can_run=True,
+                vram_required_bytes=0,
+                vram_available_bytes=0,
+                quality_score=60.0,
+            )
+        ]
+
+    class Completed:
+        returncode = 0
+
+    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/uv")
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [model])
+    monkeypatch.setattr(
+        "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
+    )
+    monkeypatch.setattr(
+        "whichllm.models.index_client.load_index",
+        lambda refresh=False: IndexCatalog(
+            models=[model],
+            benchmark_scores=index_scores,
+            built_at="2026-10-29T00:00:00Z",
+        ),
+    )
+    monkeypatch.setattr("whichllm.engine.ranker.rank_models", fake_rank_models)
+    monkeypatch.setattr(
+        cli_mod, "_generate_chat_script", lambda *a, **kw: "print('ok')"
+    )
+    monkeypatch.setattr("subprocess.run", lambda cmd: Completed())
+
+    result = CliRunner().invoke(app, ["run"])
+
+    assert result.exit_code == 0
+    assert captured["benchmark_scores"] == index_scores
+
+
 def test_snippet_no_model_found(monkeypatch):
     monkeypatch.setattr(snippet_mod, "_load_models", lambda refresh: [])
     runner = CliRunner()
