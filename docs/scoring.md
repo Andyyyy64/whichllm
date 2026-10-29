@@ -99,12 +99,14 @@ The candidate's runtime form matters:
 | Fit | Multiplier |
 | --- | ---: |
 | Full GPU | `1.00` |
-| Partial offload | `0.42`-`0.88`, based on spill ratio |
+| MoE experts in RAM (`expert_offload`) | `0.90` |
+| Layers in RAM (`layer_offload`) | `0.42`-`0.86`, based on spill ratio |
 | CPU-only | `0.50` |
 
-Light partial offload is penalized less than heavy offload. MoE models receive
-a milder penalty when the active parameter working set can plausibly stay on
-GPU while inactive experts spill to CPU RAM.
+Light layer offload is penalized less than heavy offload. Expert offload keeps
+almost the full-GPU multiplier: only the active experts are read from RAM for
+each token, and the speed estimate already accounts for that. The small
+discount covers the extra runtime setup.
 
 The final family selection key does not add a separate full-GPU bonus. Runtime
 fit is already reflected in the quality score through the multiplier above and
@@ -120,8 +122,12 @@ Required speed depends on fit:
 | Fit | Required speed |
 | --- | ---: |
 | Full GPU | `8 tok/s` |
-| Partial offload | `4 tok/s` |
-| CPU-only | `1.5 tok/s` |
+| MoE experts in RAM | `8 tok/s` |
+| Layers in RAM | `4 tok/s` |
+| CPU-only | `4 tok/s` |
+
+Expert offload is held to the full-GPU bar because it is only worth
+recommending when it is interactive.
 
 Candidates below the required speed receive up to `-8` points. Candidates above
 it receive up to `+8` points.
@@ -130,13 +136,17 @@ After ranking, if any candidate is at least `5 tok/s`, whichllm drops candidates
 below `1.5 tok/s`. This avoids recommending models that technically fit but are
 not practical to use.
 
-The reported speed is a point estimate, not a live benchmark. Ranking also
-exposes speed confidence:
+The reported speed is a point estimate, not a live benchmark. On a discrete
+GPU with a partial fit it adds the GPU's reads at VRAM bandwidth to the CPU's
+reads at system RAM bandwidth; with experts in RAM the CPU reads only the
+active experts. CPU-only speed follows RAM bandwidth too. The CPU constants
+come from llama.cpp runs (see `engine/performance.py`). Ranking also exposes
+speed confidence:
 
 | Confidence | Range factor | Typical cases |
 | --- | ---: | --- |
-| `medium` | `0.60x`-`1.60x` | Normal GPU estimates, synthetic GGUF estimates, AMD shared-memory APU MoE estimates |
-| `low` | `0.35x`-`2.00x` | CPU-only, partial offload, unknown bandwidth, Apple Silicon MoE |
+| `medium` | `0.60x`-`1.60x` | Normal GPU estimates, CPU-only and expert offload with a known RAM bandwidth, synthetic GGUF estimates, AMD shared-memory APU MoE estimates |
+| `low` | `0.35x`-`2.00x` | Layer offload, unknown GPU or RAM bandwidth, Apple Silicon MoE |
 | `high` | `0.85x`-`1.20x` | Reserved for future measured-speed data |
 
 Speed cells are colored by absolute usability: red is under `4 tok/s`, yellow
