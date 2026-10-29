@@ -7,6 +7,7 @@ from pathlib import Path
 
 from whichllm.models.benchmark_fetch import fetch_benchmark_data
 from whichllm.models.fetcher import ModelFetchReport, fetch_models, models_to_dicts
+from whichllm.models.gguf_sizes import fill_gguf_sizes
 from whichllm.models.grouper import group_models
 from whichllm.models.hf import _FRONTIER_MODEL_IDS, fetch_model_published_at
 from whichllm.models.index_format import INDEX_SCHEMA_VERSION, structure_problems
@@ -41,7 +42,9 @@ async def build_index(
 
     ``shape_cache`` lets successive builds reuse config.json lookups, and
     publish dates already in the ``previous`` index are reused, so a daily
-    build only asks the Hub about repositories it has not seen before.
+    build only asks the Hub about repositories it has not seen before. GGUF
+    file sizes from the ``previous`` index are reused while a repository's
+    commit is unchanged.
     """
     report = ModelFetchReport()
     models = await fetch_models(include_vision=True, report=report)
@@ -67,6 +70,9 @@ async def build_index(
     for model in models:
         if not model.published_at and model.id in published:
             model.published_at = published[model.id]
+    # Last, so the per-build cap only spends what the steps above left of the
+    # Hub's rate limit.
+    sizes = await fill_gguf_sizes(models, previous)
 
     model_dicts = models_to_dicts(models)
     payload = {
@@ -78,6 +84,18 @@ async def build_index(
             "benchmarks": len(scores),
             "shapes": sum(1 for m in models if m.shape),
             "published_dates": sum(1 for m in models if m.published_at),
+            "gguf_repos": sum(1 for m in models if m.gguf_variants),
+            "gguf_real_sizes": sum(
+                1
+                for m in models
+                if m.gguf_variants and not any(v.is_estimated for v in m.gguf_variants)
+            ),
+            "gguf_sizes": {
+                "reused": sizes.reused,
+                "fetched": sizes.fetched,
+                "failed": sizes.failed,
+                "pending": sizes.pending,
+            },
             "frontier_failed": len(report.failed),
             "task_scores": {p: len(s) for p, s in sorted(benchmarks.tasks.items())},
         },

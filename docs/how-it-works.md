@@ -45,6 +45,17 @@ quality gate fails: failed catalog requests, too few models or benchmark ids,
 missing curated recent models, low shape coverage, or a large drop from the
 previous index. A failed build leaves the last good index online.
 
+GGUF repositories get their real file sizes. The Hub's model list names the
+files but not their sizes, so a live run estimates each variant from the
+parameter count, which ran 10% low at the median and up to 2.8x off for
+mixed-precision quants (UD-Q8_K_XL) and small models with large vocabularies.
+The build reads the sizes from each repository's detail page. It reuses the
+previous index's sizes while the repository's commit is unchanged, and asks
+about at most 300 repositories per build, most downloaded first, stopping at
+the Hub's rate limit. A variant's size counts its own file, or the parts of
+one split file. Vision projectors, draft models and files too small to hold
+the model are not variants.
+
 Each index records its benchmark sources (name, the version or snapshot read,
 entry count) and the popular releases of the last 45 days that have no
 benchmark score. Original releases are listed by id; a finetune or

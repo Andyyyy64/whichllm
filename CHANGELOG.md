@@ -16,6 +16,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   about a second and is unaffected by rate limits. The build refuses to
   publish when quality gates fail. `--live` keeps the direct fetch, and
   `WHICHLLM_INDEX_URL` points at a mirror or turns the index off.
+  GGUF repositories in the index carry their real file sizes instead of
+  estimates from the parameter count (unsloth's Qwen3.5-2B Q4_K_M is
+  1.28 GB, not the estimated 1.06), reused while a repository's commit is
+  unchanged and fetched for up to 300 repositories a day.
 - `HF_TOKEN` is sent to huggingface.co when set. A mirror in `HF_ENDPOINT`
   (hf-mirror.com and the like) gets it only over https and only with
   `WHICHLLM_HF_TOKEN_TO_ENDPOINT=1`, so a token is not handed to a third
@@ -143,6 +147,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- GGUF variants: `run` downloads part 1 of a split file (it could pick a
+  later part), and vision projectors (`mmproj`) and draft models are no
+  longer listed as a model's F16, BF16 or Q8_0 variant. With real sizes, a
+  variant counts only its own file or split parts: an MTP build next to the
+  plain one, or Q4_0's ARM repacks, would otherwise add up (a 27B Q4_K_M at
+  121 GB).
 - Apple Silicon is budgeted at Metal's default GPU working set, about two
   thirds of unified memory up to 32 GB and three quarters above, not all of
   it. On a 16 GB Mac the GPU got 15.2 GB, so the #1 was a 15 GB gemma-4-26B

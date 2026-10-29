@@ -74,6 +74,14 @@ def _summary(payload: dict, previous: dict | None) -> list[str]:
         f"models {stats['models']}, benchmark ids {stats['benchmarks']}, "
         f"shapes {stats['shapes']}, publish dates {stats['published_dates']}"
     ]
+    if "gguf_repos" in stats:
+        detail = stats.get("gguf_sizes", {})
+        lines.append(
+            f"GGUF repos with real file sizes: {stats['gguf_real_sizes']} of "
+            f"{stats['gguf_repos']} (reused {detail.get('reused', 0)}, fetched "
+            f"{detail.get('fetched', 0)}, failed {detail.get('failed', 0)}, left "
+            f"for a later build {detail.get('pending', 0)})"
+        )
     for source in payload.get("sources", []):
         lines.append(
             f"source {source['name']}: {source['version']}, {source['entries']} entries"

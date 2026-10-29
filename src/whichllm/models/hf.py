@@ -45,6 +45,7 @@ _DEFAULT_HF_ENDPOINT = "https://huggingface.co"
 _DETAIL_CONCURRENCY = 8
 
 _MODEL_EXPANDS = [
+    "sha",
     "config",
     "safetensors",
     "gguf",
@@ -55,6 +56,7 @@ _MODEL_EXPANDS = [
 ]
 
 _MODEL_DETAIL_EXPANDS = [
+    "sha",
     "config",
     "safetensors",
     "gguf",

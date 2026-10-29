@@ -43,6 +43,9 @@ class ModelInfo:
     # Layer and attention shape from the repository's config.json, when it
     # has been fetched. None means only the parameter-count heuristics apply.
     shape: ModelShape | None = None
+    # Hub commit of the repository when it was listed. The index keeps it for
+    # GGUF repositories, whose real file sizes are reused while it holds.
+    sha: str | None = None
 
 
 @dataclass
