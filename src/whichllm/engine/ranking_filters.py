@@ -146,6 +146,50 @@ def _generation_bonus(model_id: str) -> float:
     return best_bonus
 
 
+def _lineage_positions(model_id: str) -> dict[str, int]:
+    """Every lineage family the id matches, with its generation index."""
+    lower = model_id.lower()
+    positions: dict[str, int] = {}
+    for family, patterns in _LINEAGE_REGEX.items():
+        for regex, idx in patterns:
+            if regex.search(lower):
+                positions[family] = idx
+                break
+    return positions
+
+
+def _same_size(a: ModelInfo, b: ModelInfo) -> bool:
+    """Same size class: total parameters within 25%, and dense vs MoE alike."""
+    if not a.parameter_count or not b.parameter_count:
+        return False
+    ratio = a.parameter_count / b.parameter_count
+    if not 0.8 <= ratio <= 1.25 or a.is_moe != b.is_moe:
+        return False
+    if a.is_moe and a.parameter_count_active and b.parameter_count_active:
+        active = a.parameter_count_active / b.parameter_count_active
+        return 0.67 <= active <= 1.5
+    return True
+
+
+def _newer_generation(newer: ModelInfo, older: ModelInfo) -> bool:
+    """True when ``newer`` is a later generation of ``older``'s model line.
+
+    Both ids must belong to exactly one lineage family (a distill such as
+    DeepSeek-R1-Distill-Qwen matches two and is left alone), carry the same
+    specialization tags, and be the same size.
+    """
+    new_pos = _lineage_positions(newer.id)
+    old_pos = _lineage_positions(older.id)
+    if len(new_pos) != 1 or new_pos.keys() != old_pos.keys():
+        return False
+    family = next(iter(new_pos))
+    if new_pos[family] <= old_pos[family]:
+        return False
+    if _detect_specializations(newer.id) != _detect_specializations(older.id):
+        return False
+    return _same_size(newer, older)
+
+
 def _detect_specializations(model_id: str) -> set[str]:
     """モデルIDから用途特化タグを検出する。"""
     lower = model_id.lower()

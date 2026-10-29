@@ -50,10 +50,12 @@ MODEL_LINEAGE_VERSIONS: dict[str, list[tuple[str, int]]] = {
     ],
     "gemma": [
         # Avoid reading the "gemma" segment inside T5Gemma ids as a Gemma
-        # generation. T5Gemma is handled by the "t5" family instead.
-        (r"(?<!t5)(?<!t5[-_])gemma-?4", 4),
-        (r"(?<!t5)(?<!t5[-_])gemma-?3", 3),
-        (r"(?<!t5)(?<!t5[-_])gemma-?2", 2),
+        # generation. T5Gemma is handled by the "t5" family instead. The
+        # version digit must stand alone, so "diffusiongemma-26B" is not
+        # read as Gemma 2.
+        (r"(?<!t5)(?<!t5[-_])gemma-?4(?!\d)", 4),
+        (r"(?<!t5)(?<!t5[-_])gemma-?3(?!\d)", 3),
+        (r"(?<!t5)(?<!t5[-_])gemma-?2(?!\d)", 2),
         (r"(?<!t5)(?<!t5[-_])gemma(?!-?[2-9])", 1),
     ],
     "phi": [

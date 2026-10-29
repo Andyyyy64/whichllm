@@ -380,9 +380,25 @@ def display_ranking(
         if r.warnings:
             for w in r.warnings:
                 _console.console.print(f"  [yellow]Warning #{i} {r.model.name}:[/] {w}")
+    for i, r in enumerate(results[:5], 1):
+        if r.older_generations:
+            _console.console.print(
+                f"  [dim]#{i} {r.model.name} also stands in for older "
+                f"generations of its line: {_older_names(r)}[/dim]"
+            )
 
     if context_length is not None:
         _print_recipe(results[0], context_length)
+
+
+def _older_names(result: CompatibilityResult, limit: int = 3) -> str:
+    """The publisher's own older releases first, then uploads and finetunes."""
+    org = result.model.id.split("/", 1)[0]
+    own = [i for i in result.older_generations if i.split("/", 1)[0] == org]
+    others = [i for i in result.older_generations if i not in own]
+    names = [i.rsplit("/", 1)[-1] for i in (own + others)[:limit]]
+    extra = len(result.older_generations) - len(names)
+    return ", ".join(names) + (f" and {extra} more" if extra > 0 else "")
 
 
 def _print_recipe(result: CompatibilityResult, context_length: int) -> None:

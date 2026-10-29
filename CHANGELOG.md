@@ -67,6 +67,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   Qwen3.8-27B for coding, and the name-based 2-point edge only applies to
   code-tuned models with no coding results. JSON rows gain
   `benchmark_basis`, and the index gains an optional `task_scores` map.
+- Every placement is held to one usable speed, 8 tok/s (layer offload and
+  CPU-only used 4). Below it a model's quality is scaled by
+  `(speed / 8) ** 0.5`, where it used to lose at most 8 points, which a
+  benchmark lead easily outweighed. On a 16 GB M4 the #1 is now
+  gemma-4-26B-A4B at 25 tok/s instead of Qwen3.8-27B at 4, and a 3 tok/s
+  Qwen3.8-27B leaves the RTX 3060 top 5. The golden constraint for a #1 that
+  needs offload is replaced by one for the whole top 3.
+- When a newer generation of a model line ranks above an older one of the
+  same size, the older one is left out and named under the table
+  (`older_generations` in JSON). The 4090 top 3 was Qwen3.8-27B, Qwen3.6-27B
+  and Qwen3.5-27B; it is now Qwen3.8-27B, gemma-4-26B-A4B and
+  Qwen3.6-35B-A3B. Gemma ids such as `diffusiongemma-26B` are no longer read
+  as Gemma 2.
 - New releases that neither LiveBench nor the pinned AA index covers get a
   general score from at least three of AA's broad benchmarks, mapped the same
   way, so models such as GLM-5.3-Flash, Qwen3.8-Flash-Next and Gemma 4 12B

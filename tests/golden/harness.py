@@ -343,16 +343,17 @@ def _check_stale_generation(c: Constraint, results) -> str | None:
     return f"stale generation in top {c.top}: {problems}" if problems else None
 
 
-def _check_top1_offload_speed(c: Constraint, results) -> str | None:
-    if not results or results[0].fit_type == "full_gpu":
-        return None
-    top = results[0]
-    speed = top.estimated_tok_per_sec
-    if speed is None or speed < (c.min_tok_per_sec or 0.0):
-        return (
-            f"#1 needs {top.fit_type} but runs below "
-            f"{c.min_tok_per_sec} tok/s: {describe(top)}"
-        )
+def _check_top_speed(c: Constraint, results) -> str | None:
+    bar = c.min_tok_per_sec or 0.0
+
+    def fast(r) -> bool:
+        return (r.estimated_tok_per_sec or 0.0) >= bar
+
+    # Only claim the slots the machine can fill with fast candidates.
+    slots = min(c.top, sum(1 for r in results if fast(r)))
+    slow = [describe(r) for r in results[:slots] if not fast(r)]
+    if slow:
+        return f"top {slots} has picks below {bar} tok/s: {slow}"
     return None
 
 
@@ -361,7 +362,7 @@ CHECKS = {
     "never_in_top": _check_never_in_top,
     "any_in_top": _check_any_in_top,
     "stale_generation": _check_stale_generation,
-    "top1_offload_speed": _check_top1_offload_speed,
+    "top_speed": _check_top_speed,
 }
 
 
