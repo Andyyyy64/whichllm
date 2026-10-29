@@ -29,7 +29,7 @@ from whichllm.models.benchmark_sources.vision import fetch_vision_scores
 # to this snapshot. Surface it in the CLI so a stale recommendation is
 # self-evident rather than silently trusted. Bump this whenever any
 # *_FALLBACK_* dict is refreshed; a test checks it against their dates.
-BENCHMARK_SNAPSHOT = "2026-09"
+BENCHMARK_SNAPSHOT = "2026-10"
 
 __all__ = [
     "BENCHMARK_SNAPSHOT",

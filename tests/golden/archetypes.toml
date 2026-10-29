@@ -250,10 +250,12 @@ id = "qwen38-top3-24gb"
 kind = "any_in_top"
 top = 3
 min_gpu_memory_gb = 24
+max_context_length = 32768
 rationale = """Qwen3.8-27B is the newest dense 27B and fits 24 GB+. It must be
-in the top 3 there."""
+in the top 3 there. At 128K its KV cache no longer fits 24 GB, so long-context
+archetypes are out of scope."""
 patterns = ['^Qwen/Qwen3\.8-27B$']
-xfail = { "*" = "#194: the AA fallback mixes scales; Qwen3.8-27B was added on AA's new scale (59.0) while Qwen3.6-27B keeps an old-scale 83.5" }
+xfail = { "m4max-128gb-mac/*" = "LiveBench and AA are merged with max() although they are on different scales: Qwen3.6-27B gets 83.5 from the vendored LiveBench snapshot vs 61.0 on AA, while models AA alone scores (Qwen3.8-27B, Qwen3.6-35B-A3B) keep their AA value; Qwen3.8-27B is #5 behind Qwen3.6-27B" }
 
 [[constraint]]
 id = "moe-offload-16gb"
@@ -264,3 +266,4 @@ rationale = """With 16 GB VRAM and 64 GB RAM a large MoE with experts in RAM
 (gpt-oss-120b, Qwen3.6-35B-A3B) is the strongest practical option and should
 reach the top 5."""
 patterns = ['(?i)gpt-oss-120b', '(?i)qwen3\.[68]-35b-a3b']
+xfail = { "*" = "LiveBench and AA are merged with max() although they are on different scales: Qwen3.6-27B gets 83.5 from the vendored LiveBench snapshot vs 61.0 on AA, while models AA alone scores (Qwen3.8-27B, Qwen3.6-35B-A3B) keep their AA value; Qwen3.6-35B-A3B (experts in RAM, 32 tok/s) is #10 behind LiveBench-scored models" }

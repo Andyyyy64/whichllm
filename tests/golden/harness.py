@@ -96,6 +96,7 @@ class Constraint:
     archetypes: tuple[str, ...] = ()
     profiles: tuple[str, ...] = ("general",)
     min_gpu_memory_gb: float | None = None
+    max_context_length: int | None = None
     gpu: bool | None = None
     xfail: dict[str, str] = field(default_factory=dict)
 
@@ -105,6 +106,11 @@ class Constraint:
         if profile not in self.profiles:
             return False
         if self.gpu is not None and bool(archetype.gpus) != self.gpu:
+            return False
+        if (
+            self.max_context_length is not None
+            and archetype.context_length > self.max_context_length
+        ):
             return False
         if self.min_gpu_memory_gb is not None:
             return archetype.gpu_memory_gb >= self.min_gpu_memory_gb
@@ -187,6 +193,7 @@ def load_spec() -> tuple[tuple[Archetype, ...], tuple[Constraint, ...]]:
             archetypes=tuple(c.get("archetypes", ())),
             profiles=tuple(c.get("profiles", ("general",))),
             min_gpu_memory_gb=c.get("min_gpu_memory_gb"),
+            max_context_length=c.get("max_context_length"),
             gpu=c.get("gpu"),
             xfail=dict(c.get("xfail", {})),
         )
@@ -370,7 +377,12 @@ def render_top_picks() -> str:
         "",
         f"Catalog captured {meta['captured_at']} with whichllm "
         f"{meta['whichllm_version']} ({meta['git_commit']}): "
-        f"{meta['model_count']} models, {meta['benchmark_count']} benchmark ids.",
+        f"{meta['model_count']} models, {meta['benchmark_count']} benchmark ids"
+        + (
+            f" (refreshed {meta['benchmarks_refreshed_at']})."
+            if meta.get("benchmarks_refreshed_at")
+            else "."
+        ),
     ]
     for archetype in archetypes:
         for profile in archetype.profiles:

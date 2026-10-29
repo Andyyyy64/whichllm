@@ -2,13 +2,15 @@
 
     uv run --locked python scripts/update_golden.py capture   # network
     uv run --locked python scripts/update_golden.py shapes    # network
+    uv run --locked python scripts/update_golden.py benchmarks  # network
     uv run --locked python scripts/update_golden.py snapshot  # offline
     uv run --locked python scripts/update_golden.py report    # offline
 
 ``capture`` fetches the live model catalog, merged benchmark scores and every
 family's config.json shape, freezes them into ``tests/golden/catalog.json.gz``,
 then rewrites the snapshot. ``shapes`` only refreshes the shapes of the
-existing frozen catalog. ``snapshot`` rewrites ``tests/golden/top_picks.md`` from the current code and
+existing frozen catalog, and ``benchmarks`` only its merged benchmark
+scores (after a benchmark source changes). ``snapshot`` rewrites ``tests/golden/top_picks.md`` from the current code and
 frozen catalog. ``report`` prints the top picks and every constraint result
 without writing anything. Review the snapshot diff before committing.
 """
@@ -127,6 +129,19 @@ def shapes() -> None:
     print(f"Added shapes for {shaped} of {len(payload['models'])} catalog models")
 
 
+def benchmarks() -> None:
+    """Re-fetch the merged benchmark scores, keeping the frozen models."""
+    payload = harness.load_catalog()
+    scores = asyncio.run(fetch_benchmark_scores())
+    payload["benchmark_scores"] = dict(sorted(scores.items()))
+    payload["meta"]["benchmark_count"] = len(scores)
+    payload["meta"]["benchmarks_refreshed_at"] = datetime.now(timezone.utc).strftime(
+        "%Y-%m-%d"
+    )
+    _write_catalog(payload)
+    print(f"Refreshed {len(scores)} benchmark ids")
+
+
 def snapshot() -> None:
     text = harness.render_top_picks()
     previous = (
@@ -158,7 +173,9 @@ def report() -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("command", choices=["capture", "shapes", "snapshot", "report"])
+    parser.add_argument(
+        "command", choices=["capture", "shapes", "benchmarks", "snapshot", "report"]
+    )
     args = parser.parse_args()
     if args.command == "capture":
         capture()
@@ -167,6 +184,10 @@ def main() -> None:
         shapes()
         harness.load_catalog.cache_clear()
         harness.catalog_models.cache_clear()
+        snapshot()
+    elif args.command == "benchmarks":
+        benchmarks()
+        harness.load_catalog.cache_clear()
         snapshot()
     elif args.command == "snapshot":
         snapshot()
