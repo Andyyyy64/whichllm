@@ -74,6 +74,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- LiveBench and Artificial Analysis are combined on one scale. They used to
+  be merged by taking the higher value, but LiveBench's normalization runs
+  about 17 points above AA for the same models, so any model with a
+  LiveBench entry outranked models only AA measures (Qwen3.6-27B scored
+  83.5 from LiveBench against 61.0 on AA, while Qwen3.8-27B kept its AA
+  77.8). LiveBench is now fitted onto AA's scale, the two are averaged, and
+  hand-estimated entries only count for models neither source measured.
+  Qwen3.8-27B now leads on 16 GB+ GPUs at default context, and
+  Qwen3.6-35B-A3B with its experts in RAM is the top pick on 6-12 GB GPUs.
 - Artificial Analysis scores are on one scale again. The snapshot mixed
   values from before and after AA rescaled its Intelligence Index, and
   models AA has deprecated (Kimi K2, GLM-5, ...) kept their old, roughly

@@ -254,6 +254,46 @@ AA_INDEX_FALLBACK_2026_10_27: dict[str, float] = {
 }
 
 
+# The snapshot entries marked "peer": hand estimates for models AA does not
+# track. The merge uses them only for models no source measured.
+AA_PEER_IDS: frozenset[str] = frozenset(
+    {
+        "Qwen/Qwen2.5-14B-Instruct",
+        "Qwen/Qwen2.5-32B-Instruct",
+        "Qwen/Qwen2.5-7B-Instruct",
+        "Qwen/Qwen3-0.6B",
+        "Qwen/Qwen3-1.7B",
+        "Qwen/Qwen3-30B-A3B",
+        "Qwen/Qwen3-4B",
+        "Qwen/Qwen3-4B-Instruct-2507",
+        "Qwen/Qwen3-4B-Thinking-2507",
+        "allenai/Olmo-3-1025-7B",
+        "allenai/Olmo-3-7B-Instruct",
+        "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
+        "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
+        "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",
+        "google/gemma-2-9b-it",
+        "google/gemma-3-12b-it",
+        "google/gemma-3-27b-it",
+        "ibm-granite/granite-3.3-2b-instruct",
+        "ibm-granite/granite-3.3-8b-instruct",
+        "ibm-granite/granite-4.0-h-small",
+        "ibm-granite/granite-4.0-h-tiny",
+        "meta-llama/Llama-3.1-8B-Instruct",
+        "meta-llama/Llama-3.3-70B-Instruct",
+        "meta-llama/Meta-Llama-3-8B-Instruct",
+        "microsoft/Phi-4-mini-instruct",
+        "mistralai/Codestral-22B-v0.1",
+        "mistralai/Mistral-7B-Instruct-v0.3",
+        "mistralai/Mistral-Small-3.1-24B-Instruct-2503",
+        "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+        "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
+        "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16",
+        "stepfun-ai/Step-3.5-Flash",
+    }
+)
+
+
 def _normalize_aa_index(index: float) -> float:
     """Normalize a raw AA index value onto the 0-100 scale."""
     if not isinstance(index, (int, float)):

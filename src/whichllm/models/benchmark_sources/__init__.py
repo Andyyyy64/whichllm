@@ -10,12 +10,14 @@ main benchmark merge pipeline does not abort.
 """
 
 from whichllm.models.benchmark_sources.aa_index import (
+    AA_PEER_IDS,
     fetch_aa_index_scores,
     get_aa_curated_fallback,
 )
 from whichllm.models.benchmark_sources.aider import fetch_aider_polyglot_scores
 from whichllm.models.benchmark_sources.chatbot_arena import fetch_arena_scores
 from whichllm.models.benchmark_sources.livebench import (
+    LIVEBENCH_ESTIMATED_IDS,
     get_livebench_data,
 )
 from whichllm.models.benchmark_sources.open_llm_leaderboard import (
@@ -32,7 +34,9 @@ from whichllm.models.benchmark_sources.vision import fetch_vision_scores
 BENCHMARK_SNAPSHOT = "2026-10"
 
 __all__ = [
+    "AA_PEER_IDS",
     "BENCHMARK_SNAPSHOT",
+    "LIVEBENCH_ESTIMATED_IDS",
     "fetch_aa_index_scores",
     "fetch_aider_polyglot_scores",
     "fetch_arena_scores",
