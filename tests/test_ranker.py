@@ -1,7 +1,7 @@
 """Tests for ranking behavior."""
 
 from whichllm.engine.quantization import effective_quant_type
-from whichllm.engine.ranker import _partial_offload_quality_factor, rank_models
+from whichllm.engine.ranker import rank_models
 from whichllm.hardware.types import GPUInfo, HardwareInfo
 from whichllm.models.types import GGUFVariant, ModelInfo
 
@@ -532,7 +532,10 @@ def test_full_gpu_estimated_ranks_above_partial_direct():
     assert results[0].model.id == "Qwen/Qwen3-8B-AWQ"
 
 
-def test_strong_partial_offload_not_buried_below_weaker_full_gpu():
+def test_dense_partial_offload_beats_old_full_gpu_but_not_a_fast_modern_one():
+    # #104: on an RTX 3060 a strong 27B that spills to RAM must still beat
+    # an old full-GPU model. Its speed now follows RAM bandwidth (~2 tok/s
+    # here), so a modern 8B at 35 tok/s ranks above it.
     strong_partial = ModelInfo(
         id="Qwen/Qwen3.6-27B",
         family_id="qwen3.6-27b",
@@ -625,34 +628,13 @@ def test_strong_partial_offload_not_buried_below_weaker_full_gpu():
     )
 
     ids = [r.model.id for r in results]
-    assert ids.index("Qwen/Qwen3.6-27B") < ids.index("Qwen/Qwen3-8B")
     assert ids.index("Qwen/Qwen3.6-27B") < ids.index("google/gemma-2-9b-it")
+    assert ids.index("Qwen/Qwen3-8B") < ids.index("Qwen/Qwen3.6-27B")
     strong = next(r for r in results if r.model.id == "Qwen/Qwen3.6-27B")
     assert strong.fit_type == "partial_offload"
-    assert (
-        strong.quality_score
-        > next(r for r in results if r.model.id == "Qwen/Qwen3-8B").quality_score
-    )
-
-
-def test_moe_partial_offload_penalty_uses_active_working_set():
-    dense = ModelInfo(
-        id="example/Dense-30B",
-        family_id="dense-30b",
-        name="Dense-30B",
-        parameter_count=30_000_000_000,
-    )
-    moe = ModelInfo(
-        id="example/MoE-30B-A3B",
-        family_id="moe-30b-a3b",
-        name="MoE-30B-A3B",
-        parameter_count=30_000_000_000,
-        parameter_count_active=3_000_000_000,
-        is_moe=True,
-    )
-
-    assert _partial_offload_quality_factor(dense, 0.80) == 0.42
-    assert _partial_offload_quality_factor(moe, 0.80) >= 0.66
+    assert strong.placement is not None
+    assert strong.placement.kind == "layer_offload"
+    assert strong.estimated_tok_per_sec < 4.0
 
 
 def test_evidence_strict_filters_out_estimated_models():

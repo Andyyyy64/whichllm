@@ -36,7 +36,8 @@ Common options:
 | `--cpu-only` | Ignore GPUs and rank for CPU-only use |
 | `--gpu` | Simulate GPU(s) by name. Accepts repeated flags, comma-separated values, and count shorthand |
 | `--vram` | Override simulated GPU VRAM or detected GPU usable VRAM in GB |
-| `--bandwidth`, `--ram-bandwidth` | Override the selected GPU's memory bandwidth in GB/s (system RAM bandwidth for an iGPU or unified memory) |
+| `--bandwidth` | Override the selected GPU's memory bandwidth in GB/s |
+| `--ram-bandwidth` | Override system RAM bandwidth in GB/s. It bounds CPU-only runs, MoE experts in RAM and offloaded layers; for an iGPU or unified memory it also sets the GPU's bandwidth |
 | `--gpu-index` | Detected GPU index to override when multiple GPUs are present |
 | `--vram-headroom` | Reserve per-GPU memory for runtime overhead. Default: `auto`. Accepts `none`, byte values like `1.5GB`, or percentages like `10%` |
 | `--ram-budget` | Cap RAM available for partial offload. Accepts `available`, byte values like `8GB`, or percentages like `50%` |
@@ -66,8 +67,8 @@ checks, so near-edge recommendations are less likely to overflow in tools such
 as LM Studio. Use `--vram-headroom none` to restore the raw detected VRAM.
 `--ram-budget available` caps offload planning to current available RAM.
 For detected iGPU or unified-memory systems, use `--vram` and
-`--bandwidth` / `--ram-bandwidth` to override the automatically detected
-usable memory and bandwidth. If multiple GPUs are detected, add `--gpu-index`
+`--ram-bandwidth` to override the automatically detected usable memory and
+bandwidth. If multiple GPUs are detected, add `--gpu-index`
 with the GPU number from `whichllm hardware`.
 
 whichllm scans `~/.lmstudio/models` for GGUF files. A recommendation is marked
@@ -112,6 +113,7 @@ Ranking JSON model rows include:
 | Field | Meaning |
 | --- | --- |
 | `fit_type` | Runtime fit classification: `full_gpu`, `partial_offload`, or `cpu_only` |
+| `placement` | Where the weights live: `kind` (`gpu`, `expert_offload`, `layer_offload`, `cpu`), `gpu_weight_bytes`, `cpu_weight_bytes`, `n_cpu_moe` (llama.cpp `--n-cpu-moe`; `null` with expert offload means every expert, `--cpu-moe`), `n_gpu_layers`, `num_layers` |
 | `vram_required_bytes` | Estimated runtime memory requirement for the candidate |
 | `vram_available_bytes` | GPU memory budget used for the fit check |
 | `uses_multi_gpu` | Whether the fit check used more than one GPU |
@@ -127,7 +129,9 @@ Ranking JSON model rows include:
 | `local_path` | Absolute path to the matching local GGUF, or `null` |
 
 The top-level `hardware` object also includes `usable_vram_bytes` per GPU,
-`ram_budget_bytes`, and `budget_notes` when memory budgets are active.
+`ram_budget_bytes`, and `budget_notes` when memory budgets are active, plus
+`ram_bandwidth_gbps` and `ram_bandwidth_source` (`detected`, `unified`,
+`estimated`, `override` or `default`).
 
 ## `hardware`
 

@@ -132,10 +132,14 @@ def main(
     bandwidth: Optional[float] = typer.Option(
         None,
         "--bandwidth",
+        help="Override the selected GPU's memory bandwidth in GB/s",
+    ),
+    ram_bandwidth: Optional[float] = typer.Option(
+        None,
         "--ram-bandwidth",
         help=(
-            "Override the selected GPU's memory bandwidth in GB/s "
-            "(system RAM bandwidth for an iGPU or unified memory)"
+            "Override system RAM bandwidth in GB/s (CPU-side decode, MoE "
+            "experts in RAM; also an iGPU or unified memory)"
         ),
     ),
     gpu_index: Optional[int] = typer.Option(
@@ -187,6 +191,7 @@ def main(
         gpu=gpu,
         vram=vram,
         bandwidth=bandwidth,
+        ram_bandwidth=ram_bandwidth,
         gpu_index=gpu_index,
         vram_headroom=vram_headroom,
         ram_budget=ram_budget,
@@ -327,10 +332,14 @@ def hardware(
     bandwidth: Optional[float] = typer.Option(
         None,
         "--bandwidth",
+        help="Override the selected GPU's memory bandwidth in GB/s",
+    ),
+    ram_bandwidth: Optional[float] = typer.Option(
+        None,
         "--ram-bandwidth",
         help=(
-            "Override the selected GPU's memory bandwidth in GB/s "
-            "(system RAM bandwidth for an iGPU or unified memory)"
+            "Override system RAM bandwidth in GB/s (CPU-side decode, MoE "
+            "experts in RAM; also an iGPU or unified memory)"
         ),
     ),
     gpu_index: Optional[int] = typer.Option(
@@ -345,6 +354,7 @@ def hardware(
         gpu=gpu,
         vram=vram,
         bandwidth=bandwidth,
+        ram_bandwidth=ram_bandwidth,
         gpu_index=gpu_index,
     )
 

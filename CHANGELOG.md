@@ -17,8 +17,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   publish when quality gates fail. `--live` keeps the direct fetch, and
   `WHICHLLM_INDEX_URL` points at a mirror or turns the index off.
 - `HF_TOKEN` is sent to the Hugging Face endpoint when set.
+- MoE expert offload. When a mixture-of-experts model does not fit in VRAM
+  but its attention, shared weights and KV cache do, whichllm keeps the
+  routed experts of the first N layers in system RAM, as llama.cpp's
+  `--n-cpu-moe N` does, and estimates speed from what each token actually
+  reads: its few active experts from RAM, the rest from VRAM. On a 16 GB
+  card with 64 GB of DDR5, gpt-oss-120b now ranks #5 at an estimated
+  18 tok/s (it was #21). The CPU side is calibrated against llama.cpp on an
+  RTX 5080 with DDR5-5600: Qwen3.6-35B-A3B at `--n-cpu-moe` 12-40 measured
+  44-83 tok/s, and the estimates land within 25% of the medians. The table
+  shows these fits as `GPU+RAM`, the warning names the `--n-cpu-moe` value,
+  and JSON rows carry a `placement` object.
+- System RAM bandwidth is detected (Windows memory modules), estimated from
+  the CPU family, or taken from Apple's unified memory, and shown by
+  `whichllm hardware`.
 
 ### Changed
+
+- **Breaking:** `--ram-bandwidth` is now system RAM bandwidth, no longer an
+  alias of `--bandwidth`. It bounds CPU-only runs, experts in RAM and
+  offloaded layers; for an iGPU or unified memory it still sets the GPU's
+  bandwidth, so `--vram 8 --ram-bandwidth 68` keeps working. Use
+  `--bandwidth` to override a discrete GPU's VRAM bandwidth.
+- CPU-only speed and layers offloaded from a discrete GPU are estimated from
+  RAM bandwidth instead of a size heuristic and a fixed 0.45x factor. Dense
+  models spilling layers on a fast GPU are slower than before (Qwen3.6-27B
+  at 128K context on an RTX 4090: 5 tok/s, not 16), CPU-only MoE models are
+  faster, and CPU-only candidates must reach 4 tok/s to score as usable.
 
 - `--profile coding` is no longer limited to repositories with "coder" in
   their names: strong general models such as gpt-oss, Devstral and

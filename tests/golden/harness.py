@@ -17,7 +17,11 @@ from fnmatch import fnmatch
 from functools import cached_property, lru_cache
 from pathlib import Path
 
-from whichllm.cli_hardware import _apply_memory_budgets, _auto_min_params_for_profile
+from whichllm.cli_hardware import (
+    _apply_memory_budgets,
+    _apply_ram_bandwidth,
+    _auto_min_params_for_profile,
+)
 from whichllm.engine.ranker import rank_models
 from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.gpu_simulator import create_synthetic_gpu
@@ -50,6 +54,9 @@ class Archetype:
     os: str
     profiles: tuple[str, ...]
     vram_gb: float | None = None
+    # None means the default (dual-channel DDR4-3200), or the unified
+    # bandwidth for Apple GPUs.
+    ram_bandwidth_gbps: float | None = None
     cpu_cores: int = 16
     context_length: int = CONTEXT_LENGTH
     note: str = ""
@@ -65,6 +72,7 @@ class Archetype:
             disk_free_bytes=2048 * _GiB,
             os=self.os,
         )
+        _apply_ram_bandwidth(hardware, self.ram_bandwidth_gbps)
         return _apply_memory_budgets(hardware, vram_headroom="auto", ram_budget=None)
 
     @cached_property
@@ -159,6 +167,7 @@ def load_spec() -> tuple[tuple[Archetype, ...], tuple[Constraint, ...]]:
             os=a["os"],
             profiles=tuple(a.get("profiles", ("general",))),
             vram_gb=a.get("vram_gb"),
+            ram_bandwidth_gbps=a.get("ram_bandwidth_gbps"),
             cpu_cores=a.get("cpu_cores", 16),
             context_length=a.get("context_length", CONTEXT_LENGTH),
             note=a.get("note", ""),

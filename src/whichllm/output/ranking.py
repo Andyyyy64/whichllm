@@ -50,7 +50,9 @@ def _top_pick_confidence(results: list[CompatibilityResult]) -> tuple[str, str]:
     top = results[0]
     gap = (top.quality_score - results[1].quality_score) if len(results) > 1 else 999.0
     notes: list[str] = []
-    if top.fit_type == "partial_offload":
+    if top.placement is not None and top.placement.kind == "expert_offload":
+        notes.append("MoE experts in RAM")
+    elif top.fit_type == "partial_offload":
         notes.append("partial offload")
     elif top.fit_type == "cpu_only":
         notes.append("CPU-only")
@@ -146,6 +148,17 @@ def display_hardware(hw: HardwareInfo) -> None:
     ram = _format_bytes(hw.ram_bytes)
     if hw.ram_budget_bytes is not None and hw.ram_budget_bytes < hw.ram_bytes:
         ram += f" (budget {_format_bytes(hw.ram_budget_bytes)})"
+    if hw.ram_bandwidth_gbps:
+        how = {
+            "detected": "",
+            "unified": "",
+            "override": "set",
+            "estimated": "estimated",
+        }.get(hw.ram_bandwidth_source, "assumed")
+        detail = ", ".join(part for part in (hw.ram_bandwidth_detail, how) if part)
+        ram += f" — BW: {hw.ram_bandwidth_gbps:.0f} GB/s"
+        if detail:
+            ram += f" [dim]({detail})[/dim]"
     lines.append(f"[bold blue]RAM:[/] {ram}")
     lines.append(f"[bold blue]Disk free:[/] {_format_bytes(hw.disk_free_bytes)}")
     lines.append(f"[bold blue]OS:[/] {hw.os}")
@@ -218,6 +231,8 @@ def display_ranking(
             "cpu_only": "[red]CPU only[/]",
         }
         fit_str = fit_style.get(r.fit_type, r.fit_type)
+        if r.placement is not None and r.placement.kind == "expert_offload":
+            fit_str = "[green]GPU+RAM[/]"
         published_dt = _parse_published_at(r.model.published_at)
         published_str = Text(
             _format_published_at(r.model.published_at),

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from whichllm.engine.placement import Placement
 from whichllm.models.types import GGUFVariant, ModelInfo
 
 
@@ -20,6 +21,9 @@ class CompatibilityResult:
     warnings: list[str] = field(default_factory=list)
     quality_score: float = 0.0  # 0-100 for ranking
     fit_type: str = "full_gpu"  # "full_gpu" | "partial_offload" | "cpu_only"
+    # Where the weights live; expert offload and layer offload are both
+    # "partial_offload" fits but run at very different speeds.
+    placement: Placement | None = None
     benchmark_status: str = "none"  # "direct" | "estimated" | "self_reported" | "none"
     benchmark_source: str = "none"  # granular: "direct" | "variant" | "base_model" | "line_interp" | "self_reported" | "none"
     benchmark_confidence: float = 0.0  # 0.0-1.0 from BenchmarkEvidence

@@ -7,6 +7,10 @@
 # a maintainer's review. `xfail` maps "<archetype>/<profile>" to the reason a
 # constraint is known to fail today; the tests treat those as strict xfails,
 # so fixing the bug turns them into failures until the entry is removed.
+#
+# ram_bandwidth_gbps is system RAM bandwidth (89.6 = dual-channel DDR5-5600).
+# Without it the default dual-channel DDR4-3200 (51.2) applies, and Apple
+# GPUs use their unified-memory bandwidth.
 
 # --- Discrete GPUs ---------------------------------------------------------
 
@@ -49,6 +53,7 @@ gpus = ["RTX 5060 Ti"]
 vram_gb = 16
 ram_gb = 64
 os = "linux"
+ram_bandwidth_gbps = 89.6
 profiles = ["general", "coding"]
 note = "16 GB card with plenty of RAM: the MoE expert-offload sweet spot."
 
@@ -57,6 +62,7 @@ id = "rtx4090-24gb-linux"
 gpus = ["RTX 4090"]
 ram_gb = 64
 os = "linux"
+ram_bandwidth_gbps = 89.6
 profiles = ["general", "coding", "vision"]
 
 [[archetype]]
@@ -64,6 +70,7 @@ id = "rtx5090-32gb-linux"
 gpus = ["RTX 5090"]
 ram_gb = 96
 os = "linux"
+ram_bandwidth_gbps = 89.6
 profiles = ["general", "coding"]
 
 [[archetype]]
@@ -92,6 +99,7 @@ id = "rtx4090-24gb-linux-128k"
 gpus = ["RTX 4090"]
 ram_gb = 64
 os = "linux"
+ram_bandwidth_gbps = 89.6
 context_length = 131072
 profiles = ["general", "coding"]
 
@@ -134,6 +142,7 @@ gpus = ["Ryzen AI MAX+ 395"]
 vram_gb = 96
 ram_gb = 128
 os = "linux"
+ram_bandwidth_gbps = 256.0
 note = "96 GB of the 128 GB assigned to the iGPU in BIOS."
 
 # --- CPU only ----------------------------------------------------------------
@@ -255,4 +264,3 @@ rationale = """With 16 GB VRAM and 64 GB RAM a large MoE with experts in RAM
 (gpt-oss-120b, Qwen3.6-35B-A3B) is the strongest practical option and should
 reach the top 5."""
 patterns = ['(?i)gpt-oss-120b', '(?i)qwen3\.[68]-35b-a3b']
-xfail = { "*" = "6-5: partial offload is scored as a whole model; routed experts in RAM are not modelled (gpt-oss-120b ranks #21, Qwen3.6-35B-A3B #11)" }

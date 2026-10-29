@@ -195,6 +195,38 @@ def _apply_gpu_overrides(
     return hardware
 
 
+def _apply_ram_bandwidth(
+    hardware: HardwareInfo,
+    ram_bandwidth: float | None,
+    *,
+    gpu_bandwidth_set: bool = False,
+) -> HardwareInfo:
+    """Apply --ram-bandwidth and keep unified memory consistent.
+
+    An iGPU or unified-memory GPU reads from system RAM, so the flag sets its
+    bandwidth too unless --bandwidth was given for it. Without the flag, an
+    Apple GPU (detected or simulated) defines the RAM bandwidth.
+    """
+    if ram_bandwidth is not None:
+        hardware.ram_bandwidth_gbps = ram_bandwidth
+        hardware.ram_bandwidth_source = "override"
+        hardware.ram_bandwidth_detail = None
+        if not gpu_bandwidth_set:
+            for gpu in hardware.gpus:
+                if gpu.shared_memory or gpu.vendor == "apple":
+                    gpu.memory_bandwidth_gbps = ram_bandwidth
+        return hardware
+
+    from whichllm.hardware.ram_bandwidth import unified_bandwidth
+
+    unified = unified_bandwidth([g for g in hardware.gpus if g.vendor == "apple"])
+    if unified is not None:
+        hardware.ram_bandwidth_gbps = unified.gbps
+        hardware.ram_bandwidth_source = unified.source
+        hardware.ram_bandwidth_detail = unified.detail
+    return hardware
+
+
 def _auto_min_params_for_profile(hardware: HardwareInfo, profile: str) -> float | None:
     """Pick automatic min-params threshold for strongest general ranking.
 

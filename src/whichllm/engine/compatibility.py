@@ -5,9 +5,16 @@ from __future__ import annotations
 from whichllm.constants import _GiB
 from whichllm.constants import MIN_COMPUTE_CAPABILITY_OLLAMA
 from whichllm.constants import VULKAN_ONLY_GPUS
+from whichllm.engine.placement import (
+    Placement,
+    cpu_placement,
+    gpu_placement,
+    plan_expert_offload,
+    plan_layer_offload,
+)
 from whichllm.engine.quantization import estimate_weight_bytes
 from whichllm.engine.types import CompatibilityResult
-from whichllm.engine.vram import estimate_vram
+from whichllm.engine.vram import estimate_memory_breakdown
 from whichllm.hardware.memory import effective_usable_ram
 from whichllm.hardware.types import GPUInfo, HardwareInfo
 from whichllm.models.types import GGUFVariant, ModelInfo
@@ -115,6 +122,17 @@ def _multi_gpu_effective_vram(
     return effective, True, effective
 
 
+def _expert_offload_note(placement: Placement) -> str:
+    if placement.n_cpu_moe is None or placement.n_cpu_moe >= (
+        placement.num_layers or 0
+    ):
+        return "MoE experts stay in system RAM (llama.cpp --cpu-moe)"
+    return (
+        f"MoE experts of {placement.n_cpu_moe}/{placement.num_layers} layers stay "
+        f"in system RAM (llama.cpp --n-cpu-moe {placement.n_cpu_moe})"
+    )
+
+
 def check_compatibility(
     model: ModelInfo,
     variant: GGUFVariant | None,
@@ -124,7 +142,8 @@ def check_compatibility(
     """Check if a model+variant can run on the given hardware."""
     warnings: list[str] = []
 
-    vram_required = estimate_vram(model, variant, context_length)
+    memory = estimate_memory_breakdown(model, variant, context_length)
+    vram_required = memory.total
 
     usable_ram = effective_usable_ram(hardware.ram_bytes, hardware.ram_budget_bytes)
 
@@ -189,38 +208,57 @@ def check_compatibility(
         warnings.append("Metal requires macOS for Apple Silicon inference")
 
     # Determine fit type
+    unified_memory = bool(
+        best_gpu and (best_gpu.shared_memory or best_gpu.vendor == "apple")
+    )
+    placement: Placement | None = None
     if fit_vram_available >= vram_required:
         fit_type = "full_gpu"
         can_run = True
         offload_ratio = 0.0
-    elif (
-        fit_vram_available > 0
-        and (fit_vram_available + offload_ram_available) >= vram_required
-    ):
-        fit_type = "partial_offload"
-        can_run = True
-        offload_ratio = (
-            (vram_required - fit_vram_available) / vram_required
-            if vram_required > 0
-            else 0.0
-        )
-        offload_pct = offload_ratio * 100
-        if best_gpu and (best_gpu.shared_memory or best_gpu.vendor == "apple"):
-            warnings.append("Will use shared system memory")
-        else:
-            warnings.append(
-                f"~{offload_pct:.0f}% of layers will be offloaded to CPU RAM"
-            )
-    elif usable_ram >= vram_required:
-        fit_type = "cpu_only"
-        can_run = True
-        offload_ratio = 0.0
-        warnings.append("Will run on CPU only (much slower)")
+        placement = gpu_placement(model, memory)
     else:
-        fit_type = "cpu_only"
-        can_run = False
-        offload_ratio = 0.0
-        warnings.append("Insufficient memory (GPU VRAM + RAM) to run this model")
+        # On a discrete GPU, a MoE first moves routed experts to RAM: each
+        # token then reads only its active experts from there.
+        if fit_vram_available > 0 and not unified_memory:
+            placement = plan_expert_offload(
+                model, memory, fit_vram_available, offload_ram_available
+            )
+        if placement is not None:
+            fit_type = "partial_offload"
+            can_run = True
+            offload_ratio = placement.cpu_weight_bytes / vram_required
+            warnings.append(_expert_offload_note(placement))
+        elif (
+            fit_vram_available > 0
+            and (fit_vram_available + offload_ram_available) >= vram_required
+        ):
+            fit_type = "partial_offload"
+            can_run = True
+            placement = plan_layer_offload(model, memory, fit_vram_available)
+            offload_ratio = (
+                (vram_required - fit_vram_available) / vram_required
+                if vram_required > 0
+                else 0.0
+            )
+            offload_pct = offload_ratio * 100
+            if unified_memory:
+                warnings.append("Will use shared system memory")
+            else:
+                warnings.append(
+                    f"~{offload_pct:.0f}% of layers will be offloaded to CPU RAM"
+                )
+        elif usable_ram >= vram_required:
+            fit_type = "cpu_only"
+            can_run = True
+            offload_ratio = 0.0
+            placement = cpu_placement(model, memory)
+            warnings.append("Will run on CPU only (much slower)")
+        else:
+            fit_type = "cpu_only"
+            can_run = False
+            offload_ratio = 0.0
+            warnings.append("Insufficient memory (GPU VRAM + RAM) to run this model")
 
     # Context length warning
     context_fits = not (
@@ -257,5 +295,6 @@ def check_compatibility(
         multi_gpu_effective_vram_bytes=multi_gpu_effective_vram,
         warnings=warnings,
         fit_type=fit_type,
+        placement=placement,
         context_fits=context_fits,
     )
