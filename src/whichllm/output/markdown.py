@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from whichllm.engine.quantization import effective_quant_type
+from whichllm.engine.recipe import build_recipe
 from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.types import HardwareInfo
 from whichllm.output import _console
@@ -95,6 +96,7 @@ def display_markdown(
     *,
     show_status: bool = False,
     empty_message: str | None = None,
+    context_length: int | None = None,
 ) -> None:
     """Emit ranking results as a pasteable GitHub-Flavored Markdown table."""
     lines = ["## Recommended Models", ""]
@@ -162,4 +164,9 @@ def display_markdown(
         ]
 
     lines.append(_markdown_table(headers, rows))
+    recipe = (
+        build_recipe(results[0], context_length) if context_length is not None else None
+    )
+    if recipe is not None:
+        lines += ["", "Run #1 with llama.cpp:", "", "```bash", recipe.llama_cpp, "```"]
     _write_markdown("\n".join(lines))

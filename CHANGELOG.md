@@ -28,6 +28,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   44-83 tok/s, and the estimates land within 25% of the medians. The table
   shows these fits as `GPU+RAM`, the warning names the `--n-cpu-moe` value,
   and JSON rows carry a `placement` object.
+- Run recipes. Below the ranking, whichllm prints the `llama-server`
+  command and LM Studio settings that run the top pick the way it was
+  estimated (`--n-cpu-moe N` when experts stay in RAM, `-ngl N` for layer
+  offload). `--markdown` prints it as a code block and `--json` adds a
+  `recipe` object to every row. `run` and `snippet` use the ranking's layer
+  split instead of always asking for every layer on the GPU.
 - System RAM bandwidth is detected (Windows memory modules), estimated from
   the CPU family, or taken from Apple's unified memory, and shown by
   `whichllm hardware`.

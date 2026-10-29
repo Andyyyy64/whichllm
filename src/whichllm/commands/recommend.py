@@ -290,13 +290,14 @@ def main_command(
             "and CPU-only candidates."
         )
     if json_output:
-        display_json(results, hardware)
+        display_json(results, hardware, context_length)
     elif markdown_output:
         display_markdown(
             results,
             hardware,
             show_status=status or not details,
             empty_message=empty_message,
+            context_length=context_length,
         )
     else:
         console.print()
@@ -307,6 +308,7 @@ def main_command(
             has_gpu=bool(hardware.gpus),
             show_status=status or not details,
             empty_message=empty_message,
+            context_length=context_length,
         )
         _print_data_source(catalog)
         console.print()
