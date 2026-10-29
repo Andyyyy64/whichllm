@@ -117,6 +117,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - NVFP4 and FP8 checkpoints need an Ampere or newer NVIDIA GPU. vLLM serves
   them through Marlin kernels there, so a Turing card no longer gets them;
   an NVFP4 pick before Blackwell notes that it runs weight-only.
+- Models whose config.json keeps the expert counts under `text_config`
+  are recognised as mixture-of-experts. The Hub parser only read the top
+  level, so Qwen3.8-Flash-Next (180B, 10 of 512 experts per token) was
+  estimated as a dense 180B at 2.4 tok/s on an M4 Max and never got its
+  experts placed in RAM. Active parameters come from the config shape.
 - `run`, `snippet` and `plan` resolve a model name to the model you meant.
   Among repos with the same size label the one whose parameter count was
   closest to the query used to win, and that count is often parsed from the
