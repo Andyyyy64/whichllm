@@ -31,9 +31,25 @@ def load_benchmark_cache() -> dict[str, float] | None:
         return None
 
 
-def save_benchmark_cache(scores: dict[str, float]) -> None:
-    """Save benchmark scores to cache."""
+def load_task_cache() -> dict[str, dict[str, float]]:
+    """Task scores saved with the benchmark scores; empty if absent or expired."""
+    if load_benchmark_cache() is None:
+        return {}
+    try:
+        data = json.loads(BENCHMARK_CACHE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return {}
+    tasks = data.get("task_scores")
+    return tasks if isinstance(tasks, dict) else {}
+
+
+def save_benchmark_cache(
+    scores: dict[str, float], task_scores: dict[str, dict[str, float]] | None = None
+) -> None:
+    """Save benchmark scores (and task scores) to cache."""
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     data = {"cached_at": time.time(), "scores": scores}
+    if task_scores:
+        data["task_scores"] = task_scores
     BENCHMARK_CACHE.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     logger.debug(f"Saved {len(scores)} benchmark scores to cache")

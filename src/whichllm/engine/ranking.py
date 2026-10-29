@@ -27,8 +27,59 @@ from whichllm.models.roles import find_base_checkpoints
 from whichllm.models.types import ModelInfo
 
 _MULTI_GPU_SPEED_FACTOR = 0.70
-# Quality points a code-tuned model gains under --profile coding.
+# Quality points a code-tuned model gains under --profile coding when it has
+# no coding benchmark results of its own.
 _CODING_SPECIALIST_BONUS = 2.0
+_TASK_EVIDENCE_SOURCES = frozenset({"direct", "variant", "base_model"})
+
+
+def _score_indices(scores: dict[str, float] | None) -> tuple:
+    if not scores:
+        return {}, {}, {}, {}
+    ci_index, line_index = build_score_index(scores)
+    return (
+        ci_index,
+        line_index,
+        build_line_bucket_index(scores),
+        build_score_name_index(scores),
+    )
+
+
+def _lookup_evidence(
+    model: ModelInfo,
+    scores: dict[str, float],
+    indices: tuple,
+    family_dominant_params: dict[str, int],
+    self_reported: float | None,
+) -> BenchmarkEvidence:
+    ci_index, line_index, line_buckets, name_index = indices
+    actual_params_b = (
+        (model.parameter_count or 0) / 1e9 if model.parameter_count else None
+    )
+    evidence = lookup_benchmark_evidence(
+        model.id,
+        model.base_model,
+        scores,
+        ci_index=ci_index,
+        line_index=line_index,
+        line_bucket_index=line_buckets,
+        self_reported_score=self_reported,
+        actual_params_b=actual_params_b,
+        name_index=name_index,
+    )
+    # Family-size sanity check: if this model inherited benchmarks
+    # via family/base_model lookup but its own params disagree
+    # sharply with the family's dominant member, reject the
+    # inheritance. Catches MTP heads / draft / abliterated forks
+    # that share a family_id with their base but are effectively
+    # different models.
+    if evidence.source in ("variant", "base_model", "line_interp"):
+        dom_params = family_dominant_params.get(model.family_id)
+        if dom_params and model.parameter_count and dom_params > 0:
+            ratio = model.parameter_count / dom_params
+            if ratio < 0.5 or ratio > 2.0:
+                return BenchmarkEvidence(score=None, confidence=0.0, source="none")
+    return evidence
 
 
 def rank_models(
@@ -40,12 +91,17 @@ def rank_models(
     min_speed: float | None = None,
     benchmark_scores: dict[str, float] | None = None,
     task_profile: str = "general",
+    task_scores: dict[str, float] | None = None,
     require_direct_top: bool = True,
     min_params_b: float | None = None,
     evidence_filter: str = "any",
     fit_filter: str = "any",
 ) -> list[CompatibilityResult]:
-    """Rank models by quality for the given hardware. Returns top N results."""
+    """Rank models by quality for the given hardware. Returns top N results.
+
+    ``task_scores`` are the active profile's scores (coding, math, vision).
+    A model with task evidence is ranked on it instead of its general score.
+    """
     results: list[CompatibilityResult] = []
     gguf_only_backend = _is_gguf_only_backend(hardware)
 
@@ -77,14 +133,8 @@ def rank_models(
     coding_profile = task_profile.lower() == "coding"
 
     # Build benchmark indices once (case-insensitive, model line, repo name)
-    if benchmark_scores:
-        bench_ci_index, bench_line_index = build_score_index(benchmark_scores)
-        bench_line_buckets = build_line_bucket_index(benchmark_scores)
-        bench_name_index = build_score_name_index(benchmark_scores)
-    else:
-        bench_ci_index, bench_line_index = {}, {}
-        bench_line_buckets = {}
-        bench_name_index = {}
+    general_indices = _score_indices(benchmark_scores)
+    task_indices = _score_indices(task_scores)
 
     best_gpu = None
     for gpu in hardware.gpus:
@@ -113,34 +163,23 @@ def rank_models(
 
         bench_evidence = BenchmarkEvidence(score=None, confidence=0.0, source="none")
         if benchmark_scores or self_reported is not None:
-            actual_params_b = (
-                (model.parameter_count or 0) / 1e9 if model.parameter_count else None
-            )
-            bench_evidence = lookup_benchmark_evidence(
-                model.id,
-                model.base_model,
+            bench_evidence = _lookup_evidence(
+                model,
                 benchmark_scores or {},
-                ci_index=bench_ci_index,
-                line_index=bench_line_index,
-                line_bucket_index=bench_line_buckets,
-                self_reported_score=self_reported,
-                actual_params_b=actual_params_b,
-                name_index=bench_name_index,
+                general_indices,
+                family_dominant_params,
+                self_reported,
             )
-            # Family-size sanity check: if this model inherited benchmarks
-            # via family/base_model lookup but its own params disagree
-            # sharply with the family's dominant member, reject the
-            # inheritance. Catches MTP heads / draft / abliterated forks
-            # that share a family_id with their base but are effectively
-            # different models.
-            if bench_evidence.source in ("variant", "base_model", "line_interp"):
-                dom_params = family_dominant_params.get(model.family_id)
-                if dom_params and model.parameter_count and dom_params > 0:
-                    ratio = model.parameter_count / dom_params
-                    if ratio < 0.5 or ratio > 2.0:
-                        bench_evidence = BenchmarkEvidence(
-                            score=None, confidence=0.0, source="none"
-                        )
+        basis = "general"
+        if task_scores:
+            task_evidence = _lookup_evidence(
+                model, task_scores, task_indices, family_dominant_params, None
+            )
+            # Interpolating a task score from other sizes of the line is too
+            # loose; only the model itself, a variant or its base count.
+            if task_evidence.source in _TASK_EVIDENCE_SOURCES:
+                bench_evidence = task_evidence
+                basis = task_profile.lower()
         if not _passes_evidence_filter(bench_evidence.source, evidence_filter):
             continue
 
@@ -217,7 +256,11 @@ def rank_models(
                 benchmark_avg=bench_avg,
                 benchmark_source=bench_evidence.source,
             )
-            if coding_profile and "coding" in _detect_specializations(model.id):
+            if (
+                coding_profile
+                and basis == "general"
+                and "coding" in _detect_specializations(model.id)
+            ):
                 # Between otherwise equal candidates, prefer the code-tuned
                 # variant (Qwen3-Coder-30B-A3B over Qwen3-30B-A3B). Small
                 # enough that an older coder cannot pass a stronger new model.
@@ -236,6 +279,7 @@ def rank_models(
                 compat.benchmark_status = "estimated"
             compat.benchmark_source = bench_evidence.source
             compat.benchmark_confidence = bench_evidence.confidence
+            compat.benchmark_basis = basis
 
             if (
                 best_for_model is None

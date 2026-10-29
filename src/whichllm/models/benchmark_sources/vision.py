@@ -1,6 +1,6 @@
 """Vision-language model benchmark source.
 
-Text leaderboards (LiveBench, AA Index, Aider) do not score VLMs, so a
+Text leaderboards (LiveBench, the AA index) do not score VLMs, so a
 ``--profile vision`` ranking had only one model with a ``direct`` hit
 (Qwen2-VL-7B, a two-generations-old model) and every current VLM fell
 back to size/popularity heuristics — letting the 8B legacy model
@@ -10,10 +10,9 @@ There is no single stable machine-readable VLM leaderboard (the MMMU /
 OpenCompass spaces change their JSON shape frequently), so this source
 is a curated snapshot rather than a live scrape. Values are a blended
 0-100 capability index drawn from MMMU-Pro, MMBench, and general
-multimodal evaluations as of 2026-05; they are already normalized and
-merged into the combined benchmark dict like any other current source.
-Profile filtering keeps these scores from affecting text rankings —
-only models tagged ``vision`` consume them.
+multimodal evaluations as of 2026-05. They feed the vision task score
+next to AA's MMMU-Pro results (see ``whichllm.models.task_scores``), mostly
+for older VLMs AA no longer lists, and never the general score.
 """
 
 from __future__ import annotations

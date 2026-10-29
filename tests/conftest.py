@@ -46,3 +46,18 @@ def _isolate_index(monkeypatch, tmp_path):
         raise httpx.ConnectError("tests are offline")
 
     monkeypatch.setattr(index_client, "_fetch", offline)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_aa_benchmarks(monkeypatch):
+    """Keep the per-benchmark AA fetch off the network.
+
+    Tests that need task scores pass results to the builders directly or
+    patch ``fetch_aa_eval_scores`` themselves.
+    """
+    import whichllm.models.benchmark_sources.aa_evals as aa_evals
+
+    async def offline(client, evals):
+        return {}
+
+    monkeypatch.setattr(aa_evals, "fetch_aa_eval_scores", offline)

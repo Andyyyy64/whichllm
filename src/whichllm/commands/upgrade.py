@@ -38,8 +38,9 @@ def upgrade_command(
     from whichllm.hardware.gpu_simulator import create_synthetic_gpu
     from whichllm.hardware.types import HardwareInfo
     from whichllm.models.benchmark import (
-        fetch_benchmark_scores,
+        fetch_benchmark_data,
         load_benchmark_cache,
+        load_task_cache,
         save_benchmark_cache,
     )
     from whichllm.models.cache import load_cache, save_cache
@@ -90,14 +91,17 @@ def upgrade_command(
         progress.update(task, description="Loading benchmark data...")
         if catalog is not None:
             bench_scores = catalog.benchmark_scores
+            task_scores = catalog.task_scores
         else:
             bench_scores = None if refresh else load_benchmark_cache()
+            task_scores = load_task_cache()
         if bench_scores is None:
             try:
-                bench_scores = _run_async(fetch_benchmark_scores())
-                save_benchmark_cache(bench_scores)
+                data = _run_async(fetch_benchmark_data(m.id for m in models))
+                bench_scores, task_scores = data.general, data.tasks
+                save_benchmark_cache(bench_scores, task_scores)
             except Exception:
-                bench_scores = {}
+                bench_scores, task_scores = {}, {}
 
         all_models: list = []
         for family in group_models(models):
@@ -113,6 +117,7 @@ def upgrade_command(
                 context_length=context_length,
                 top_n=top,
                 benchmark_scores=bench_scores,
+                task_scores=task_scores.get(profile),
                 task_profile=profile,
                 require_direct_top=True,
                 min_params_b=min_p,
@@ -124,6 +129,7 @@ def upgrade_command(
                     context_length=context_length,
                     top_n=top,
                     benchmark_scores=bench_scores,
+                    task_scores=task_scores.get(profile),
                     task_profile=profile,
                     require_direct_top=True,
                     min_params_b=None,

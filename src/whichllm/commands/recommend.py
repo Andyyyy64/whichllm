@@ -69,26 +69,29 @@ def _load_live_models(progress, task, refresh: bool, profile: str) -> list:
         sys.exit(1)
 
 
-def _load_live_benchmarks(progress, task, refresh: bool) -> dict[str, float]:
-    """Benchmark scores from the benchmark cache or the live sources."""
+def _load_live_benchmarks(
+    progress, task, refresh: bool, model_ids: list[str]
+) -> tuple[dict[str, float], dict[str, dict[str, float]]]:
+    """General and task scores from the benchmark cache or the live sources."""
     from whichllm.models.benchmark import (
-        fetch_benchmark_scores,
+        fetch_benchmark_data,
         load_benchmark_cache,
+        load_task_cache,
         save_benchmark_cache,
     )
 
     progress.update(task, description="Loading benchmark data...")
     bench_scores = None if refresh else load_benchmark_cache()
     if bench_scores is not None:
-        return bench_scores
+        return bench_scores, load_task_cache()
     try:
         progress.update(task, description="Fetching benchmark scores...")
-        bench_scores = _run_async(fetch_benchmark_scores())
-        save_benchmark_cache(bench_scores)
-        return bench_scores
+        data = _run_async(fetch_benchmark_data(model_ids))
+        save_benchmark_cache(data.general, data.tasks)
+        return data.general, data.tasks
     except Exception as e:
         console.print(f"[yellow]Warning:[/] Benchmark data unavailable: {e}")
-        return {}
+        return {}, {}
 
 
 def _print_data_source(catalog) -> None:
@@ -192,10 +195,13 @@ def main_command(
         if catalog is not None:
             models = catalog.models
             bench_scores = catalog.benchmark_scores
+            task_scores = catalog.task_scores
             progress.update(task, description=f"Loaded {len(models)} models")
         else:
             models = _load_live_models(progress, task, refresh, profile)
-            bench_scores = _load_live_benchmarks(progress, task, refresh)
+            bench_scores, task_scores = _load_live_benchmarks(
+                progress, task, refresh, [m.id for m in models]
+            )
 
         # Step 4: Group and rank
         progress.update(task, description="Ranking models...")
@@ -226,6 +232,7 @@ def main_command(
                 quant_filter=quant,
                 min_speed=speed_filter,
                 benchmark_scores=bench_scores,
+                task_scores=task_scores.get(profile),
                 task_profile=profile,
                 require_direct_top=True,
                 evidence_filter=evidence_mode,

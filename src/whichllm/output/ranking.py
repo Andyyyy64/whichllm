@@ -334,7 +334,7 @@ def display_ranking(
 
     _console.console.print(
         f"  [dim]Benchmark reference: {BENCHMARK_SNAPSHOT} curated snapshot; "
-        "live AA / LiveBench / Aider merged when reachable.[/dim]"
+        "live AA results merged when reachable.[/dim]"
     )
 
     # 上位が僅差なら「断定しすぎない」ための注意を表示する

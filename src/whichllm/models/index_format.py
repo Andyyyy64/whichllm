@@ -13,8 +13,12 @@ Layout (``schema_version`` 1)::
       "builder": {"whichllm_version": "...", "git_commit": "..."},
       "stats": {"models": 1129, "benchmarks": 4715, "shapes": 963, ...},
       "models": [... models_to_dicts(...) ...],
-      "benchmark_scores": {"org/model": 0-100, ...}
+      "benchmark_scores": {"org/model": 0-100, ...},
+      "task_scores": {"coding": {"org/model": 0-100, ...}, ...}
     }
+
+task_scores is optional: an index built before it existed, or a mirror
+that drops it, ranks every profile on benchmark_scores.
 """
 
 from __future__ import annotations
@@ -68,4 +72,11 @@ def structure_problems(payload: object) -> list[str]:
         isinstance(v, (int, float)) for v in scores.values()
     ):
         problems.append("benchmark_scores must map ids to numbers")
+    tasks = payload.get("task_scores", {})
+    if not isinstance(tasks, dict) or not all(
+        isinstance(scores, dict)
+        and all(isinstance(v, (int, float)) for v in scores.values())
+        for scores in tasks.values()
+    ):
+        problems.append("task_scores must map profiles to id-number maps")
     return problems

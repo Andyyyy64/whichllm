@@ -299,13 +299,18 @@ whichllm snippet "llama 3 8b gguf" --quant Q5_K_M
 ## Profiles
 
 The ranker detects specialization from repository names, and image support
-from the Hub's `image-text-to-text` tag. All profiles rank by the same
-benchmark quality; a profile decides which models are eligible.
+from the Hub's `image-text-to-text` tag. A profile decides which models are
+eligible, and `coding`, `math` and `vision` also rank on benchmarks for that
+task: Artificial Analysis's SciCode, Terminal-Bench, LiveCodeBench and
+FrontierCode for coding, AIME 2025 for math, and MMMU-Pro plus a curated
+vision index for vision. Those results are put on the same 0-100 scale as the
+general score, so a model without them keeps its general score. JSON rows
+say which one was used in `benchmark_basis`.
 
 | Profile | Behavior |
 | --- | --- |
 | `general` | Excludes coding, vision, and math-specialized names |
-| `coding` | General models plus coding-specialized names (excludes vision and math names). A code-tuned model gets a 2-point edge over an otherwise equal general one |
+| `coding` | General models plus coding-specialized names (excludes vision and math names), ranked on coding benchmarks where they exist. A code-tuned model without coding results gets a 2-point edge over an otherwise equal general one |
 | `vision` | Models that accept images: vision or multimodal names, and natively multimodal models tagged `image-text-to-text` (Gemma 3/4, Qwen3.5/3.6) |
 | `math` | General reasoning models plus math-specialized names (excludes coding and vision names) |
 | `any` | Keeps all recognized model types and includes VLM candidates |

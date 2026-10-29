@@ -12,7 +12,7 @@ import json
 import logging
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 import httpx
@@ -40,6 +40,8 @@ class IndexCatalog:
     built_at: str
     # True when the network was unreachable and a cached copy was used.
     offline: bool = False
+    # Per-profile scores (coding, math, vision); empty for an older index.
+    task_scores: dict[str, dict[str, float]] = field(default_factory=dict)
 
     @property
     def age_seconds(self) -> float | None:
@@ -100,6 +102,7 @@ def _catalog(payload: dict, offline: bool = False) -> IndexCatalog:
         benchmark_scores=payload["benchmark_scores"],
         built_at=payload["built_at"],
         offline=offline,
+        task_scores=payload.get("task_scores") or {},
     )
 
 

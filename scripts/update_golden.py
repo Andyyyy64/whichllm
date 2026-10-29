@@ -33,7 +33,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from tests.golden import harness  # noqa: E402
 from whichllm.models import shape_fetch  # noqa: E402
-from whichllm.models.benchmark import fetch_benchmark_scores  # noqa: E402
+from whichllm.models.benchmark import fetch_benchmark_data  # noqa: E402
 from whichllm.models.fetcher import (  # noqa: E402
     dicts_to_models,
     fetch_models,
@@ -62,10 +62,10 @@ def _git_commit() -> str:
         return "unknown"
 
 
-async def _fetch() -> tuple[list, dict[str, float]]:
+async def _fetch() -> tuple[list, dict[str, float], dict[str, dict[str, float]]]:
     models = await fetch_models(include_vision=True)
-    scores = await fetch_benchmark_scores()
-    return models, scores
+    data = await fetch_benchmark_data(m.id for m in models)
+    return models, data.general, data.tasks
 
 
 def _add_shapes(model_dicts: list[dict]) -> int:
@@ -95,7 +95,7 @@ def _write_catalog(payload: dict) -> None:
 
 
 def capture() -> None:
-    models, scores = asyncio.run(_fetch())
+    models, scores, tasks = asyncio.run(_fetch())
     model_dicts = models_to_dicts(models)
     shaped = _add_shapes(model_dicts)
     payload = {
@@ -110,6 +110,7 @@ def capture() -> None:
         },
         "models": model_dicts,
         "benchmark_scores": dict(sorted(scores.items())),
+        "task_scores": _sorted_tasks(tasks),
     }
     _write_catalog(payload)
     size_kb = harness.CATALOG_PATH.stat().st_size / 1024
@@ -129,12 +130,21 @@ def shapes() -> None:
     print(f"Added shapes for {shaped} of {len(payload['models'])} catalog models")
 
 
+def _sorted_tasks(tasks: dict[str, dict[str, float]]) -> dict[str, dict[str, float]]:
+    return {p: dict(sorted(s.items())) for p, s in sorted(tasks.items())}
+
+
 def benchmarks() -> None:
-    """Re-fetch the merged benchmark scores, keeping the frozen models."""
+    """Re-fetch the merged benchmark and task scores, keeping the frozen models."""
     payload = harness.load_catalog()
-    scores = asyncio.run(fetch_benchmark_scores())
+    data = asyncio.run(fetch_benchmark_data(m["id"] for m in payload["models"]))
+    scores = data.general
     payload["benchmark_scores"] = dict(sorted(scores.items()))
+    payload["task_scores"] = _sorted_tasks(data.tasks)
     payload["meta"]["benchmark_count"] = len(scores)
+    payload["meta"]["task_score_counts"] = {
+        p: len(s) for p, s in sorted(data.tasks.items())
+    }
     payload["meta"]["benchmarks_refreshed_at"] = datetime.now(timezone.utc).strftime(
         "%Y-%m-%d"
     )
