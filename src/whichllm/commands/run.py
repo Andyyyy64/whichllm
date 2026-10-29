@@ -17,12 +17,8 @@ from whichllm.cli_models import (
     _search_model,
 )
 from whichllm.cli_shared import console
+from whichllm.commands.autopick import pick_top_runnable
 from whichllm.engine.recipe import build_recipe, python_gpu_layers
-
-
-from whichllm.models.artifacts import (
-    resolve_ranked_gguf_artifact,
-)
 
 
 def run_command(
@@ -59,80 +55,16 @@ def run_command(
     if model_name:
         model = _search_model(models, model_name)
     else:
-        from whichllm.engine.ranker import rank_models
-        from whichllm.hardware.detector import detect_hardware
-        from whichllm.models.benchmark import load_benchmark_cache
-        from whichllm.models.grouper import group_models
-
-        hardware = detect_hardware()
-        if cpu_only:
-            hardware.gpus = []
-        bench_scores = load_benchmark_cache() or {}
-        families = group_models(models)
-        all_models = []
-        for family in families:
-            all_models.append(family.base_model)
-            all_models.extend(family.variants)
-
-        results = rank_models(
-            all_models,
-            hardware,
+        # The same pick as `snippet`: ranked with the index's benchmark scores
+        # and cached shapes, then resolved to a real GGUF repository.
+        model, variant, picked = pick_top_runnable(
+            models,
             context_length=context_length,
-            top_n=5,
-            quant_filter=quant,
-            benchmark_scores=bench_scores,
+            quant=quant,
+            cpu_only=cpu_only,
         )
-        if not results:
-            console.print("[red]No runnable model found for your hardware.[/]")
-            raise typer.Exit(code=1)
-        skipped_gguf: list[str] = []
-        model = None
-        for ranked in results:
-            if ranked.gguf_variant:
-                resolved = resolve_ranked_gguf_artifact(
-                    ranked.model,
-                    ranked.gguf_variant,
-                    all_models,
-                    quant_filter=quant,
-                )
-                if resolved:
-                    resolved_model, variant = resolved
-                    if resolved_model.id != ranked.model.id:
-                        console.print(
-                            "[dim]Resolved GGUF runtime: "
-                            f"{ranked.model.id} -> {resolved_model.id} "
-                            f"({variant.quant_type})[/]"
-                        )
-                    model = resolved_model
-                    quant = variant.quant_type
-                    ranked.artifact_model = resolved_model
-                    ranked.artifact_variant = variant
-                    picked = ranked
-                    break
-                skipped_gguf.append(ranked.model.id)
-                continue
-
-            model = ranked.model
-            picked = ranked
-            break
-
-        if skipped_gguf:
-            skipped = ", ".join(skipped_gguf[:3])
-            suffix = "..." if len(skipped_gguf) > 3 else ""
-            console.print(
-                "[yellow]Warning:[/] Skipped GGUF-ranked candidate(s) without "
-                f"a matching runnable GGUF repo: {skipped}{suffix}"
-            )
-        if model is None:
-            console.print(
-                "[red]Error:[/] Top recommendations require GGUF builds, "
-                "but no matching GGUF repos were found."
-            )
-            console.print(
-                "[dim]Try specifying a GGUF model explicitly, for example "
-                '`whichllm run "qwen gguf"`.[/]'
-            )
-            raise typer.Exit(code=1)
+        if variant is not None:
+            quant = variant.quant_type
 
     if variant is None:
         variant = _pick_gguf_variant(model, quant)

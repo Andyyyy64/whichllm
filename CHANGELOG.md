@@ -106,6 +106,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- `run` without a model name ranks with the index's benchmark scores, as
+  `snippet` does. It read only the `--live` benchmark cache, which the index
+  path never writes, so its pick was ranked without any benchmarks.
 - `run`, `snippet` and `plan` resolve a model name to the model you meant.
   Among repos with the same size label the one whose parameter count was
   closest to the query used to win, and that count is often parsed from the
