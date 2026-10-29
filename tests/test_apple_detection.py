@@ -36,7 +36,7 @@ def test_detect_apple_gpu_caps_unified_memory_at_iogpu_wired_limit(monkeypatch):
     assert gpus[0].shared_memory is True
 
 
-def test_detect_apple_gpu_keeps_unified_memory_when_wired_limit_is_unavailable(
+def test_detect_apple_gpu_uses_metal_default_when_wired_limit_is_unavailable(
     monkeypatch,
 ):
     hardware = {
@@ -62,10 +62,12 @@ def test_detect_apple_gpu_keeps_unified_memory_when_wired_limit_is_unavailable(
     gpus = apple.detect_apple_gpu()
 
     assert len(gpus) == 1
-    assert gpus[0].vram_bytes == 32 * 1024**3
+    # Metal's default working set: two thirds of 32 GB.
+    assert gpus[0].vram_bytes == int(32 * 1024**3 * 2 / 3)
+    assert gpus[0].unified_memory_bytes == 32 * 1024**3
 
 
-def test_detect_apple_gpu_keeps_unified_memory_when_sysctl_cannot_run(monkeypatch):
+def test_detect_apple_gpu_uses_metal_default_when_sysctl_cannot_run(monkeypatch):
     hardware = {
         "SPHardwareDataType": [
             {
@@ -89,4 +91,6 @@ def test_detect_apple_gpu_keeps_unified_memory_when_sysctl_cannot_run(monkeypatc
     gpus = apple.detect_apple_gpu()
 
     assert len(gpus) == 1
-    assert gpus[0].vram_bytes == 32 * 1024**3
+    # Metal's default working set: two thirds of 32 GB.
+    assert gpus[0].vram_bytes == int(32 * 1024**3 * 2 / 3)
+    assert gpus[0].unified_memory_bytes == 32 * 1024**3

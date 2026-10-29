@@ -138,11 +138,20 @@ On macOS, whichllm uses:
 system_profiler SPHardwareDataType -json
 ```
 
-Apple Silicon uses unified memory, so the detected chip memory is treated as
-available GPU memory. Memory bandwidth is looked up by chip family when known.
+Apple Silicon uses unified memory, but by default Metal lets the GPU use only
+part of it: its recommended working set, which llama.cpp logs at start-up as
+`recommendedMaxWorkingSetSize` and uses as its GPU budget. whichllm assumes
+about two thirds of the memory up to 32 GB and three quarters above (a 16 GB
+Mac gives the GPU about 10.7 GB), and the hardware panel says so. A limit
+raised with `sudo sysctl iogpu.wired_limit_mb=<MB>` is detected and used
+instead. On a detected Mac, `--vram` states the GPU's limit directly; with
+`--gpu "Apple M4"`, `--vram` is the Mac's memory size and the working set is
+taken from it. Memory bandwidth is looked up by chip family when known.
 
-Partial offload on Apple Silicon is not penalized like discrete PCIe offload.
-Weights still live in unified memory, so the speed penalty is milder.
+A model larger than the working set can still run: llama.cpp keeps the
+remaining layers on the CPU, in the same unified memory, as long as the total
+fits in RAM. That partial offload is not penalized like discrete PCIe offload,
+because the weights stay in unified memory.
 
 ## CPU and memory
 

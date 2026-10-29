@@ -14,6 +14,7 @@ from whichllm.hardware.types import GPUInfo
 logger = logging.getLogger(__name__)
 
 _MiB = 1024**2
+_GiB = 1024**3
 
 
 def _lookup_bandwidth(chip_name: str) -> float | None:
@@ -22,6 +23,19 @@ def _lookup_bandwidth(chip_name: str) -> float | None:
         if key.upper() in chip_upper:
             return GPU_BANDWIDTH[key]
     return None
+
+
+def default_gpu_working_set_bytes(unified_bytes: int) -> int:
+    """How much unified memory Metal lets the GPU use by default.
+
+    This is MTLDevice.recommendedMaxWorkingSetSize, which llama.cpp logs at
+    start-up and, with ``--fit``, uses as its GPU budget: about two thirds of
+    the memory up to 32 GB and three quarters above (a 16 GB Mac reports
+    roughly 10.7 GB). ``sudo sysctl iogpu.wired_limit_mb=<MB>`` raises it, and
+    a raised limit is detected instead.
+    """
+    ratio = 2 / 3 if unified_bytes <= 32 * _GiB else 0.75
+    return int(unified_bytes * ratio)
 
 
 def _detect_iogpu_wired_limit_bytes() -> int | None:
@@ -81,15 +95,18 @@ def detect_apple_gpu() -> list[GPUInfo]:
         unified_memory = mem_value * multiplier
         wired_limit = _detect_iogpu_wired_limit_bytes()
         if wired_limit is not None:
-            unified_memory = min(unified_memory, wired_limit)
+            gpu_memory = min(unified_memory, wired_limit)
+        else:
+            gpu_memory = default_gpu_working_set_bytes(unified_memory)
 
         return [
             GPUInfo(
                 name=chip_name,
                 vendor="apple",
-                vram_bytes=unified_memory,  # unified memory
+                vram_bytes=gpu_memory,
                 memory_bandwidth_gbps=_lookup_bandwidth(chip_name),
                 shared_memory=True,
+                unified_memory_bytes=unified_memory,
             )
         ]
     except (KeyError, IndexError, ValueError) as e:
