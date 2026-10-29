@@ -2,9 +2,9 @@
 
 A recipe turns a ranked result's placement into runtime settings: the
 llama.cpp server command, the matching LM Studio load settings and the
-Ollama command, with a note where a runtime cannot place weights the same
-way. It needs a real GGUF repository; ranked safetensors repositories get
-one only after artifact resolution.
+Ollama command. Ollama picks its own GPU/CPU split, so a recipe that splits
+the model says its speed can differ. It needs a real GGUF repository; ranked
+safetensors repositories get one only after artifact resolution.
 """
 
 from __future__ import annotations
@@ -15,6 +15,13 @@ from whichllm.engine.types import CompatibilityResult
 
 # Above any real layer count: llama.cpp clamps -ngl to the model's layers.
 _ALL_LAYERS = 99
+
+# Ollama 0.40 sets the split itself (on an RTX 5080 it kept the experts of 14
+# of Qwen3.6-35B-A3B's 40 layers in RAM and ran faster than llama-server),
+# and older releases offload whole layers. Either way it is not this estimate.
+_OLLAMA_SPLIT_NOTE = (
+    "Ollama picks its own GPU/CPU split, so its speed can differ from this estimate."
+)
 
 
 @dataclass(frozen=True)
@@ -58,18 +65,14 @@ def build_recipe(result: CompatibilityResult, context_length: int) -> Recipe | N
             "--cpu-moe" if all_experts else f"--n-cpu-moe {layers}",
             "-fa on",
         ]
+        # LM Studio 0.4 has no all-experts switch; its layer count at the
+        # model's layer count (the slider's maximum) does the same.
+        cpu_layers = placement.num_layers if all_experts else layers
         lm_studio = (
-            "GPU Offload: max, Force Model Expert Weights onto CPU: on"
-            if all_experts
-            else (
-                "GPU Offload: max, Number of layers for which to force MoE "
-                f"weights onto CPU: {layers}"
-            )
+            "GPU Offload: max, Number of layers for which to force MoE weights "
+            f"onto CPU: {cpu_layers or 'max'}"
         )
-        notes.append(
-            "Ollama offloads whole layers, not experts, so it runs slower than "
-            "this estimate."
-        )
+        notes.append(_OLLAMA_SPLIT_NOTE)
     elif kind in ("layer_offload", "partial_offload"):
         layers = placement.n_gpu_layers if placement else None
         if layers is not None:
@@ -77,6 +80,7 @@ def build_recipe(result: CompatibilityResult, context_length: int) -> Recipe | N
             lm_studio = f"GPU Offload: {layers} layers"
         else:
             lm_studio = "GPU Offload: as many layers as fit"
+        notes.append(_OLLAMA_SPLIT_NOTE)
     else:
         flags.append("-ngl 0")
         lm_studio = "GPU Offload: 0"

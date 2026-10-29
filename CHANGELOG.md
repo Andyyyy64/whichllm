@@ -37,6 +37,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   offload). `--markdown` prints it as a code block and `--json` adds a
   `recipe` object to every row. `run` and `snippet` use the ranking's layer
   split instead of always asking for every layer on the GPU.
+  The LM Studio settings match LM Studio 0.4.26's model loader, and the
+  Ollama note says only that Ollama picks its own split: Ollama 0.40 keeps
+  MoE experts in RAM by itself and ran Qwen3.6-35B-A3B on an RTX 5080 at
+  about 100 tok/s.
 - System RAM bandwidth is detected (Windows memory modules), estimated from
   the CPU family, or taken from Apple's unified memory, and shown by
   `whichllm hardware`.

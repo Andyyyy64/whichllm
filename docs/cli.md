@@ -127,6 +127,13 @@ The flags follow the placement: `-ngl 99` for a full-GPU fit,
 layer offload and `-ngl 0` for CPU-only. `--markdown` prints the command as a
 code block, and `--json` adds a `recipe` object to every row.
 
+The LM Studio line names the settings in its model loader (checked against
+LM Studio 0.4.26). When every expert stays in RAM, the MoE layer count is set
+to the model's layer count. Ollama picks its own GPU/CPU split, so for a split
+model the recipe says its speed can differ from the estimate. On an RTX 5080,
+Ollama 0.40 ran Qwen3.6-35B-A3B at about 100 tok/s, against 88 for
+llama-server with `--n-cpu-moe 12`.
+
 Ranking JSON model rows include:
 
 | Field | Meaning |
