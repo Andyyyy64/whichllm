@@ -61,3 +61,19 @@ def _isolate_aa_benchmarks(monkeypatch):
         return {}
 
     monkeypatch.setattr(aa_evals, "fetch_aa_eval_scores", offline)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_ram_modules(monkeypatch, tmp_path):
+    """Keep RAM module probing off the machine running the tests.
+
+    Tests that cover the probes pass fixture files or patch them directly.
+    """
+    import whichllm.hardware.ram_bandwidth as ram_bandwidth
+
+    monkeypatch.setattr(ram_bandwidth, "_linux_memory_modules", lambda: [])
+    monkeypatch.setattr(ram_bandwidth, "_is_wsl", lambda: False)
+    monkeypatch.setattr(ram_bandwidth, "_cache_dir", lambda: tmp_path / "ram-cache")
+    monkeypatch.setattr(
+        ram_bandwidth, "_windows_memory_modules", lambda executable="powershell": []
+    )

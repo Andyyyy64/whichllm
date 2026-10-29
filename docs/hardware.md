@@ -113,9 +113,12 @@ cap larger cards around 4 GB.
 
 AMD shared-memory APUs are treated differently from discrete GPUs. Names such
 as Strix Halo, Ryzen AI MAX, Radeon 8050S, Radeon 8060S, Radeon 890M, and
-Radeon 780M are modeled as shared-memory systems. If the reported VRAM is just
-a small aperture, whichllm uses the system memory pool for fit checks instead
-of treating it as a tiny discrete GPU.
+Radeon 780M are modeled as shared-memory systems. On Linux the GPU's memory is
+its BIOS carve-out plus the GTT, the system RAM the amdgpu driver lets it map
+(`mem_info_gtt_total` in sysfs; half of RAM by default, raised with
+`amdgpu.gttsize` or `ttm.pages_limit`). Without a GTT reading, a small
+aperture means whichllm uses the system memory pool for fit checks instead of
+treating it as a tiny discrete GPU.
 
 ## Intel
 
@@ -244,9 +247,13 @@ the GPU database.
 | estimated | The CPU family's typical memory, e.g. DDR5-5600 dual channel for Core Ultra 200S or AM5 Ryzen |
 | assumed | Nothing known: dual-channel DDR4-3200, 51.2 GB/s |
 
-Linux and WSL cannot read the memory modules without root, so they use the
-CPU-family estimate. Pass the real figure with `--ram-bandwidth` (transfer
-rate in MT/s x 8 bytes x channels / 1000, e.g. DDR5-6000 dual channel = 96).
+On Linux the modules come from systemd's udev, which exports the DMI memory
+table without root (`/run/udev/data/+dmi:id`, systemd 248 and later). WSL has
+no DMI table, so whichllm asks Windows through `powershell.exe`. Windows and
+WSL cache the module list for a week, since reading it starts PowerShell.
+Elsewhere, or in a container, the CPU-family estimate applies. Pass the real
+figure with `--ram-bandwidth` (transfer rate in MT/s x 8 bytes x channels /
+1000, e.g. DDR5-6000 dual channel = 96).
 
 ## Fit types
 

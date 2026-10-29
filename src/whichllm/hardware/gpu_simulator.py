@@ -46,6 +46,14 @@ _COMMON_GPU_ALIASES: dict[str, list[str]] = {
     ],
 }
 
+# Cards sold in several memory sizes where the shortest database name is not
+# the usual one: without --vram, "RTX 3060" means the original 12 GB card,
+# not the later 8 GB cut with a narrower bus.
+_DEFAULT_VARIANTS: dict[str, str] = {
+    "rtx3060": "GeForce RTX 3060 12 GB",
+    "geforcertx3060": "GeForce RTX 3060 12 GB",
+}
+
 # Apple Silicon chips. dbgpu does not include these (it tracks discrete GPUs
 # via TechPowerUp), but users routinely simulate with --gpu "M2 Max" etc.
 # Without this short-circuit, "M1" fuzzy-matches the 1997 ATI Rage Mobility-M1
@@ -130,10 +138,14 @@ def _normalize_gpu_name(name: str) -> str:
     return re.sub(r"\s+", " ", name).strip()
 
 
-def _substring_search(db, name: str):
+def _substring_search(db, name: str, vram_gb: float | None = None):
     """Substring match with word-boundary filtering.
 
     e.g. "RTX 3060" should match "GeForce RTX 3060 12 GB" but NOT "GeForce RTX 3060 Ti".
+    When several memory variants match and ``vram_gb`` is given (from
+    ``--vram``), the variant with that memory size wins, so
+    ``--gpu "RTX 3060" --vram 12`` gets the 12 GB card's 360 GB/s rather than
+    the 8 GB card's 240.
     """
     name_upper = name.upper()
     candidates = []
@@ -148,11 +160,19 @@ def _substring_search(db, name: str):
             candidates.append(db_name)
     if candidates:
         candidates.sort(key=len)
+        if vram_gb is not None:
+            sized = [
+                c
+                for c in candidates
+                if db[c].memory_size_gb and abs(db[c].memory_size_gb - vram_gb) < 0.5
+            ]
+            if sized:
+                return db[sized[0]]
         return db[candidates[0]]
     return None
 
 
-def _lookup_dbgpu(name: str) -> GPUSpecification | None:
+def _lookup_dbgpu(name: str, vram_gb: float | None = None) -> GPUSpecification | None:
     """Look up GPU spec from dbgpu database. Returns GPUSpecification or None."""
     from dbgpu import GPUDatabase
 
@@ -165,6 +185,8 @@ def _lookup_dbgpu(name: str) -> GPUSpecification | None:
     alias_hits = _COMMON_GPU_ALIASES.get(compact)
     if alias_hits:
         names_to_try.extend(alias_hits)
+    if vram_gb is None and compact in _DEFAULT_VARIANTS:
+        names_to_try.insert(0, _DEFAULT_VARIANTS[compact])
 
     for n in names_to_try:
         # 1) Exact key lookup
@@ -181,7 +203,7 @@ def _lookup_dbgpu(name: str) -> GPUSpecification | None:
                 pass
 
         # 3) Substring match with word-boundary filtering
-        result = _substring_search(db, n)
+        result = _substring_search(db, n, vram_gb)
         if result is not None:
             return result
 
@@ -293,7 +315,7 @@ def create_synthetic_gpu(name: str, vram_override_gb: float | None = None) -> GP
             unified_memory_bytes=unified,
         )
 
-    spec = _lookup_dbgpu(name)
+    spec = _lookup_dbgpu(name, vram_override_gb)
 
     # VRAM
     if vram_override_gb is not None:

@@ -5,20 +5,25 @@ all read their weights from system memory once per generated token, so this
 number bounds their speed the way VRAM bandwidth bounds a GPU.
 
 Bandwidth is transfer rate x bus width. Windows reports both per memory module
-(Win32_PhysicalMemory); elsewhere the CPU family gives a typical figure, and
-anything unknown falls back to dual-channel DDR4-3200. ``--ram-bandwidth``
-overrides all of it.
+(Win32_PhysicalMemory), and so does systemd's udev on Linux (the DMI memory
+properties it exports without root). WSL asks Windows through powershell.exe.
+Elsewhere the CPU family gives a typical figure, and anything unknown falls
+back to dual-channel DDR4-3200. ``--ram-bandwidth`` overrides all of it.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import subprocess
+import time
 from dataclasses import dataclass
+from pathlib import Path
 
 from whichllm.hardware.types import GPUInfo
+from whichllm.utils import _cache_dir
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +40,15 @@ _SMBIOS_MEMORY_TYPES = {
     34: "DDR5",
     35: "LPDDR5",
 }
+
+# systemd's udev (70-memory.rules, systemd 248+) exports the DMI memory table
+# as MEMORY_DEVICE_<n>_* properties readable without root.
+_UDEV_DMI_DATA = Path("/run/udev/data/+dmi:id")
+_UDEV_DEVICE_RE = re.compile(r"^MEMORY_DEVICE_(\d+)_([A-Z_]+)=(.*)$")
+
+# Windows memory modules rarely change; reading them costs a PowerShell start.
+_MODULE_CACHE_FILE = "ram-modules.json"
+_MODULE_CACHE_TTL_SECONDS = 7 * 24 * 3600
 
 # Widest memory bus a CPU family drives. Consumer desktop and laptop parts
 # have two 64-bit channels, so four DIMMs still read at 128 bits.
@@ -118,7 +132,9 @@ def bandwidth_from_modules(modules: list[object], cpu_name: str) -> RamBandwidth
             continue
         rates.append(rate)
         bus_bits += min(_positive_int(module.get("DataWidth")) or 64, 64)
-        kind = _SMBIOS_MEMORY_TYPES.get(_positive_int(module.get("SMBIOSMemoryType")))
+        kind = module.get("MemoryType") or _SMBIOS_MEMORY_TYPES.get(
+            _positive_int(module.get("SMBIOSMemoryType"))
+        )
         if kind:
             kinds.add(kind)
     if not rates:
@@ -140,7 +156,68 @@ def estimate_from_cpu_name(cpu_name: str) -> RamBandwidth | None:
     return None
 
 
-def _windows_memory_modules() -> list[object]:
+def _linux_memory_modules() -> list[object]:
+    return _read_udev_modules(_UDEV_DMI_DATA)
+
+
+def _read_udev_modules(path: Path) -> list[object]:
+    """Memory modules from udev's DMI properties, as Win32-style rows."""
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+    devices: dict[int, dict[str, str]] = {}
+    for line in text.splitlines():
+        match = _UDEV_DEVICE_RE.match(line.removeprefix("E:"))
+        if match:
+            index, key, value = match.groups()
+            devices.setdefault(int(index), {})[key] = value.strip()
+    modules: list[object] = []
+    for props in devices.values():
+        if props.get("PRESENT") == "0":
+            continue
+        modules.append(
+            {
+                "ConfiguredClockSpeed": props.get("CONFIGURED_SPEED_MTS"),
+                "Speed": props.get("SPEED_MTS"),
+                "DataWidth": props.get("DATA_WIDTH"),
+                "MemoryType": props.get("TYPE") or None,
+            }
+        )
+    return modules
+
+
+def _is_wsl() -> bool:
+    if os.environ.get("WSL_DISTRO_NAME"):
+        return True
+    try:
+        return "microsoft" in Path("/proc/version").read_text().lower()
+    except OSError:
+        return False
+
+
+def _cached_windows_memory_modules(executable: str) -> list[object]:
+    cache = _cache_dir() / _MODULE_CACHE_FILE
+    try:
+        data = json.loads(cache.read_text(encoding="utf-8"))
+        if time.time() - data["cached_at"] < _MODULE_CACHE_TTL_SECONDS:
+            return data["modules"]
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    modules = _windows_memory_modules(executable)
+    if modules:
+        try:
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            cache.write_text(
+                json.dumps({"cached_at": time.time(), "modules": modules}),
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            logger.debug("Could not cache memory modules: %s", exc)
+    return modules
+
+
+def _windows_memory_modules(executable: str = "powershell") -> list[object]:
     script = (
         "Get-CimInstance Win32_PhysicalMemory | Select-Object "
         "ConfiguredClockSpeed, Speed, DataWidth, SMBIOSMemoryType | "
@@ -148,7 +225,7 @@ def _windows_memory_modules() -> list[object]:
     )
     try:
         result = subprocess.run(
-            ["powershell", "-NoProfile", "-Command", script],
+            [executable, "-NoProfile", "-Command", script],
             capture_output=True,
             text=True,
             timeout=10,
@@ -185,10 +262,16 @@ def detect_ram_bandwidth(
         unified = unified_bandwidth(gpus)
         if unified is not None:
             return unified
+    modules: list[object] = []
     if os_name == "windows":
-        detected = bandwidth_from_modules(_windows_memory_modules(), cpu_name)
-        if detected is not None:
-            return detected
+        modules = _cached_windows_memory_modules("powershell")
+    elif os_name == "linux":
+        modules = _linux_memory_modules()
+        if not modules and _is_wsl():
+            modules = _cached_windows_memory_modules("powershell.exe")
+    detected = bandwidth_from_modules(modules, cpu_name)
+    if detected is not None:
+        return detected
     estimated = estimate_from_cpu_name(cpu_name)
     if estimated is not None:
         return estimated
