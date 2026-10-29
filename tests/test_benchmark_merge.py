@@ -2,40 +2,22 @@
 
 from __future__ import annotations
 
-import re
 import statistics
-from pathlib import Path
 
 import pytest
 
+from whichllm.data import read_json
 from whichllm.models.benchmark_fetch import _merge_general_scores
 from whichllm.models.benchmark_sources import aa_index, livebench
 
-_SOURCES = Path(aa_index.__file__).parent
-
-
-def _aa_snapshot_markers() -> dict[str, str]:
-    """``{hf_id: "live" | "peer"}`` from the snapshot's entry comments."""
-    text = (_SOURCES / "aa_index.py").read_text()
-    block = text.split("AA_INDEX_FALLBACK_2026_10_27: dict[str, float] = {", 1)[1]
-    block = block.split("\n}", 1)[0]
-    return {
-        m.group(1): m.group(2)
-        for m in re.finditer(
-            r'^\s*"([^"]+)":\s*[-\d.]+,\s*#\s*(live|peer)\b', block, re.M
-        )
-    }
-
-
-def test_aa_peer_ids_match_the_snapshot_comments():
-    markers = _aa_snapshot_markers()
-    assert markers.keys() == aa_index.AA_INDEX_FALLBACK_2026_10_27.keys()
-    assert aa_index.AA_PEER_IDS == {k for k, v in markers.items() if v == "peer"}
-
 
 def test_livebench_sits_on_the_aa_scale_where_both_measured():
-    live = {k for k, v in _aa_snapshot_markers().items() if v == "live"}
-    shared = sorted(livebench.LIVEBENCH_2026_01_08.keys() & live)
+    live = {
+        model_id
+        for model_id, entry in read_json("aa_index.json")["models"].items()
+        if entry["kind"] == "live"
+    }
+    shared = sorted(livebench.LIVEBENCH_SNAPSHOT.keys() & live)
     lb = livebench.get_livebench_data()
     aa = aa_index.get_aa_curated_fallback()
     residuals = [lb[k] - aa[k] for k in shared]

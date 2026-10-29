@@ -1,0 +1,447 @@
+{
+ "source": "https://artificialanalysis.ai/models/<slug>",
+ "index_version": "4.3.2",
+ "read_at": "2026-10-27",
+ "note": "AA Intelligence Index, open-weights models only, raw index values. kind live: read from the slug's model page, the highest variant of the release; estimated: AA marks the value as estimated. kind peer: a hand estimate for a model AA does not track, set to reproduce its earlier normalized score; used only for models no source measured.",
+ "models": {
+  "CohereForAI/c4ai-command-a-03-2025": {
+   "raw": 7.0,
+   "kind": "live",
+   "slug": "command-a",
+   "estimated": true
+  },
+  "MiniMaxAI/MiniMax-M2.5": {
+   "raw": 22.8,
+   "kind": "live",
+   "slug": "minimax-m2-5",
+   "estimated": true
+  },
+  "Qwen/QwQ-32B": {
+   "raw": 9.5,
+   "kind": "live",
+   "slug": "qwq-32b",
+   "estimated": true
+  },
+  "Qwen/Qwen2.5-14B-Instruct": {
+   "raw": -0.65,
+   "kind": "peer"
+  },
+  "Qwen/Qwen2.5-32B-Instruct": {
+   "raw": 6.0,
+   "kind": "peer"
+  },
+  "Qwen/Qwen2.5-7B-Instruct": {
+   "raw": -7.3,
+   "kind": "peer"
+  },
+  "Qwen/Qwen2.5-Coder-32B-Instruct": {
+   "raw": 6.7,
+   "kind": "live",
+   "slug": "qwen2-5-coder-32b-instruct",
+   "estimated": true
+  },
+  "Qwen/Qwen2.5-Coder-7B-Instruct": {
+   "raw": 5.8,
+   "kind": "live",
+   "slug": "qwen2-5-coder-7b-instruct",
+   "estimated": true
+  },
+  "Qwen/Qwen3-0.6B": {
+   "raw": -17.36,
+   "kind": "peer"
+  },
+  "Qwen/Qwen3-1.7B": {
+   "raw": -10.7,
+   "kind": "peer"
+  },
+  "Qwen/Qwen3-14B": {
+   "raw": 6.7,
+   "kind": "live",
+   "slug": "qwen3-14b-instruct",
+   "estimated": true
+  },
+  "Qwen/Qwen3-235B-A22B": {
+   "raw": 9.5,
+   "kind": "live",
+   "slug": "qwen3-235b-a22b-instruct-reasoning",
+   "estimated": true
+  },
+  "Qwen/Qwen3-30B-A3B": {
+   "raw": 9.4,
+   "kind": "peer"
+  },
+  "Qwen/Qwen3-32B": {
+   "raw": 7.3,
+   "kind": "live",
+   "slug": "qwen3-32b-instruct",
+   "estimated": true
+  },
+  "Qwen/Qwen3-4B": {
+   "raw": -0.65,
+   "kind": "peer"
+  },
+  "Qwen/Qwen3-4B-Instruct-2507": {
+   "raw": 2.7,
+   "kind": "peer"
+  },
+  "Qwen/Qwen3-4B-Thinking-2507": {
+   "raw": -7.3,
+   "kind": "peer"
+  },
+  "Qwen/Qwen3-8B": {
+   "raw": 6.0,
+   "kind": "live",
+   "slug": "qwen3-8b-instruct",
+   "estimated": true
+  },
+  "Qwen/Qwen3-Coder-30B-A3B-Instruct": {
+   "raw": 9.6,
+   "kind": "live",
+   "slug": "qwen3-coder-30b-a3b-instruct",
+   "estimated": true
+  },
+  "Qwen/Qwen3-Coder-480B-A35B-Instruct": {
+   "raw": 11.9,
+   "kind": "live",
+   "slug": "qwen3-coder-480b-a35b-instruct",
+   "estimated": true
+  },
+  "Qwen/Qwen3-Coder-Next": {
+   "raw": 9.2,
+   "kind": "live",
+   "slug": "qwen3-coder-next"
+  },
+  "Qwen/Qwen3-Next-80B-A3B-Instruct": {
+   "raw": 11.2,
+   "kind": "live",
+   "slug": "qwen3-next-80b-a3b-reasoning",
+   "estimated": true
+  },
+  "Qwen/Qwen3.5-122B-A10B": {
+   "raw": 17.7,
+   "kind": "live",
+   "slug": "qwen3-5-122b-a10b-non-reasoning",
+   "estimated": true
+  },
+  "Qwen/Qwen3.5-27B": {
+   "raw": 22.9,
+   "kind": "live",
+   "slug": "qwen3-5-27b",
+   "estimated": true
+  },
+  "Qwen/Qwen3.5-35B-A3B": {
+   "raw": 19.3,
+   "kind": "live",
+   "slug": "qwen3-5-35b-a3b",
+   "estimated": true
+  },
+  "Qwen/Qwen3.5-397B-A17B": {
+   "raw": 21.4,
+   "kind": "live",
+   "slug": "qwen3-5-397b-a17b-non-reasoning",
+   "estimated": true
+  },
+  "Qwen/Qwen3.5-4B": {
+   "raw": 13.1,
+   "kind": "live",
+   "slug": "qwen3-5-4b",
+   "estimated": true
+  },
+  "Qwen/Qwen3.5-9B": {
+   "raw": 13.3,
+   "kind": "live",
+   "slug": "qwen3-5-9b-non-reasoning",
+   "estimated": true
+  },
+  "Qwen/Qwen3.6-27B": {
+   "raw": 21.4,
+   "kind": "live",
+   "slug": "qwen3-6-27b"
+  },
+  "Qwen/Qwen3.6-35B-A3B": {
+   "raw": 18.2,
+   "kind": "live",
+   "slug": "qwen3-6-35b-a3b"
+  },
+  "Qwen/Qwen3.8-27B": {
+   "raw": 33.7,
+   "kind": "live",
+   "slug": "qwen3-8-27b"
+  },
+  "XiaomiMiMo/MiMo-V2.5": {
+   "raw": 21.8,
+   "kind": "live",
+   "slug": "mimo-v2-5-0424"
+  },
+  "XiaomiMiMo/MiMo-V2.5-Pro": {
+   "raw": 26.0,
+   "kind": "live",
+   "slug": "mimo-v2-5-pro"
+  },
+  "allenai/Olmo-3-1025-7B": {
+   "raw": -7.3,
+   "kind": "peer"
+  },
+  "allenai/Olmo-3-7B-Instruct": {
+   "raw": -7.3,
+   "kind": "peer"
+  },
+  "deepseek-ai/DeepSeek-R1": {
+   "raw": 11.4,
+   "kind": "live",
+   "slug": "deepseek-r1-0120"
+  },
+  "deepseek-ai/DeepSeek-R1-0528": {
+   "raw": 13.1,
+   "kind": "live",
+   "slug": "deepseek-r1",
+   "estimated": true
+  },
+  "deepseek-ai/DeepSeek-R1-Distill-Llama-8B": {
+   "raw": -10.7,
+   "kind": "peer"
+  },
+  "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": {
+   "raw": -0.65,
+   "kind": "peer"
+  },
+  "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B": {
+   "raw": 9.4,
+   "kind": "peer"
+  },
+  "deepseek-ai/DeepSeek-V3": {
+   "raw": 8.5,
+   "kind": "live",
+   "slug": "deepseek-v3"
+  },
+  "deepseek-ai/DeepSeek-V3-0324": {
+   "raw": 9.7,
+   "kind": "live",
+   "slug": "deepseek-v3-0324"
+  },
+  "deepseek-ai/DeepSeek-V3.1": {
+   "raw": 13.7,
+   "kind": "live",
+   "slug": "deepseek-v3-1",
+   "estimated": true
+  },
+  "deepseek-ai/DeepSeek-V3.2": {
+   "raw": 21.5,
+   "kind": "live",
+   "slug": "deepseek-v3-2-reasoning",
+   "estimated": true
+  },
+  "deepseek-ai/DeepSeek-V3.2-Exp": {
+   "raw": 16.6,
+   "kind": "live",
+   "slug": "deepseek-v3-2-reasoning-0925",
+   "estimated": true
+  },
+  "deepseek-ai/DeepSeek-V4-Flash": {
+   "raw": 24.4,
+   "kind": "live",
+   "slug": "deepseek-v4-flash-0420-high"
+  },
+  "deepseek-ai/DeepSeek-V4-Flash-0731": {
+   "raw": 34.3,
+   "kind": "live",
+   "slug": "deepseek-v4-flash"
+  },
+  "deepseek-ai/DeepSeek-V4-Pro": {
+   "raw": 30.4,
+   "kind": "live",
+   "slug": "deepseek-v4-pro-0424"
+  },
+  "deepseek-ai/DeepSeek-V4-Pro-0813": {
+   "raw": 36.0,
+   "kind": "live",
+   "slug": "deepseek-v4-pro"
+  },
+  "google/gemma-2-9b-it": {
+   "raw": -5.7,
+   "kind": "peer"
+  },
+  "google/gemma-3-12b-it": {
+   "raw": 6.0,
+   "kind": "peer"
+  },
+  "google/gemma-3-27b-it": {
+   "raw": 11.1,
+   "kind": "peer"
+  },
+  "google/gemma-4-26b-a4b-it": {
+   "raw": 16.7,
+   "kind": "live",
+   "slug": "gemma-4-26b-a4b",
+   "estimated": true
+  },
+  "google/gemma-4-31b-it": {
+   "raw": 14.7,
+   "kind": "live",
+   "slug": "gemma-4-31b"
+  },
+  "ibm-granite/granite-3.3-2b-instruct": {
+   "raw": -15.75,
+   "kind": "peer"
+  },
+  "ibm-granite/granite-3.3-8b-instruct": {
+   "raw": -5.7,
+   "kind": "peer"
+  },
+  "ibm-granite/granite-4.0-h-small": {
+   "raw": 6.0,
+   "kind": "peer"
+  },
+  "ibm-granite/granite-4.0-h-tiny": {
+   "raw": -7.3,
+   "kind": "peer"
+  },
+  "meta-llama/Llama-3.1-8B-Instruct": {
+   "raw": -7.3,
+   "kind": "peer"
+  },
+  "meta-llama/Llama-3.3-70B-Instruct": {
+   "raw": 11.1,
+   "kind": "peer"
+  },
+  "meta-llama/Llama-4-Maverick-17B-128E-Instruct": {
+   "raw": 9.3,
+   "kind": "live",
+   "slug": "llama-4-maverick"
+  },
+  "meta-llama/Llama-4-Scout-17B-16E-Instruct": {
+   "raw": 6.5,
+   "kind": "live",
+   "slug": "llama-4-scout"
+  },
+  "meta-llama/Meta-Llama-3-8B-Instruct": {
+   "raw": -10.7,
+   "kind": "peer"
+  },
+  "microsoft/Phi-4-mini-instruct": {
+   "raw": -4.0,
+   "kind": "peer"
+  },
+  "microsoft/phi-4": {
+   "raw": 5.9,
+   "kind": "live",
+   "slug": "phi-4",
+   "estimated": true
+  },
+  "mistralai/Codestral-22B-v0.1": {
+   "raw": 2.7,
+   "kind": "peer"
+  },
+  "mistralai/Devstral-Small-2505": {
+   "raw": 8.7,
+   "kind": "live",
+   "slug": "devstral-small-2505",
+   "estimated": true
+  },
+  "mistralai/Mistral-7B-Instruct-v0.3": {
+   "raw": -10.7,
+   "kind": "peer"
+  },
+  "mistralai/Mistral-Large-Instruct-2411": {
+   "raw": 7.6,
+   "kind": "live",
+   "slug": "mistral-large-2",
+   "estimated": true
+  },
+  "mistralai/Mistral-Small-3.1-24B-Instruct-2503": {
+   "raw": 6.0,
+   "kind": "peer"
+  },
+  "mistralai/Mistral-Small-3.2-24B-Instruct-2506": {
+   "raw": 9.4,
+   "kind": "peer"
+  },
+  "moonshotai/Kimi-K2-Instruct": {
+   "raw": 12.7,
+   "kind": "live",
+   "slug": "kimi-k2",
+   "estimated": true
+  },
+  "moonshotai/Kimi-K2-Instruct-0905": {
+   "raw": 15.3,
+   "kind": "live",
+   "slug": "kimi-k2-0905",
+   "estimated": true
+  },
+  "moonshotai/Kimi-K2-Thinking": {
+   "raw": 22.0,
+   "kind": "live",
+   "slug": "kimi-k2-thinking",
+   "estimated": true
+  },
+  "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16": {
+   "raw": 11.1,
+   "kind": "peer"
+  },
+  "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16": {
+   "raw": 16.06,
+   "kind": "peer"
+  },
+  "openai/gpt-oss-120b": {
+   "raw": 11.6,
+   "kind": "live",
+   "slug": "gpt-oss-120b"
+  },
+  "openai/gpt-oss-20b": {
+   "raw": 10.0,
+   "kind": "live",
+   "slug": "gpt-oss-20b-low",
+   "estimated": true
+  },
+  "stepfun-ai/Step-3.5-Flash": {
+   "raw": 19.5,
+   "kind": "peer"
+  },
+  "zai-org/GLM-4.5": {
+   "raw": 12.8,
+   "kind": "live",
+   "slug": "glm-4.5",
+   "estimated": true
+  },
+  "zai-org/GLM-4.5-Air": {
+   "raw": 11.1,
+   "kind": "live",
+   "slug": "glm-4-5-air",
+   "estimated": true
+  },
+  "zai-org/GLM-4.6": {
+   "raw": 18.5,
+   "kind": "live",
+   "slug": "glm-4-6-reasoning",
+   "estimated": true
+  },
+  "zai-org/GLM-4.7-Flash": {
+   "raw": 14.9,
+   "kind": "live",
+   "slug": "glm-4-7-flash",
+   "estimated": true
+  },
+  "zai-org/GLM-5": {
+   "raw": 27.9,
+   "kind": "live",
+   "slug": "glm-5",
+   "estimated": true
+  },
+  "zai-org/GLM-5-FP8": {
+   "raw": 27.9,
+   "kind": "live",
+   "slug": "glm-5",
+   "estimated": true
+  },
+  "zai-org/GLM-5.1": {
+   "raw": 26.1,
+   "kind": "live",
+   "slug": "glm-5-1"
+  },
+  "zai-org/GLM-5.1-FP8": {
+   "raw": 26.1,
+   "kind": "live",
+   "slug": "glm-5-1"
+  }
+ }
+}

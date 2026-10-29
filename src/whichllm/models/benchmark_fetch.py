@@ -137,7 +137,7 @@ async def fetch_benchmark_data(model_ids: Iterable[str] = ()) -> BenchmarkData:
         _source(
             "LiveBench",
             "general, fitted onto the AA scale",
-            "2026-01-08 snapshot",
+            f"{benchmark_sources.LIVEBENCH_READ_AT} snapshot",
             livebench_result,
             estimated=len(benchmark_sources.LIVEBENCH_ESTIMATED_IDS),
         )
@@ -172,7 +172,14 @@ async def fetch_benchmark_data(model_ids: Iterable[str] = ()) -> BenchmarkData:
             "benchmarks": sorted(AA_TASK_EVALS),
         }
     )
-    sources.append(_source("Curated vision index", "vision", "2026-05", vision_result))
+    sources.append(
+        _source(
+            "Curated vision index",
+            "vision",
+            benchmark_sources.VISION_READ_AT,
+            vision_result,
+        )
+    )
 
     anchor = {
         model_id: current[model_id]

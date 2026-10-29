@@ -121,6 +121,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   linear-attention layers keep no K/V, now get their smaller cache. Sliding
   windows, multi-head latent attention and recurrent state are handled; an
   unrecognised layout keeps the old estimate.
+- The curated benchmark snapshots (the pinned AA index, AA's name map,
+  LiveBench and the vision index) moved out of Python into JSON files in
+  `src/whichllm/data/`. Each records the date it was read, and every AA
+  entry says whether it came from an AA model page or is a hand estimate.
+  `scripts/import_livebench_csv.py` now writes the LiveBench file itself.
+  Scores are unchanged.
 
 ### Fixed
 
