@@ -208,11 +208,14 @@ def check_compatibility(
         and any(gpu.shared_memory or gpu.vendor == "apple" for gpu in candidate_gpus)
     ):
         vram_available = fit_vram_available
-    offload_ram_available = (
-        0
-        if best_gpu and (best_gpu.shared_memory or best_gpu.vendor == "apple")
-        else usable_ram
-    )
+    if best_gpu and best_gpu.vendor == "apple":
+        # Past Metal's working set, llama.cpp keeps the remaining layers on the
+        # CPU; they live in the same unified memory the GPU share comes from.
+        offload_ram_available = max(0, usable_ram - fit_vram_available)
+    elif best_gpu and best_gpu.shared_memory:
+        offload_ram_available = 0
+    else:
+        offload_ram_available = usable_ram
 
     # Check compute capability for NVIDIA
     if best_gpu and best_gpu.vendor == "nvidia" and best_gpu.compute_capability:

@@ -15,6 +15,9 @@ class GPUInfo:
     memory_bandwidth_gbps: float | None = None  # from lookup table
     shared_memory: bool = False
     vram_overridden: bool = False
+    # Apple Silicon: the whole unified memory, when vram_bytes is only the
+    # part Metal lets the GPU use.
+    unified_memory_bytes: int | None = None
 
 
 @dataclass

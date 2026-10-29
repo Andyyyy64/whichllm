@@ -101,6 +101,15 @@ def _apply_memory_budgets(
         if reserved > 0:
             reserved_values.append(reserved)
 
+    for gpu in hardware.gpus:
+        if gpu.unified_memory_bytes and gpu.vram_bytes < gpu.unified_memory_bytes:
+            hardware.budget_notes.append(
+                f"{gpu.name}: Metal lets the GPU use "
+                f"{_format_budget_bytes(gpu.vram_bytes)} of "
+                f"{_format_budget_bytes(gpu.unified_memory_bytes)} by default; "
+                "raise it with `sudo sysctl iogpu.wired_limit_mb=<MB>`"
+            )
+
     if reserved_values:
         unique_reserved = sorted(set(reserved_values))
         if len(unique_reserved) == 1:
@@ -187,9 +196,12 @@ def _apply_gpu_overrides(
             target_gpu = hardware.gpus[gpu_index]
 
         if vram is not None:
+            # On a detected Mac, --vram states the GPU's limit directly (for
+            # example after raising iogpu.wired_limit_mb).
             target_gpu.vram_bytes = int(vram * _GiB)
             target_gpu.usable_vram_bytes = None
             target_gpu.vram_overridden = True
+            target_gpu.unified_memory_bytes = None
         if bandwidth is not None:
             target_gpu.memory_bandwidth_gbps = bandwidth
     return hardware

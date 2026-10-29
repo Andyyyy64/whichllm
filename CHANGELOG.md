@@ -111,6 +111,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- Apple Silicon is budgeted at Metal's default GPU working set, about two
+  thirds of unified memory up to 32 GB and three quarters above, not all of
+  it. On a 16 GB Mac the GPU got 15.2 GB, so the #1 was a 15 GB gemma-4-26B
+  build that llama.cpp would not keep on the GPU; it is now gpt-oss-20b. A
+  model past the working set can spill layers to the CPU within unified
+  memory, and a raised `iogpu.wired_limit_mb` is detected.
 - `run` without a model name ranks with the index's benchmark scores, as
   `snippet` does. It read only the `--live` benchmark cache, which the index
   path never writes, so its pick was ranked without any benchmarks.

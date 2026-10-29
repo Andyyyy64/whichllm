@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from dbgpu import GPUSpecification
 
+from whichllm.hardware.apple import default_gpu_working_set_bytes
 from whichllm.constants import (
     AMD_SHARED_MEMORY_APU_MARKERS,
     CURATED_GPU_SPECS,
@@ -278,14 +279,18 @@ def create_synthetic_gpu(name: str, vram_override_gb: float | None = None) -> GP
     apple_hit = _lookup_apple_silicon(name)
     if apple_hit is not None:
         canonical, vendor, default_vram_gb, bandwidth = apple_hit
+        # For a Mac, --vram picks the unified memory size; Metal's default
+        # working set decides what the GPU gets of it.
         vram_gb = vram_override_gb if vram_override_gb is not None else default_vram_gb
+        unified = int(vram_gb * _GiB)
         return GPUInfo(
             name=f"{canonical} (simulated)",
             vendor=vendor,
-            vram_bytes=int(vram_gb * _GiB),
+            vram_bytes=default_gpu_working_set_bytes(unified),
             memory_bandwidth_gbps=bandwidth,
             shared_memory=True,
             vram_overridden=vram_override_gb is not None,
+            unified_memory_bytes=unified,
         )
 
     spec = _lookup_dbgpu(name)

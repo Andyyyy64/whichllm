@@ -81,7 +81,8 @@ class TestAppleSiliconSimulator:
         )
         assert "rage" not in gpu.name.lower()
         # Default unified memory for the base M1 is 8 GB.
-        assert gpu.vram_bytes == 8 * 1024**3
+        assert gpu.unified_memory_bytes == 8 * 1024**3
+        assert gpu.vram_bytes == int(8 * 1024**3 * 2 / 3)
         assert gpu.memory_bandwidth_gbps == 68.25
 
     def test_m3_max_vram_override_apple_400gbps(self):
@@ -90,13 +91,15 @@ class TestAppleSiliconSimulator:
             f"M3 Max must be Apple, got vendor={gpu.vendor!r} "
             "(regression: fell through to nvidia default)"
         )
-        assert gpu.vram_bytes == 64 * 1024**3
+        assert gpu.unified_memory_bytes == 64 * 1024**3
+        assert gpu.vram_bytes == int(64 * 1024**3 * 0.75)
         assert gpu.memory_bandwidth_gbps == 400.0
 
     def test_m2_ultra_192gb_apple_800gbps(self):
         gpu = create_synthetic_gpu("M2 Ultra", vram_override_gb=192)
         assert gpu.vendor == "apple"
-        assert gpu.vram_bytes == 192 * 1024**3
+        assert gpu.unified_memory_bytes == 192 * 1024**3
+        assert gpu.vram_bytes == int(192 * 1024**3 * 0.75)
         assert gpu.memory_bandwidth_gbps == 800.0
 
     def test_apple_chip_compact_form_is_recognized(self):
