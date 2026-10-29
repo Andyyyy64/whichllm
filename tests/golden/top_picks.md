@@ -103,11 +103,11 @@ Catalog captured 2026-10-28 with whichllm 0.5.21 (9f3709f): 1129 models, 4728 be
 
 ## 2x-rtx3090-48gb-linux / general
 
-1. Qwen/Qwen3.8-27B [Q6_K, full_gpu, 14.5 tok/s, score 87.6]
-2. Qwen/Qwen3.6-35B-A3B [Q8_0, full_gpu, 42.2 tok/s, score 78.8]
-3. google/gemma-4-26B-A4B-it [Q8_0, full_gpu, 58.8 tok/s, score 76.9]
-4. google/gemma-4-31B-it [Q6_K, full_gpu, 12.9 tok/s, score 74.8]
-5. zai-org/GLM-4.7-Flash [Q6_K, full_gpu, 33.6 tok/s, score 71.7]
+1. Qwen/Qwen3.8-27B [Q5_K_M, full_gpu, 25.5 tok/s, score 88.7]
+2. Qwen/Qwen3.6-35B-A3B [Q8_0, full_gpu, 57.3 tok/s, score 78.8]
+3. Qwen/Qwen3.8-Flash-Next [Q3_K_M, partial_offload, 9.7 tok/s, score 78.4]
+4. google/gemma-4-26B-A4B-it [Q8_0, full_gpu, 79.8 tok/s, score 76.9]
+5. google/gemma-4-31B-it [Q5_K_M, full_gpu, 21.5 tok/s, score 75.8]
 
 ## rtx3060-12gb-win-32k / general (context 32768)
 
