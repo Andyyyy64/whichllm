@@ -72,6 +72,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   windows, multi-head latent attention and recurrent state are handled; an
   unrecognised layout keeps the old estimate.
 
+### Fixed
+
+- Artificial Analysis scores are on one scale again. The snapshot mixed
+  values from before and after AA rescaled its Intelligence Index, and
+  models AA has deprecated (Kimi K2, GLM-5, ...) kept their old, roughly
+  a third higher values even when the live fetch worked, so they outranked
+  newer models. Every entry is re-read from AA's index v4.3.2 with new
+  normalization bounds, DeepSeek V4's dated checkpoints map to their own
+  repositories, and while AA reports another index version (v5.0 today)
+  whichllm uses the v4.3.2 snapshot instead of mixing scales. Thanks to
+  devangpratap (#195).
+
 ## [0.5.23] - 2026-10-29
 
 ### Fixed
