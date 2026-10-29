@@ -19,6 +19,7 @@ import httpx
 
 from whichllm.models.hf import _hf_file_url, _hf_headers
 from whichllm.models.http import get_with_retries
+from whichllm.models.moe_fields import fill_moe_from_shape
 from whichllm.models.shape import ModelShape, parse_model_shape
 from whichllm.models.types import ModelInfo
 from whichllm.utils import _cache_dir
@@ -133,6 +134,7 @@ def _attach(models: list[ModelInfo], shapes: dict[str, ModelShape | None]) -> in
                     break
         if shape is not None:
             model.shape = shape
+            fill_moe_from_shape(model)
             attached += 1
     return attached
 

@@ -6,6 +6,7 @@ from whichllm.models.parameters import (
     _normalize_param_count,
     _resolve_moe_active_params,
 )
+from whichllm.models.moe_fields import fill_moe_from_shape
 from whichllm.models.shape import ModelShape
 from whichllm.models.types import GGUFVariant, ModelInfo
 
@@ -100,4 +101,5 @@ def dicts_to_models(data: list[dict]) -> list[ModelInfo]:
                 shape=ModelShape.from_dict(d.get("shape")),
             )
         )
+        fill_moe_from_shape(models[-1])
     return models
