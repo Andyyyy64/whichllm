@@ -17,13 +17,18 @@ logger = logging.getLogger(__name__)
 async def fetch_benchmark_scores() -> dict[str, float]:
     """Fetch and combine benchmark scores from multiple sources.
 
-    Sources, merged in this order (later overwrites earlier on conflict):
+    Sources:
       1. Open LLM Leaderboard v2 (archived 2025-06)
       2. Chatbot Arena ELO (frozen 2025-07-17)
       3. LiveBench (vendored snapshot)
-      4. Aider polyglot (coding-specific)
-      5. Artificial Analysis Intelligence Index
+      4. Artificial Analysis Intelligence Index
+      5. Aider polyglot (coding-specific)
       6. Vision-language capability index
+
+    The frozen sources (1-2) only score models no current source covers.
+    LiveBench and AA are both general-ability indexes on AA's scale and are
+    averaged (see :func:`_merge_general_scores`); Aider and vision scores
+    can raise a model's score as specialist evidence.
 
     Returns dict mapping model_id -> normalized score (0-100). All network
     sources are fetched concurrently; failures are logged and skipped.
@@ -81,19 +86,19 @@ async def fetch_benchmark_scores() -> dict[str, float]:
         logger.debug(f"Arena: {len(arena_result)} scores (frozen)")
 
     livebench_result = benchmark_sources.get_livebench_data()
-    for k, v in livebench_result.items():
-        if current.get(k, 0.0) < v:
-            current[k] = v
     logger.debug(f"LiveBench: {len(livebench_result)} scores (current)")
 
     if isinstance(aa_result, BaseException):
         logger.warning(f"AA Index fetch failed, will use fallback: {aa_result}")
         aa_result = benchmark_sources.get_aa_curated_fallback()
-
-    for k, v in aa_result.items():
-        if k not in current or current[k] < v:
-            current[k] = v
     logger.debug(f"AA Index: {len(aa_result)} scores (current)")
+
+    current.update(
+        _merge_general_scores(
+            (livebench_result, benchmark_sources.LIVEBENCH_ESTIMATED_IDS),
+            (aa_result, benchmark_sources.AA_PEER_IDS),
+        )
+    )
 
     if isinstance(aider_result, BaseException):
         logger.warning(f"Aider fetch failed: {aider_result}")
@@ -117,3 +122,26 @@ async def fetch_benchmark_scores() -> dict[str, float]:
 
     logger.debug(f"Combined: {len(combined)} benchmark scores")
     return combined
+
+
+def _merge_general_scores(
+    *sources: tuple[dict[str, float], frozenset[str]],
+) -> dict[str, float]:
+    """Combine general-ability indexes that share one scale.
+
+    Each source is ``(scores, estimated_ids)``. A model's score is the mean
+    of the values that measured it; hand estimates count only when no source
+    measured the model. Taking the highest value instead favoured models
+    that appear in more sources, since each index is noisy.
+    """
+    merged: dict[str, float] = {}
+    for model_id in set().union(*(scores for scores, _ in sources)):
+        measured: list[float] = []
+        estimated: list[float] = []
+        for scores, estimated_ids in sources:
+            if model_id in scores:
+                bucket = estimated if model_id in estimated_ids else measured
+                bucket.append(scores[model_id])
+        values = measured or estimated
+        merged[model_id] = round(sum(values) / len(values), 1)
+    return merged

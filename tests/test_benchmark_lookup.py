@@ -21,7 +21,7 @@ from whichllm.models.benchmark import (
     "other_score,frozen_score,aa_fails,expected",
     [
         (None, None, False, 0.0),
-        (40.0, None, False, 40.0),
+        (40.0, None, False, 20.0),  # mean with the measured AA zero
         (None, 70.0, False, 0.0),
         (None, None, True, 35.0),
     ],

@@ -151,6 +151,15 @@ whichllm separates sources into two tiers:
 Current sources can use live scrapes when reachable and curated snapshots when
 the upstream page shape changes. The snapshot month is printed below rankings.
 
+LiveBench and Artificial Analysis both measure general ability, so they are
+combined, not ranked against each other. LiveBench is mapped onto AA's
+normalized scale with a fit over the models both sources measured (residual
+spread about 3 points), and a model's score is the mean of the values that
+measured it. Hand-estimated entries (LiveBench carryovers for models it no
+longer lists, AA "peer" entries for models AA does not track) count only when
+neither source measured the model. Aider and vision scores can still raise a
+model's score as specialist evidence.
+
 Within Artificial Analysis, mapped live scores replace stored AA scores even
 when lower or zero. The stored snapshot supplies models absent from the live
 response. This does not change how scores from different benchmark sources
