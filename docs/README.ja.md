@@ -1,66 +1,142 @@
 # whichllm
 
-**手元のハードウェアで実際に動くローカルLLMを探すCLIです。**
+[![PyPI version](https://img.shields.io/pypi/v/whichllm)](https://pypi.org/project/whichllm/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Tests](https://github.com/Andyyyy64/whichllm/actions/workflows/test.yml/badge.svg)](https://github.com/Andyyyy64/whichllm/actions/workflows/test.yml)
+[![Sponsor](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-EA4AAA?logo=githubsponsors)](https://github.com/sponsors/Andyyyy64)
 
-whichllm は GPU / CPU / RAM / ディスクを検出し、HuggingFace 上のモデルを
-取得して、実行できる候補をランキングします。単に「VRAMに入る最大モデル」を
-選ぶのではなく、ベンチマーク、量子化、速度、実行形態、モデル世代をまとめて
-評価します。
+**手元のPCで実際に動く、いちばん賢いモデルを探します。動くとは思っていなかったモデルも候補に入ります。**
+
+whichllm は GPU、RAM、メモリ帯域を調べて、どのオープンモデルが載るか、それぞれ何 tok/s で生成できるかを見積もります。そのうえでベンチマークの結果で順位を付けます。1位のモデルについては、見積もりと同じ配置で動かすためのコマンドも表示します。
 
 [English version](../README.md)
 
-![demo](../assets/demo.gif)
-
-## インストール
-
-### uv
-
-一度だけ試す場合:
+## クイックスタート
 
 ```bash
 uvx whichllm@latest
 ```
 
-継続して使う場合:
+これから GPU を買うなら、その GPU をシミュレートできます。
+
+```bash
+uvx whichllm@latest --gpu "RTX 4090"
+```
+
+インストールして使う場合は次のどれかです。
 
 ```bash
 uv tool install whichllm
-uv tool upgrade whichllm  # 既存インストールを更新
-```
-
-### Homebrew
-
-```bash
 brew install andyyyy64/whichllm/whichllm
-```
-
-### pip
-
-```bash
 pip install whichllm
 ```
 
-## 余裕を持って動く候補だけ見たい場合
+## 実行例
 
-whichllm のデフォルトは少し攻めた推薦です。RAMへのpartial offloadや、
-VRAMぎりぎりの候補も、動きそうならランキングに入れます。
+8GB の RTX 4060 と 32GB の DDR4 を積んだデスクトップでの出力です（一部省略）。
 
-LM Studioなどで余裕を持って動かしたい場合は、まずこれを使ってください。
+```text
+$ whichllm
 
-```bash
-uvx whichllm@latest --gpu-only --speed usable --vram-headroom 1GB
+ #  Model                       Quant   Fit       Speed     Score
+ 1  Qwen/Qwen3.6-35B-A3B        Q5_K_M  GPU+RAM   20 tok/s   68.9
+ 2  Qwen/Qwen3.5-35B-A3B        Q5_K_M  GPU+RAM   20 tok/s   68.3
+ 3  google/gemma-4-26B-A4B-it   Q5_K_M  GPU+RAM   10 tok/s   65.3
+ 4  zai-org/GLM-4.7-Flash       Q5_K_M  GPU+RAM   15 tok/s   62.2
+ 5  Qwen/Qwen3.5-9B             Q4_K_M  Full GPU  28 tok/s   62.1
+
+  Run #1 with llama.cpp:
+    llama-server -hf unsloth/Qwen3.6-35B-A3B-GGUF:Q5_K_M -c 4096 -ngl 99 --n-cpu-moe 33 -fa on
 ```
 
-GPUのVRAMに全部載る候補だけに絞り、遅い推定速度の候補を外し、実行時の
-余白も1GB残します。
+8GB のカードで1位になったのは 35B のモデルです。これは mixture-of-experts（MoE）モデルで、1トークンの生成に使うパラメータは約 3B しかありません。whichllm は attention、共有の重み、KV キャッシュを VRAM に置き、40層のうち33層のエキスパートをシステム RAM に残します。llama.cpp の `--n-cpu-moe` と同じ配置です。速度は、1トークンごとに VRAM と RAM からそれぞれ読む量をもとに見積もります。VRAM に収まるかどうかだけで判定すればこのモデルは候補から外れ、普通の部分オフロードとして見積もれば遅すぎると判定されていたはずです。
 
-それでもLM Studio側で少しはみ出す場合は、余白を増やします。
+24GB の RTX 4090 では、同じ計算で Qwen3.8-27B が1位になります。Qwen3-32B も Q4_K_M なら収まりますが、現行のベンチマークでは 27B のほうがスコアが高く、32B は19位に下がります。
+
+表示される速度はメモリ帯域からの推定で、あなたのマシンで測った値ではありません。推定がどのくらい確かかは表に表示されます。
+
+## 順位の付け方
+
+品質の評価には、Artificial Analysis と LiveBench のスコアを同じスケールにそろえて平均した値を使い、コーディングには Aider、画像入力には vision の指標を加えます。Open LLM Leaderboard と Chatbot Arena は更新が止まっているので、現行のソースがどれも扱っていないモデルにだけ使います。古い世代のモデルは順位を下げます。ベンチマークのスコアをモデルにどう対応づけたか（リポジトリそのもの、ベースモデル、同じファミリーからの補間、アップローダーの自己申告）も記録し、根拠が弱いほどスコアを割り引きます。事前学習だけのベースチェックポイントは推薦しません。
+
+収まるかどうかは、重み、KV キャッシュ、実行時のバッファの合計で判定します。KV キャッシュはモデルの `config.json` から層ごとに計算し、grouped-query attention、latent attention、スライディングウィンドウ、再帰層を区別します。VRAM に収まらない場合、MoE モデルはまずエキスパートを RAM に移し、それ以外のモデルは層単位で RAM に出します。
+
+速度を決めるのはメモリ帯域です。GPU は担当分の重みを VRAM の速度で読み、残りは CPU が RAM の速度で読みます。CPU 側の値は llama.cpp での実測に合わせてあります。収まっても 1 tok/s しか出ないようなモデルは順位を下げます。
+
+詳しくは [スコアリング](scoring.md) と [仕組み](how-it-works.md) を参照してください。
+
+## 推薦のテスト
+
+推薦の間違いはバグとして扱うので、ランキングには回帰テストがあります（[`tests/golden/`](../tests/golden/)）。
+
+- 6GB の RTX 2060 から 128GB の M4 Max まで、CPU だけのマシンや 32K/128K コンテキストの構成も含めた17のハードウェア構成を、1,129モデルの凍結カタログでランキングします。
+- 順位そのものは固定せず、良い推薦が満たすべき条件を9個の制約として書いています。たとえば、事前学習だけのチェックポイントを出さない、古い世代を上位3位に入れない、RAM へのオフロードが必要な1位でも 4 tok/s は出る、24GB 以上では最新の dense 27B が上位3位に入る、16GB のカードと 64GB の RAM ならエキスパートを RAM に置いた大きな MoE が上位5位に入る、コーディング向けの推薦が名前に「coder」を含むモデルに偏らない、などです。
+- 全構成の上位候補を [`top_picks.md`](../tests/golden/top_picks.md) としてコミットしているので、ランキングが変わればレビューで diff として見えます。
+- 失敗すると分かっている制約は、理由を添えて strict な expected failure として記録します。バグを直すとテストが失敗に変わるので、そこで記録を消します。
+
+あなたのハードウェアでは使わないようなモデルが推薦されたら、出力を添えて issue を立ててください。6GB と RTX 3060 の構成は、そうした報告から追加しました（[#76](https://github.com/Andyyyy64/whichllm/issues/76)、[#104](https://github.com/Andyyyy64/whichllm/issues/104)）。
+
+## コマンド
 
 ```bash
-uvx whichllm@latest --gpu-only --speed usable --vram-headroom 1.5GB
+whichllm                          # このマシンに合うモデル
+whichllm --gpu "RTX 5060 Ti"      # GPU をシミュレート（VRAM 違いは --vram 16 を追加）
+whichllm --gpu "2x RTX 3090"      # 複数枚も指定できる
+whichllm --profile coding         # general, coding, vision, math, any
+whichllm --context-length 64k     # コンテキストが長いと収まるモデルが変わる
+whichllm --gpu-only               # VRAM に全部載るモデルだけ
+whichllm --speed usable           # 10 tok/s 未満を隠す
+whichllm --markdown               # issue やチャットに貼れる表
+whichllm --json                   # 配置と実行コマンドも含む
+
+whichllm hardware                 # 検出したハードウェア
+whichllm plan "qwen3 32b"         # モデルに必要な GPU
+whichllm upgrade "RTX 4090" "RTX 5090"   # 購入候補の GPU と比較
+whichllm run                      # 1位をダウンロードしてチャット
+whichllm snippet                  # 1位を読み込む Python コードを表示
 ```
 
-### 開発用
+オプションの一覧は [CLI リファレンス](cli.md) にあります。
+
+LM Studio で推薦されたモデルが少しはみ出す場合は、余裕を持たせた判定にします。
+
+```bash
+whichllm --gpu-only --speed usable --vram-headroom 1.5GB
+```
+
+内蔵 GPU やユニファイドメモリの上限が正しく検出されない場合は、`--vram` と `--ram-bandwidth` で上書きできます（[ハードウェア](hardware.md) を参照）。
+
+## run と snippet
+
+`whichllm run` は `uv` で使い捨ての環境を作り、モデルをダウンロードしてチャットを開きます。モデル名を省くと、1位のモデルをランキングで決めた層の分割で動かします。
+
+![run demo](../assets/demo-run.gif)
+
+```bash
+whichllm run
+whichllm run "qwen 2.5 1.5b gguf"
+whichllm run "phi 3 mini gguf" --cpu-only
+```
+
+GGUF のモデルは `llama-cpp-python`、それ以外は `transformers` で動かします。llama-cpp-python はエキスパートだけを RAM に置く配置に対応していません。そのため、エキスパートを RAM に置く推薦では、`run` は速度の落ちる層分割に切り替え、見積もりと同じ配置になる `llama-server` のコマンドを表示します。詳しくは [run と snippet](run-snippet.md) を参照してください。
+
+## データの出どころ
+
+whichllm は事前に作ったインデックスを読み込むので、初回の起動は約1秒で済み、Hugging Face API も呼びません。インデックスの中身は Hugging Face のモデル一覧、各ファミリーの `config.json`、統合したベンチマークスコアです。GitHub Actions で毎日作り直し、品質チェックを通ったときだけ公開します。`--live` を付けるとすべてを直接取得し、`HF_TOKEN` が設定されていればそれを使います。
+
+## ドキュメント
+
+ドキュメントは英語です。
+
+- [CLI リファレンス](cli.md)
+- [仕組み](how-it-works.md)
+- [スコアリング](scoring.md)
+- [ハードウェアの検出とシミュレーション](hardware.md)
+- [run と snippet](run-snippet.md)
+- [トラブルシューティング](troubleshooting.md)
+
+## 開発
 
 ```bash
 git clone https://github.com/Andyyyy64/whichllm.git
@@ -70,179 +146,17 @@ uv run whichllm
 uv run pytest
 ```
 
-## まず使う
+ランキングが変わる変更では、`uv run python scripts/update_golden.py report` で golden のスナップショットを確認してください。詳しくは [CONTRIBUTING.md](../CONTRIBUTING.md) にあります。
 
-```bash
-# 自動検出しておすすめモデルを表示
-whichllm
+## サポート
 
-# GPUをシミュレートする
-whichllm --gpu "RTX 4090"
-whichllm --gpu "Apple M3 Max"
+whichllm のおかげで無駄なダウンロードやハードウェアの買い間違いを避けられたら、スポンサーになってもらえると保守を続けやすくなります。ハードウェアの報告への対応、ベンチマークの更新、パッケージング、対応マシンの追加に使います。スポンサーがあってもなくても、オープンソースのままです。
 
-# 複数GPUをシミュレートする
-whichllm --gpu "2x RTX 4090"
-whichllm --gpu "RTX 4090" --gpu "RTX 3090"
+スターを付けてもらえると、ほかの人が見つけやすくなります。あなたのマシンで何が選ばれたかも知りたいので、[Issues](https://github.com/Andyyyy64/whichllm/issues) に気軽に書いてください。
 
-# GPUのVRAMに全部載る候補だけを見る
-whichllm --gpu-only
-whichllm --fit gpu
+## Star History
 
-# 速度の最低ラインを指定する
-whichllm --speed usable
-whichllm --speed fast
-whichllm --min-speed 4
-
-# GitHubやSlackに貼りやすいMarkdown表で出力する
-whichllm --markdown
-
-# 実行時のメモリ余白やRAM使用量を指定する
-whichllm --vram-headroom 1.5GB
-whichllm --ram-budget available
-
-# CPUのみとして評価する
-whichllm --cpu-only
-
-# JSONで出力する
-whichllm --json
-```
-
-JSONの各モデルには `estimated_tok_per_sec` に加えて、`fit_type`、
-`vram_required_bytes`、`vram_available_bytes`、`uses_multi_gpu`、
-`multi_gpu_effective_vram_bytes`、`speed_confidence`、
-`speed_range_tok_per_sec`、`speed_notes`、`benchmark_source`、
-`benchmark_confidence` が入ります。
-速度は実測値ではなく、ハードウェア情報とモデル情報からの推定です。
-通常の表には必要メモリ、推定生成速度、Fit種別、Published が表示されます。
-Downloads まで見たい場合は `--details` を使います。
-GitHub issue、README、Slack、Discord へ貼る場合は `--markdown` / `-m`
-でMarkdown表として出力できます。
-
-## 主なコマンド
-
-```bash
-# 推薦ランキング
-whichllm --top 20
-whichllm --quant Q4_K_M
-whichllm --min-speed 30
-whichllm --speed usable
-whichllm --speed fast
-whichllm --markdown
-whichllm --profile coding
-whichllm --context-length 64k
-whichllm --details
-whichllm --gpu-only
-
-# ベンチ根拠の厳しさ
-whichllm --evidence strict
-whichllm --evidence base
-whichllm --direct
-
-# モデルから必要GPUを逆算
-whichllm plan "llama 3 70b"
-whichllm plan "Qwen2.5-72B" --quant Q8_0
-whichllm plan "mistral 7b" --context-length 32768
-
-# 今のマシンと購入候補GPUを比較
-whichllm upgrade "RTX 4090" "RTX 5090" "H100"
-
-# モデルをダウンロードしてチャット
-whichllm run "qwen 2.5 1.5b gguf"
-whichllm run
-
-# 実行用Pythonコードを表示
-whichllm snippet "qwen 7b"
-
-# ハードウェア情報だけ表示
-whichllm hardware
-```
-
-## スコアの見方
-
-各モデルには 0 から 100 のスコアが付きます。中心になるのはベンチマークと
-モデルサイズですが、実行時に遅すぎる候補や、CPUオフロードが大きい候補は
-下がります。
-
-| 要素 | 役割 |
-| --- | --- |
-| ベンチマーク | LiveBench、Artificial Analysis、Aider、Vision、Arena、Open LLM Leaderboard を統合 |
-| モデルサイズ | 知識量の近似。MoEは総パラメータを使う |
-| 量子化 | Q4 / Q5 / Q6 / Q8 などの品質低下を反映 |
-| 実行形態 | Full GPU、Partial Offload、CPU-only を区別 |
-| 速度 | tok/s が実用ラインを下回ると減点。表示時は推定の信頼度と幅も出す |
-| 根拠の強さ | direct、base_model、variant、line_interp、self_reported を区別 |
-| 世代補正 | 古い凍結ベンチだけで新世代を上回らないよう調整 |
-
-スコア横のマーカー:
-
-- `~`: 直接ベンチではなく、系列や派生から推定したスコア
-- `!sr`: アップローダー自己申告の評価値だけに基づくスコア
-- `?`: 利用できるベンチマーク根拠がないスコア
-
-速度表示:
-
-- 赤: `4 tok/s` 未満の遅い生成速度
-- 黄: `4-10 tok/s` のぎりぎり使える生成速度
-- 緑: `10-30 tok/s` の実用的な生成速度
-- 明るい緑: `30 tok/s` 以上の高速なローカル生成速度
-- `~`: 速度推定の幅がある通常の推定値
-- `?`: backend や runtime の影響が大きい低信頼の推定値
-
-## 仕組み
-
-1. ハードウェアを検出します。NVIDIA、AMD、Intel、Apple Silicon、CPU、RAM、
-   ディスク空き容量を見ます。
-2. HuggingFace APIからモデルを取得します。人気モデル、GGUF、最近更新された
-   GGUF、trending、重要な frontier モデルを組み合わせます。
-3. ベンチマークを読み込みます。現在系の LiveBench / Artificial Analysis /
-   Aider / Vision と、凍結系の Arena / Open LLM Leaderboard を分けて扱います。
-4. `base_model` とモデル名からファミリーを作り、同じモデルの派生やGGUFを束ねます。
-5. 候補ごとに VRAM、互換性、速度、速度推定の信頼度、スコアを計算します。
-6. ファミリーごとに最も良い候補を残して表示します。
-
-通常は full GPU、partial offload、CPU-only の候補をまとめて見ます。GPUの
-VRAMに全部載るモデルだけを見たい場合は `--gpu-only` か
-`--fit gpu` を使います。遅い候補を最初から除外したい場合は
-`--speed usable`、`--speed fast` を使います。
-それぞれ `10 tok/s`、`30 tok/s` が最低ラインです。
-もっと低いラインを指定したい場合は `--min-speed 4` のように数値で指定します。
-
-キャッシュは通常 `~/.cache/whichllm/` に保存されます。`XDG_CACHE_HOME` が
-絶対パスで設定されている場合は、その配下の `whichllm/` を使います。
-
-- `models.json`: 6時間
-- `benchmark.json`: 24時間
-
-## プロジェクト構成
-
-```text
-src/whichllm/
-├── cli.py              # Typer CLI: main, plan, upgrade, run, snippet, hardware
-├── constants.py        # 互換用のregistry再export
-├── data/               # GPU、量子化、framework、lineageのregistry
-├── hardware/           # ハードウェア検出とGPUシミュレーション
-├── models/             # HuggingFace取得、ベンチ、キャッシュ、グルーピング
-├── engine/             # VRAM、互換性、速度、ランキング
-└── output/             # Rich表示、JSON、plan/upgrade表示
-```
-
-## 詳細ドキュメント
-
-- [CLIリファレンス](cli.md)
-- [仕組み](how-it-works.md)
-- [スコアリング](scoring.md)
-- [ハードウェア検出とシミュレーション](hardware.md)
-- [run と snippet](run-snippet.md)
-- [トラブルシュート](troubleshooting.md)
-
-## 動作環境
-
-- Python 3.11+
-- NVIDIA GPU検出は `nvidia-ml-py` と `nvidia-smi` fallback
-- AMD GPU検出は Linux / ROCm / sysfs / lspci と Windows fallback
-- Intel GPU検出は Linux / sysfs / lspci と Windows fallback
-- Strix Halo、Ryzen AI MAX、Radeon 890M 系は shared memory APU として扱う
-- Apple Silicon検出は macOS / `system_profiler`
+[![Star History Chart](https://star-history.dera.page/svg?repos=Andyyyy64/whichllm&type=Date)](https://star-history.dera.page/#Andyyyy64/whichllm&Date)
 
 ## ライセンス
 
