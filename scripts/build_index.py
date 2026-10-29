@@ -74,6 +74,26 @@ def _summary(payload: dict, previous: dict | None) -> list[str]:
         f"models {stats['models']}, benchmark ids {stats['benchmarks']}, "
         f"shapes {stats['shapes']}, publish dates {stats['published_dates']}"
     ]
+    for source in payload.get("sources", []):
+        lines.append(
+            f"source {source['name']}: {source['version']}, {source['entries']} entries"
+        )
+    coverage = payload.get("coverage") or {}
+    if coverage:
+        lines.append(
+            f"recent releases ({coverage['recent_days']} days, "
+            f"{coverage['recent_min_downloads']}+ downloads): "
+            f"{coverage['recent_models']}, original releases without a score: "
+            f"{coverage['recent_unscored_count']}"
+        )
+        lines += [f"  ? {model_id}" for model_id in coverage["recent_unscored"]]
+        bases = coverage.get("recent_unscored_bases", [])
+        if bases:
+            lines.append(
+                f"derivatives without a score anywhere in their lineage: "
+                f"{coverage['recent_unscored_derivatives']}, from these bases:"
+            )
+            lines += [f"  ? {model_id}" for model_id in bases]
     if previous:
         before = {m["id"] for m in previous["models"]}
         now = {m["id"] for m in payload["models"]}
@@ -123,6 +143,8 @@ def main() -> int:
         "built_at": payload["built_at"],
         "builder": payload["builder"],
         "stats": payload["stats"],
+        "sources": payload.get("sources", []),
+        "coverage": payload.get("coverage", {}),
         "sha256": hashlib.sha256(raw).hexdigest(),
         "size_bytes": len(raw),
     }

@@ -40,6 +40,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - System RAM bandwidth is detected (Windows memory modules), estimated from
   the CPU family, or taken from Apple's unified memory, and shown by
   `whichllm hardware`.
+- The index records where its scores came from: each benchmark source with
+  the version or snapshot it read (live or the committed snapshot) and how
+  many entries it gave. It also lists popular releases from the last 45 days
+  (5,000+ downloads) that have no benchmark score: original releases by id,
+  and finetunes by their base when nothing up the lineage has a score. A gap
+  in the sources then shows up in the daily build log instead of in a user's
+  ranking. `--json` output gains a
+  `data` object with the index build time and these sources, or
+  `"source": "live"`.
 
 ### Changed
 

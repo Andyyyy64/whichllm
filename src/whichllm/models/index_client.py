@@ -42,6 +42,8 @@ class IndexCatalog:
     offline: bool = False
     # Per-profile scores (coding, math, vision); empty for an older index.
     task_scores: dict[str, dict[str, float]] = field(default_factory=dict)
+    # Benchmark sources the index was built from; empty for an older index.
+    sources: list[dict] = field(default_factory=list)
 
     @property
     def age_seconds(self) -> float | None:
@@ -103,6 +105,7 @@ def _catalog(payload: dict, offline: bool = False) -> IndexCatalog:
         built_at=payload["built_at"],
         offline=offline,
         task_scores=payload.get("task_scores") or {},
+        sources=payload.get("sources") or [],
     )
 
 

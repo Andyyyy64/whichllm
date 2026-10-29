@@ -297,7 +297,16 @@ def main_command(
             "and CPU-only candidates."
         )
     if json_output:
-        display_json(results, hardware, context_length)
+        data = (
+            {"source": "live"}
+            if catalog is None
+            else {
+                "source": "index",
+                "built_at": catalog.built_at,
+                "benchmark_sources": catalog.sources,
+            }
+        )
+        display_json(results, hardware, context_length, data)
     elif markdown_output:
         display_markdown(
             results,
