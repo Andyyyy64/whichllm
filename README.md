@@ -164,9 +164,8 @@ override them with `--vram` and `--ram-bandwidth` (see
 
 ## Run and snippet
 
-`whichllm run` creates a throwaway environment with `uv`, downloads the model
-and opens a chat. Without a model name it takes the top pick and uses the
-layer split from the ranking.
+`whichllm run` downloads the model and opens a chat. Without a model name it
+takes the top pick.
 
 ![run demo](assets/demo-run.gif)
 
@@ -176,10 +175,15 @@ whichllm run "qwen 2.5 1.5b gguf"
 whichllm run "phi 3 mini gguf" --cpu-only
 ```
 
-GGUF models run through `llama-cpp-python`, others through `transformers`.
-llama-cpp-python cannot keep only the experts in RAM, so for an
-expert-offload pick `run` falls back to a slower layer split and prints the
-`llama-server` command that matches the estimate. See
+With llama.cpp installed (`brew install llama.cpp`, `winget install
+ggml.llamacpp`), a GGUF model runs in its `llama-cli` with the flags of the
+printed recipe, so the chat uses the GPU and keeps MoE experts in RAM the way
+the ranking estimated. A named model is left to llama.cpp's automatic fit.
+
+Without llama-cli, `run` creates a throwaway environment with `uv` and uses
+`llama-cpp-python` for GGUF models and `transformers` for the rest. PyPI only
+ships llama-cpp-python as source, so the first run compiles it, which took
+22 minutes on a Core Ultra 9, and that build runs on the CPU only. See
 [Run and snippet](docs/run-snippet.md).
 
 ## Where the data comes from

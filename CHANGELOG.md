@@ -41,6 +41,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   Ollama note says only that Ollama picks its own split: Ollama 0.40 keeps
   MoE experts in RAM by itself and ran Qwen3.6-35B-A3B on an RTX 5080 at
   about 100 tok/s.
+- `run` chats through llama.cpp's `llama-cli` when it is installed, with
+  the same flags as the printed recipe, so it uses the GPU and keeps MoE
+  experts in RAM. A named model is left to llama.cpp's `--fit`. Without
+  llama-cli, `run` keeps using llama-cpp-python and first says that PyPI
+  only ships its source: it compiles for 20 minutes or more and runs on the
+  CPU only (on an RTX 5080, 22.7 minutes to the first reply).
 - System RAM bandwidth is detected (Windows memory modules), estimated from
   the CPU family, or taken from Apple's unified memory, and shown by
   `whichllm hardware`.

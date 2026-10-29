@@ -36,7 +36,7 @@ from whichllm.models.artifacts import (
 )
 from whichllm.cli import app
 from whichllm.utils import _current_version
-from whichllm.engine.types import CompatibilityResult
+from whichllm.engine.types import CompatibilityResult, Placement
 from whichllm.hardware.types import GPUInfo, HardwareInfo
 from whichllm.models.types import GGUFVariant, ModelInfo
 from typer.testing import CliRunner
@@ -1837,8 +1837,12 @@ def test_run_requires_uv(monkeypatch):
     assert "uv is required" in result.stdout
 
 
+def _uv_only(name):
+    return "/usr/bin/uv" if name == "uv" else None
+
+
 def test_run_no_model_found_exits_gracefully(monkeypatch):
-    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/uv")
+    monkeypatch.setattr("shutil.which", _uv_only)
     monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [])
 
     runner = CliRunner()
@@ -1976,7 +1980,7 @@ def test_run_auto_pick_resolves_ranked_gguf_before_launch(monkeypatch):
         captured["cmd"] = cmd
         return Completed()
 
-    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/uv")
+    monkeypatch.setattr("shutil.which", _uv_only)
     monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [selected, real_gguf])
     monkeypatch.setattr(
         "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
@@ -1994,6 +1998,8 @@ def test_run_auto_pick_resolves_ranked_gguf_before_launch(monkeypatch):
     assert captured["variant"].filename == "q4.gguf"
     assert "llama-cpp-python" in captured["cmd"]
     assert "transformers" not in captured["cmd"]
+    # Without llama-cli the chat is a CPU-only source build; say so first.
+    assert "runs on the CPU only" in " ".join(result.stdout.split())
 
 
 def test_run_auto_pick_ranks_with_the_index_benchmarks(monkeypatch):
@@ -2031,7 +2037,7 @@ def test_run_auto_pick_ranks_with_the_index_benchmarks(monkeypatch):
     class Completed:
         returncode = 0
 
-    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/uv")
+    monkeypatch.setattr("shutil.which", _uv_only)
     monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [model])
     monkeypatch.setattr(
         "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
@@ -2054,6 +2060,99 @@ def test_run_auto_pick_ranks_with_the_index_benchmarks(monkeypatch):
 
     assert result.exit_code == 0
     assert captured["benchmark_scores"] == index_scores
+
+
+def _run_with_llama_cli(monkeypatch, models, rank_results, argv):
+    captured: dict[str, object] = {}
+
+    class Completed:
+        returncode = 0
+
+    def fake_run(cmd):
+        captured["cmd"] = cmd
+        return Completed()
+
+    monkeypatch.setattr(
+        "shutil.which",
+        lambda name: "/opt/llama/llama-cli" if name == "llama-cli" else None,
+    )
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: models)
+    monkeypatch.setattr(
+        "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
+    )
+    monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
+    monkeypatch.setattr(
+        "whichllm.engine.ranker.rank_models", lambda *a, **kw: rank_results
+    )
+    monkeypatch.setattr("subprocess.run", fake_run)
+    result = CliRunner().invoke(app, argv)
+    return result, captured
+
+
+def test_run_uses_llama_cli_with_the_recipe_flags(monkeypatch):
+    model = ModelInfo(
+        id="org/MoE-35B-A3B-GGUF",
+        family_id="org/moe-35b-a3b",
+        name="MoE-35B-A3B-GGUF",
+        parameter_count=35_000_000_000,
+        gguf_variants=[
+            GGUFVariant(
+                filename="m.gguf", quant_type="Q4_K_M", file_size_bytes=20 * 10**9
+            )
+        ],
+    )
+    picked = CompatibilityResult(
+        model=model,
+        gguf_variant=model.gguf_variants[0],
+        can_run=True,
+        vram_required_bytes=0,
+        vram_available_bytes=0,
+        quality_score=60.0,
+        placement=Placement("expert_offload", 7, 13, n_cpu_moe=31, num_layers=40),
+    )
+
+    result, captured = _run_with_llama_cli(monkeypatch, [model], [picked], ["run"])
+
+    assert result.exit_code == 0, result.output
+    assert captured["cmd"] == [
+        "/opt/llama/llama-cli",
+        "-hf",
+        "org/MoE-35B-A3B-GGUF:Q4_K_M",
+        "-c",
+        "4096",
+        "-ngl",
+        "99",
+        "--n-cpu-moe",
+        "31",
+        "-fa",
+        "on",
+    ]
+    assert "uv" not in " ".join(captured["cmd"])
+
+
+def test_run_named_model_lets_llama_cpp_fit_it(monkeypatch):
+    model = ModelInfo(
+        id="org/Small-2B-GGUF",
+        family_id="org/small-2b",
+        name="Small-2B-GGUF",
+        parameter_count=2_000_000_000,
+        gguf_variants=[
+            GGUFVariant(filename="s.gguf", quant_type="Q4_K_M", file_size_bytes=10**9)
+        ],
+    )
+
+    result, captured = _run_with_llama_cli(
+        monkeypatch, [model], [], ["run", "org/Small-2B-GGUF", "-q", "Q4_K_M"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured["cmd"] == [
+        "/opt/llama/llama-cli",
+        "-hf",
+        "org/Small-2B-GGUF:Q4_K_M",
+        "-c",
+        "4096",
+    ]
 
 
 def test_snippet_no_model_found(monkeypatch):
