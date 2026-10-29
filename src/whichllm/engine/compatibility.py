@@ -22,6 +22,11 @@ from whichllm.models.types import GGUFVariant, ModelInfo
 _MULTI_GPU_FRAMEWORK_OVERHEAD_BYTES = int(0.3 * _GiB)
 _MULTI_GPU_HOMOGENEOUS_UTILIZATION = 0.95
 _MULTI_GPU_HETEROGENEOUS_UTILIZATION = 0.90
+# A layer split hands each token's activations from card to card; the cost is
+# small next to reading the weights. Used when a card's bandwidth is unknown,
+# the old flat factor applies instead.
+_MULTI_GPU_SYNC_FACTOR = 0.95
+_MULTI_GPU_UNKNOWN_SPEED_FACTOR = 0.70
 
 
 def _gpu_available_memory(
@@ -122,6 +127,24 @@ def _multi_gpu_effective_vram(
     return effective, True, effective
 
 
+def _multi_gpu_speed_factor(gpus: list[GPUInfo], available: list[int]) -> float:
+    """Decode speed of a layer split relative to reading it all on the best card.
+
+    llama.cpp splits layers in proportion to each card's free memory, and a
+    token reads every card's share in turn, so the time is the sum of
+    share / bandwidth. Two identical cards run about as fast as one would if
+    the model fit; a slower second card drags in proportion to its share.
+    """
+    bandwidths = [gpu.memory_bandwidth_gbps for gpu in gpus]
+    total = sum(available)
+    if total <= 0 or not all(bandwidths):
+        return _MULTI_GPU_UNKNOWN_SPEED_FACTOR
+    split_time = sum(
+        share / total / bw for share, bw in zip(available, bandwidths, strict=True)
+    )
+    return min(1.0, (1.0 / max(bandwidths)) / split_time) * _MULTI_GPU_SYNC_FACTOR
+
+
 def _expert_offload_note(placement: Placement) -> str:
     if placement.n_cpu_moe is None or placement.n_cpu_moe >= (
         placement.num_layers or 0
@@ -163,9 +186,22 @@ def check_compatibility(
             best_gpu_available = gpu_available
 
     vram_available = sum(gpu_available_values) if gpu_available_values else 0
-    fit_vram_available, uses_multi_gpu, multi_gpu_effective_vram = (
-        _multi_gpu_effective_vram(candidate_gpus, gpu_available_values, warnings)
-    )
+    multi_gpu_speed_factor = 1.0
+    if len(candidate_gpus) > 1 and best_gpu_available >= vram_required:
+        # One card holds the whole model: no split, no split overhead.
+        fit_vram_available, uses_multi_gpu, multi_gpu_effective_vram = (
+            best_gpu_available,
+            False,
+            None,
+        )
+    else:
+        fit_vram_available, uses_multi_gpu, multi_gpu_effective_vram = (
+            _multi_gpu_effective_vram(candidate_gpus, gpu_available_values, warnings)
+        )
+        if uses_multi_gpu:
+            multi_gpu_speed_factor = _multi_gpu_speed_factor(
+                candidate_gpus, gpu_available_values
+            )
     if (
         len(candidate_gpus) > 1
         and not uses_multi_gpu
@@ -293,6 +329,7 @@ def check_compatibility(
         offload_ratio=offload_ratio,
         uses_multi_gpu=uses_multi_gpu,
         multi_gpu_effective_vram_bytes=multi_gpu_effective_vram,
+        multi_gpu_speed_factor=multi_gpu_speed_factor,
         warnings=warnings,
         fit_type=fit_type,
         placement=placement,

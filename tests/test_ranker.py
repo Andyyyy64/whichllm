@@ -1,5 +1,7 @@
 """Tests for ranking behavior."""
 
+import pytest
+
 from whichllm.engine.quantization import effective_quant_type
 from whichllm.engine.ranker import rank_models
 from whichllm.hardware.types import GPUInfo, HardwareInfo
@@ -954,7 +956,9 @@ def test_multi_gpu_speed_confidence_is_low():
         hw.gpus[0],
         "full_gpu",
     )
-    assert results[0].estimated_tok_per_sec == single_gpu_speed * 0.70
+    # Two identical cards split the layers evenly: about the speed of one card
+    # reading everything, less the 5% hand-off allowance.
+    assert results[0].estimated_tok_per_sec == pytest.approx(single_gpu_speed * 0.95)
     assert any("Multi-GPU speed depends" in note for note in results[0].speed_notes)
 
 

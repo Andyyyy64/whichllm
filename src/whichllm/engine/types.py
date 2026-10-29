@@ -35,6 +35,8 @@ class CompatibilityResult:
     context_fits: bool = True  # False when known model max context < requested
     uses_multi_gpu: bool = False
     multi_gpu_effective_vram_bytes: int | None = None
+    # Decode speed of the layer split relative to the best single card.
+    multi_gpu_speed_factor: float = 1.0
     artifact_model: ModelInfo | None = None
     artifact_variant: GGUFVariant | None = None
     local_path: str | None = None

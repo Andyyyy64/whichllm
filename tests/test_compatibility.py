@@ -279,9 +279,57 @@ def test_homogeneous_multi_gpu_uses_conservative_fit_budget():
     assert any("conservative layer-split budget" in w for w in result.warnings)
 
 
+def _rtx4090_plus_3060() -> HardwareInfo:
+    return HardwareInfo(
+        gpus=[
+            GPUInfo(
+                name="NVIDIA GeForce RTX 4090",
+                vendor="nvidia",
+                vram_bytes=24 * _GiB,
+                compute_capability=(8, 9),
+                memory_bandwidth_gbps=1008.0,
+            ),
+            GPUInfo(
+                name="NVIDIA GeForce RTX 3060",
+                vendor="nvidia",
+                vram_bytes=12 * _GiB,
+                compute_capability=(8, 6),
+                memory_bandwidth_gbps=360.0,
+            ),
+        ],
+        cpu_name="Test CPU",
+        cpu_cores=16,
+        ram_bytes=64 * _GiB,
+        disk_free_bytes=200 * _GiB,
+        os="linux",
+    )
+
+
+def test_model_that_fits_one_card_is_not_split():
+    result = check_compatibility(
+        _make_model(), _make_variant(20 * _GiB), _rtx4090_plus_3060()
+    )
+
+    assert result.fit_type == "full_gpu"
+    assert result.uses_multi_gpu is False
+    assert result.multi_gpu_speed_factor == 1.0
+    assert not any("Multi-GPU" in w or "multi-GPU" in w for w in result.warnings)
+
+
+def test_split_speed_follows_each_cards_bandwidth():
+    result = check_compatibility(
+        _make_model(), _make_variant(28 * _GiB), _rtx4090_plus_3060()
+    )
+
+    # 2/3 of the layers at 1008 GB/s, 1/3 at 360 GB/s: about 0.63x of reading
+    # everything on the 4090, times the 5% sync allowance.
+    assert result.uses_multi_gpu is True
+    assert 0.55 < result.multi_gpu_speed_factor < 0.65
+
+
 def test_heterogeneous_multi_gpu_warns_about_split_assumptions():
     model = _make_model()
-    variant = _make_variant(20 * _GiB)
+    variant = _make_variant(28 * _GiB)
     hw = HardwareInfo(
         gpus=[
             GPUInfo(

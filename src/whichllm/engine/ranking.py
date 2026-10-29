@@ -30,7 +30,6 @@ from whichllm.models.benchmark import (
 from whichllm.models.roles import find_base_checkpoints
 from whichllm.models.types import ModelInfo
 
-_MULTI_GPU_SPEED_FACTOR = 0.70
 # Quality points a code-tuned model gains under --profile coding when it has
 # no coding benchmark results of its own.
 _CODING_SPECIALIST_BONUS = 2.0
@@ -239,7 +238,7 @@ def rank_models(
                 ram_bandwidth_gbps=hardware.ram_bandwidth_gbps,
             )
             if compat.uses_multi_gpu:
-                tok_per_sec *= _MULTI_GPU_SPEED_FACTOR
+                tok_per_sec *= compat.multi_gpu_speed_factor
             if min_speed is not None and tok_per_sec < min_speed:
                 continue
 

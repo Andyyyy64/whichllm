@@ -283,10 +283,18 @@ If a dedicated GPU is present, low-aperture shared-memory integrated GPUs are
 not added to the fit pool. This avoids treating unrelated system RAM and
 dedicated VRAM as one full-GPU target.
 
-For speed estimates, whichllm uses the largest detected GPU as the
-representative device and marks multi-GPU speed as low-confidence. This avoids
-claiming ideal scaling when real performance depends on backend split mode,
-PCIe/NVLink bandwidth, NCCL/RCCL support, batch size, and model architecture.
+A model that fits on the largest card alone is treated as a single-GPU run:
+no split budget, no split overhead and no multi-GPU speed discount.
+
+When a model does need the split, the speed estimate follows how llama.cpp
+splits layers: in proportion to each card's free memory, with each token
+reading every card's share in turn. The decode time is the sum of share /
+bandwidth over the cards, plus a 5% allowance for handing activations between
+them. Two identical cards run about as fast as one would if the model fit;
+a slower second card slows the split in proportion to its share. When a card's
+bandwidth is unknown, a flat 0.7x factor applies. Multi-GPU speed stays
+low-confidence, because real performance also depends on the split mode,
+PCIe/NVLink, and the backend.
 
 This is a practical fit approximation. It does not model every tensor-parallel
 or pipeline-parallel runtime configuration.
