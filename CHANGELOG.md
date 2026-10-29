@@ -16,7 +16,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   about a second and is unaffected by rate limits. The build refuses to
   publish when quality gates fail. `--live` keeps the direct fetch, and
   `WHICHLLM_INDEX_URL` points at a mirror or turns the index off.
-- `HF_TOKEN` is sent to the Hugging Face endpoint when set.
+- `HF_TOKEN` is sent to huggingface.co when set. A mirror in `HF_ENDPOINT`
+  (hf-mirror.com and the like) gets it only over https and only with
+  `WHICHLLM_HF_TOKEN_TO_ENDPOINT=1`, so a token is not handed to a third
+  party by default.
 - MoE expert offload. When a mixture-of-experts model does not fit in VRAM
   but its attention, shared weights and KV cache do, whichllm keeps the
   routed experts of the first N layers in system RAM, as llama.cpp's
@@ -44,7 +47,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   alias of `--bandwidth`. It bounds CPU-only runs, experts in RAM and
   offloaded layers; for an iGPU or unified memory it still sets the GPU's
   bandwidth, so `--vram 8 --ram-bandwidth 68` keeps working. Use
-  `--bandwidth` to override a discrete GPU's VRAM bandwidth.
+  `--bandwidth` to override a discrete GPU's VRAM bandwidth. With a
+  discrete GPU present, the hardware panel says so when the flag is used.
 - CPU-only speed and layers offloaded from a discrete GPU are estimated from
   RAM bandwidth instead of a size heuristic and a fixed 0.45x factor. Dense
   models spilling layers on a fast GPU are slower than before (Qwen3.6-27B

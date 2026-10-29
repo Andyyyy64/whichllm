@@ -210,7 +210,7 @@ If multiple GPUs are detected, pass `--gpu-index` to choose the GPU shown by
 `whichllm hardware`:
 
 ```bash
-whichllm --gpu-index 1 --vram 8 --ram-bandwidth 68
+whichllm --gpu-index 1 --vram 8 --bandwidth 68
 ```
 
 By default, whichllm applies a small automatic VRAM headroom before fit checks.

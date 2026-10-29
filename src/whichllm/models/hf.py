@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from urllib.parse import urlsplit
 from dataclasses import dataclass, field
 
 import httpx
@@ -148,28 +149,61 @@ _FRONTIER_MODEL_IDS = (
 )
 
 
-def _hf_api_url(path: str) -> str:
+def _hf_endpoint() -> str:
     raw_endpoint = os.environ.get("HF_ENDPOINT")
     endpoint = _DEFAULT_HF_ENDPOINT if raw_endpoint is None else raw_endpoint.strip()
     if not endpoint:
         raise ValueError("HF_ENDPOINT must not be empty")
     if not endpoint.startswith(("http://", "https://")):
         raise ValueError("HF_ENDPOINT must start with http:// or https://")
-    endpoint = endpoint.rstrip("/")
-    return f"{endpoint}/api/{path.lstrip('/')}"
+    return endpoint.rstrip("/")
+
+
+def _hf_api_url(path: str) -> str:
+    return f"{_hf_endpoint()}/api/{path.lstrip('/')}"
+
+
+# HF_TOKEN goes to Hugging Face itself. A mirror set in HF_ENDPOINT gets it
+# only over https and only when WHICHLLM_HF_TOKEN_TO_ENDPOINT=1 says so.
+_HF_TOKEN_HOSTS = ("huggingface.co", "hf.co")
+_OPT_IN = {"1", "true", "yes", "on"}
+_token_warning_shown = False
+
+
+def _token_allowed(endpoint: str) -> bool:
+    parsed = urlsplit(endpoint)
+    if parsed.scheme != "https":
+        return False
+    host = (parsed.hostname or "").lower()
+    if host in _HF_TOKEN_HOSTS or host.endswith(".huggingface.co"):
+        return True
+    opt_in = os.environ.get("WHICHLLM_HF_TOKEN_TO_ENDPOINT", "").strip().lower()
+    return opt_in in _OPT_IN
 
 
 def _hf_headers() -> dict[str, str]:
     """Request headers for Hugging Face calls.
 
     HF_TOKEN (as used by huggingface_hub) raises rate limits and unlocks
-    configs of gated repositories the token has accepted. It is only sent to
-    the Hugging Face endpoint, which HF_ENDPOINT may point at a mirror.
+    configs of gated repositories the token has accepted. It is sent to
+    huggingface.co over https; a mirror in HF_ENDPOINT gets it only when
+    WHICHLLM_HF_TOKEN_TO_ENDPOINT=1, and never over plain http.
     """
+    global _token_warning_shown
     headers = {"Accept-Encoding": DEFAULT_ACCEPT_ENCODING}
     token = os.environ.get("HF_TOKEN", "").strip()
-    if token:
+    if not token:
+        return headers
+    endpoint = _hf_endpoint()
+    if _token_allowed(endpoint):
         headers["Authorization"] = f"Bearer {token}"
+    elif not _token_warning_shown:
+        _token_warning_shown = True
+        logger.warning(
+            f"HF_TOKEN is not sent to {endpoint}: set "
+            "WHICHLLM_HF_TOKEN_TO_ENDPOINT=1 to send it to this mirror "
+            "(https only)"
+        )
     return headers
 
 
