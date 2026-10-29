@@ -14,7 +14,13 @@ whichllm run [MODEL_NAME]
 ```
 
 If `MODEL_NAME` is provided, whichllm searches the fetched model list for an
-exact ID, suffix match, or term match.
+exact ID, suffix match, or term match. When several repos match, it takes the
+one whose size label is closest to a size in the query (`8b`), then the
+closest name, then the original over a quantized upload, then the most
+downloaded. Speculative-decoding draft heads and pretrain-only checkpoints
+are picked only when the query names them or nothing else matches. Add a
+format word (`gguf`, `awq`) to get an upload, or pass the repo ID to pick one
+exactly.
 
 If `MODEL_NAME` is omitted, whichllm ranks models for the current hardware and
 uses the top result.

@@ -1010,6 +1010,7 @@ def _make_model(
     downloads=100,
     gguf_variants=None,
     parameter_count=7_000_000_000,
+    **kwargs,
 ):
     return ModelInfo(
         id=model_id,
@@ -1019,6 +1020,7 @@ def _make_model(
         downloads=downloads,
         likes=10,
         gguf_variants=gguf_variants or [],
+        **kwargs,
     )
 
 
@@ -1209,6 +1211,139 @@ def test_search_model_7b_prefers_id_label_over_param_count():
     ]
     result = _search_model(models, "qwen 7b")
     assert result.id == "org/Qwen3-8B-GGUF"
+
+
+def test_search_model_skips_draft_head_sized_from_its_name():
+    """A draft head whose size was parsed from its name must not beat the model."""
+    models = [
+        _make_model(
+            "AtomicChat/Qwen3-8B-DFlash-GGUF",
+            downloads=0,
+            parameter_count=8_000_000_000,
+        ),
+        _make_model(
+            "Qwen/Qwen3-8B", downloads=8_000_000, parameter_count=8_190_000_000
+        ),
+    ]
+    assert _search_model(models, "qwen3 8b").id == "Qwen/Qwen3-8B"
+    assert (
+        _search_model(models, "qwen3 8b gguf").id == "AtomicChat/Qwen3-8B-DFlash-GGUF"
+    )
+    assert (
+        _search_model(models, "qwen3 8b dflash").id == "AtomicChat/Qwen3-8B-DFlash-GGUF"
+    )
+
+
+def test_search_model_same_size_label_ranks_by_downloads_not_param_count():
+    """The parameter count is often parsed from the label, so it cannot break a tie."""
+    models = [
+        _make_model(
+            "someone/Qwen3-8B-GGUF", downloads=0, parameter_count=8_000_000_000
+        ),
+        _make_model(
+            "Qwen/Qwen3-8B-GGUF", downloads=670_000, parameter_count=8_190_000_000
+        ),
+    ]
+    assert _search_model(models, "qwen3 8b").id == "Qwen/Qwen3-8B-GGUF"
+
+
+def test_search_model_prefers_original_over_quantized_upload():
+    models = [
+        _make_model(
+            "unsloth/Llama-3.3-70B-Instruct",
+            downloads=650_000,
+            parameter_count=70_000_000_000,
+            base_model_relation="quantized",
+        ),
+        _make_model(
+            "meta-llama/Llama-3.3-70B-Instruct",
+            downloads=390_000,
+            parameter_count=70_000_000_000,
+            base_model_relation="finetune",
+        ),
+        _make_model(
+            "unsloth/Llama-3.3-70B-Instruct-GGUF",
+            downloads=300_000,
+            parameter_count=70_000_000_000,
+            base_model_relation="quantized",
+        ),
+        # No base_model tag, so it would pass for an original.
+        _make_model(
+            "someone/Llama-3.3-70B-Instruct-GGUF",
+            downloads=50_000,
+            parameter_count=70_000_000_000,
+        ),
+    ]
+    assert (
+        _search_model(models, "llama 3 70b").id == "meta-llama/Llama-3.3-70B-Instruct"
+    )
+    # A format word asks for an upload, so downloads decide among them.
+    assert (
+        _search_model(models, "llama 70b gguf").id
+        == "unsloth/Llama-3.3-70B-Instruct-GGUF"
+    )
+
+
+def test_search_model_prefers_closest_name():
+    """Tokens the query does not mention (VL, MedGemma, FP8) count against a repo."""
+    models = [
+        _make_model(
+            "Qwen/Qwen3-VL-8B-Instruct-GGUF",
+            downloads=1_200_000,
+            parameter_count=8_000_000_000,
+        ),
+        _make_model(
+            "Qwen/Qwen3-8B-GGUF", downloads=670_000, parameter_count=8_000_000_000
+        ),
+        _make_model(
+            "google/medgemma-4b-it", downloads=900_000, parameter_count=4_000_000_000
+        ),
+        _make_model(
+            "google/gemma-4-31B-it", downloads=500_000, parameter_count=31_000_000_000
+        ),
+        _make_model(
+            "Qwen/Qwen3-Coder-30B-A3B-Instruct-FP8",
+            downloads=1_100_000,
+            parameter_count=30_000_000_000,
+        ),
+        _make_model(
+            "Qwen/Qwen3-Coder-30B-A3B-Instruct",
+            downloads=870_000,
+            parameter_count=30_000_000_000,
+        ),
+    ]
+    assert _search_model(models, "qwen3 8b gguf").id == "Qwen/Qwen3-8B-GGUF"
+    assert _search_model(models, "gemma 4").id == "google/gemma-4-31B-it"
+    assert (
+        _search_model(models, "qwen3 coder").id == "Qwen/Qwen3-Coder-30B-A3B-Instruct"
+    )
+
+
+def test_search_model_ignores_versions_and_org_prefix_in_names():
+    models = [
+        _make_model(
+            "someone/Mistral-Small-24B-Instruct-Jbliterated", downloads=900_000
+        ),
+        _make_model("mistralai/Mistral-Small-3.1-24B-Instruct-2503", downloads=800_000),
+        _make_model("nvidia/NVIDIA-Nemotron-3-Nano-4B-BF16", downloads=1_700_000),
+        _make_model("unsloth/Nemotron-3-Nano-30B-A3B-GGUF", downloads=400_000),
+    ]
+    assert (
+        _search_model(models, "mistral small").id
+        == "mistralai/Mistral-Small-3.1-24B-Instruct-2503"
+    )
+    assert (
+        _search_model(models, "nemotron nano").id
+        == "nvidia/NVIDIA-Nemotron-3-Nano-4B-BF16"
+    )
+
+
+def test_search_model_skips_base_checkpoint():
+    models = [
+        _make_model("Qwen/Qwen2.5-7B", downloads=900_000),
+        _make_model("Qwen/Qwen2.5-7B-Instruct", downloads=800_000),
+    ]
+    assert _search_model(models, "qwen2.5 7b").id == "Qwen/Qwen2.5-7B-Instruct"
 
 
 def test_pick_gguf_variant_by_preference():

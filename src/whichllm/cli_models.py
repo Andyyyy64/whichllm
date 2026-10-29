@@ -18,6 +18,22 @@ _ID_SIZE_RE = re.compile(r"(?:^|[-_/])(\d+(?:\.\d+)?)(b|m)(?:[-_.]|$)", re.IGNOR
 
 _HF_REPO_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$")
 
+# Speculative-decoding draft heads only run next to their target model. Their
+# size comes from the name, so they would otherwise tie with the real model.
+_DRAFT_NAME_RE = re.compile(r"(?i)dflash|(?:^|[-_.])draft(?:[-_.]|$)")
+
+# A format word in the query asks for a converted upload on purpose.
+_FORMAT_TERM_RE = re.compile(
+    r"(?i)^(gguf|awq|gptq|fp8|fp16|bf16|nvfp4|mlx|exl2|int4|int8|\d+bit)$"
+)
+
+# Name tokens that do not make a repo a different model from the one asked
+# for: chat suffixes, native precisions, size labels (31B, A3B, E4B) and
+# versions or dates (3.1, v1.1, 2503). A conversion such as -GGUF or -FP8
+# does count, unless the query names it.
+_NEUTRAL_NAME_TOKENS = frozenset({"instruct", "it", "chat", "bf16", "fp16"})
+_NEUTRAL_NAME_TOKEN_RE = re.compile(r"(?i)^(?:[ae]?\d+(?:\.\d+)?[bm]|v?\d+(?:\.\d+)*)$")
+
 # Hugging Face uses these responses for missing and private repositories.
 _HF_MISSING_REPO_MESSAGES = (
     "invalid username or password",
@@ -114,6 +130,24 @@ def _size_compatible(model: ModelInfo, size_b: float) -> bool:
     return 0.7 <= ratio <= 1.5
 
 
+def _extra_name_tokens(model_id: str, terms: list[str]) -> int:
+    """Count name tokens that no query term starts, such as VL or MedGemma.
+
+    A token that repeats the organisation (the NVIDIA in
+    nvidia/NVIDIA-Nemotron) does not count.
+    """
+    org, _, name = model_id.lower().rpartition("/")
+    return sum(
+        1
+        for token in re.split(r"[-_]", name)
+        if token
+        and token not in _NEUTRAL_NAME_TOKENS
+        and not _NEUTRAL_NAME_TOKEN_RE.match(token)
+        and not (token == org or org.startswith(token + "-"))
+        and not any(token.startswith(t) for t in terms)
+    )
+
+
 def _search_model(models: list, model_name: str):
     """Search for a model by name/ID. Returns single model or exits."""
     query_lower = model_name.lower()
@@ -147,27 +181,38 @@ def _search_model(models: list, model_name: str):
                 console.print(f"  • {m.id} ({p})")
         raise typer.Exit(code=1)
 
-    if size_b is not None:
+    from whichllm.models.roles import find_base_checkpoints
 
-        def _sort_key(m: ModelInfo) -> tuple:
-            id_size = _extract_id_size_b(m.id)
-            has_id_size = id_size is not None
-            id_dist = abs(id_size - size_b) if has_id_size else float("inf")
-            pc_dist = (
-                abs(m.parameter_count / 1e9 - size_b)
-                if m.parameter_count > 0
-                else float("inf")
-            )
-            return (
-                0 if (has_id_size or m.parameter_count > 0) else 1,
-                id_dist,
-                pc_dist,
-                -m.downloads,
-            )
+    # Draft heads and pretrain-only checkpoints are not chat models; they win
+    # only when nothing else matches.
+    base_ids = find_base_checkpoints(models) if len(matches) > 1 else set()
+    prefer_original = not any(_FORMAT_TERM_RE.match(t) for t in terms)
 
-        matches.sort(key=_sort_key)
-    else:
-        matches.sort(key=lambda m: m.downloads, reverse=True)
+    def _sort_key(m: ModelInfo) -> tuple:
+        not_chat = bool(_DRAFT_NAME_RE.search(m.id.rsplit("/", 1)[-1])) or (
+            m.id in base_ids
+        )
+        # Closest name first, then the original over a quantized upload,
+        # then downloads.
+        relevance = (
+            _extra_name_tokens(m.id, terms),
+            prefer_original and m.base_model_relation == "quantized",
+            -m.downloads,
+        )
+        if size_b is None:
+            return (not_chat, *relevance)
+        # A size label in the id beats the parameter count, which is often
+        # parsed from that same label.
+        id_size = _extract_id_size_b(m.id)
+        if id_size is not None:
+            size_rank = (0, abs(id_size - size_b), 0.0)
+        elif m.parameter_count > 0:
+            size_rank = (0, float("inf"), abs(m.parameter_count / 1e9 - size_b))
+        else:
+            size_rank = (1, float("inf"), float("inf"))
+        return (not_chat, *size_rank, *relevance)
+
+    matches.sort(key=_sort_key)
     model = matches[0]
     if len(matches) > 1:
         console.print(f"[dim]Found {len(matches)} matches, using: {model.id}[/]")
