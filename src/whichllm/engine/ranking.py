@@ -10,6 +10,7 @@ from whichllm.engine.ranking_filters import (
     _is_gguf_only_backend,
     _knowledge_capacity_b,
     _matches_profile,
+    _newer_generation,
     _passes_evidence_filter,
 )
 from whichllm.engine.ranking_score import _compute_quality_score, _family_selection_key
@@ -31,6 +32,27 @@ _MULTI_GPU_SPEED_FACTOR = 0.70
 # no coding benchmark results of its own.
 _CODING_SPECIALIST_BONUS = 2.0
 _TASK_EVIDENCE_SOURCES = frozenset({"direct", "variant", "base_model"})
+
+
+def _hide_older_generations(
+    results: list[CompatibilityResult],
+) -> list[CompatibilityResult]:
+    """Drop a model when a newer generation of its line ranks above it.
+
+    Qwen3.8-27B, Qwen3.6-27B and Qwen3.5-27B filling the top three says less
+    than three different models would. The newer row lists what it replaced,
+    and an older generation that outranks the newer one stays.
+    """
+    kept: list[CompatibilityResult] = []
+    for result in results:
+        newer = next(
+            (k for k in kept if _newer_generation(k.model, result.model)), None
+        )
+        if newer is None:
+            kept.append(result)
+        else:
+            newer.older_generations.append(result.model.id)
+    return kept
 
 
 def _score_indices(scores: dict[str, float] | None) -> tuple:
@@ -334,6 +356,8 @@ def rank_models(
     # and we still want to show what's available.
     if any(r.estimated_tok_per_sec >= 5.0 for r in results):
         results = [r for r in results if r.estimated_tok_per_sec >= 1.5]
+
+    results = _hide_older_generations(results)
 
     # Clamp top_n: a negative value would slice from the end
     # (``results[:-5]``) and silently return a truncated, unrequested subset,

@@ -82,6 +82,14 @@ def _partial_offload_quality_factor(
     return factor
 
 
+# Generation fast enough not to wait on in a chat or a coding loop. Every
+# placement is held to it. Below it the model's quality is scaled down by
+# (speed / bar) ** _SLOW_QUALITY_EXPONENT, so a large benchmark lead cannot
+# carry a model that answers at 3 tok/s past one that answers at 25.
+USABLE_SPEED_TOK_S = 8.0
+_SLOW_QUALITY_EXPONENT = 0.5
+
+
 def _compute_quality_score(
     model: ModelInfo,
     variant: GGUFVariant | None,
@@ -144,18 +152,14 @@ def _compute_quality_score(
     elif fit_type == "cpu_only":
         quality_core *= 0.50
 
-    # Speed acts as a usability gate rather than a ranking primary. Expert
-    # offload is held to the full-GPU bar: it is only worth recommending
-    # when it is interactive. Offloaded layers and CPU-only runs must reach
-    # 4 tok/s, so a dense 27B read from desktop RAM (~1.5 tok/s) does not
-    # score as usable.
-    if fit_type == "full_gpu" or placement == "expert_offload":
-        required_speed = 8.0
-    else:
-        required_speed = 4.0
+    # Speed acts as a usability gate rather than a ranking primary: above the
+    # bar it adds a small bonus, below it it scales the quality down.
+    required_speed = USABLE_SPEED_TOK_S
     if tok_per_sec > 0:
         if tok_per_sec < required_speed:
-            speed_score = -8.0 * (1 - (tok_per_sec / required_speed))
+            ratio = tok_per_sec / required_speed
+            quality_core *= ratio**_SLOW_QUALITY_EXPONENT
+            speed_score = -8.0 * (1 - ratio)
         else:
             speed_score = min(8.0, math.log2(tok_per_sec / required_speed + 1.0) * 3.2)
     else:
@@ -243,6 +247,7 @@ def _compute_quality_score(
 
 
 __all__ = [
+    "USABLE_SPEED_TOK_S",
     "_SOURCE_WEIGHTS",
     "_compute_quality_score",
     "_family_selection_key",

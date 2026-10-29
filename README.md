@@ -46,12 +46,15 @@ A desktop with an 8 GB RTX 4060 and 32 GB of DDR4 (output trimmed):
 ```text
 $ whichllm
 
- #  Model                       Quant   Fit       Speed     Score
- 1  Qwen/Qwen3.6-35B-A3B        Q5_K_M  GPU+RAM   20 tok/s   68.9
- 2  Qwen/Qwen3.5-35B-A3B        Q5_K_M  GPU+RAM   20 tok/s   68.3
- 3  google/gemma-4-26B-A4B-it   Q5_K_M  GPU+RAM   10 tok/s   65.3
- 4  zai-org/GLM-4.7-Flash       Q5_K_M  GPU+RAM   15 tok/s   62.2
- 5  Qwen/Qwen3.5-9B             Q4_K_M  Full GPU  28 tok/s   62.1
+ #  Model                         Quant   Fit       Speed     Score
+ 1  Qwen/Qwen3.6-35B-A3B          Q5_K_M  GPU+RAM   20 tok/s   68.9
+ 2  google/gemma-4-26B-A4B-it     Q5_K_M  GPU+RAM   10 tok/s   65.3
+ 3  unsloth/gemma-4-12b-it-GGUF   Q3_K_M  Full GPU  26 tok/s   65.1
+ 4  zai-org/GLM-4.7-Flash         Q5_K_M  GPU+RAM   15 tok/s   62.2
+ 5  Qwen/Qwen3.5-9B               Q4_K_M  Full GPU  28 tok/s   62.1
+
+  #1 Qwen3.6-35B-A3B also stands in for older generations of its line:
+  Qwen3.5-35B-A3B, Qwen3-30B-A3B, Qwen_Qwen3-30B-A3B-Instruct-2507-GGUF and 2 more
 
   Run #1 with llama.cpp:
     llama-server -hf unsloth/Qwen3.6-35B-A3B-GGUF:Q5_K_M -c 4096 -ngl 99 --n-cpu-moe 33 -fa on
@@ -66,8 +69,9 @@ A fits-in-VRAM check would have skipped the model, and treating it as a
 plain partial offload would have rated it far too slow.
 
 On a 24 GB RTX 4090 the same logic picks Qwen3.8-27B, although Qwen3-32B
-also fits there at Q4_K_M. The 27B scores higher on current benchmarks, so
-the 32B ends up at #19.
+also fits there at Q4_K_M. The 27B is the newer generation of the same model
+line at about the same size and scores higher on current benchmarks, so the
+32B is not listed separately; the note under the table names it.
 
 Speeds are estimates from memory bandwidth, not measurements of your
 machine. The table marks how confident each estimate is.
@@ -91,8 +95,9 @@ to RAM; any other model spills whole layers.
 
 Speed is bound by memory bandwidth: the GPU reads its share of the weights
 at VRAM speed and the CPU reads the rest at RAM speed. The CPU side is
-calibrated against llama.cpp runs. A model that fits but would generate
-1 tok/s is ranked down.
+calibrated against llama.cpp runs. Every placement is held to 8 tok/s:
+below that, a model's quality is scaled down, so a stronger model that would
+answer at 3 tok/s does not outrank one that answers at 25.
 
 The details are in [Scoring](docs/scoring.md) and
 [How it works](docs/how-it-works.md).
@@ -107,7 +112,8 @@ A wrong recommendation is a bug, so the rankings have regression tests:
   of 1,129 models.
 - 9 constraints describe what a good answer looks like instead of pinning an
   exact order: no pretrain-only checkpoints, no outdated generation in the
-  top 3, a #1 that needs RAM offload must still reach 4 tok/s, the newest
+  top 3, the top 3 run at 8 tok/s or more whenever the machine has that many
+  options that fast, the newest
   dense 27B makes the top 3 on 24 GB+, a big MoE with experts in RAM makes the
   top 5 on a 16 GB card with 64 GB of RAM, and coding picks are not limited
   to models named "coder".

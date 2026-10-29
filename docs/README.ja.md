@@ -39,12 +39,15 @@ pip install whichllm
 ```text
 $ whichllm
 
- #  Model                       Quant   Fit       Speed     Score
- 1  Qwen/Qwen3.6-35B-A3B        Q5_K_M  GPU+RAM   20 tok/s   68.9
- 2  Qwen/Qwen3.5-35B-A3B        Q5_K_M  GPU+RAM   20 tok/s   68.3
- 3  google/gemma-4-26B-A4B-it   Q5_K_M  GPU+RAM   10 tok/s   65.3
- 4  zai-org/GLM-4.7-Flash       Q5_K_M  GPU+RAM   15 tok/s   62.2
- 5  Qwen/Qwen3.5-9B             Q4_K_M  Full GPU  28 tok/s   62.1
+ #  Model                         Quant   Fit       Speed     Score
+ 1  Qwen/Qwen3.6-35B-A3B          Q5_K_M  GPU+RAM   20 tok/s   68.9
+ 2  google/gemma-4-26B-A4B-it     Q5_K_M  GPU+RAM   10 tok/s   65.3
+ 3  unsloth/gemma-4-12b-it-GGUF   Q3_K_M  Full GPU  26 tok/s   65.1
+ 4  zai-org/GLM-4.7-Flash         Q5_K_M  GPU+RAM   15 tok/s   62.2
+ 5  Qwen/Qwen3.5-9B               Q4_K_M  Full GPU  28 tok/s   62.1
+
+  #1 Qwen3.6-35B-A3B also stands in for older generations of its line:
+  Qwen3.5-35B-A3B, Qwen3-30B-A3B, Qwen_Qwen3-30B-A3B-Instruct-2507-GGUF and 2 more
 
   Run #1 with llama.cpp:
     llama-server -hf unsloth/Qwen3.6-35B-A3B-GGUF:Q5_K_M -c 4096 -ngl 99 --n-cpu-moe 33 -fa on
@@ -52,7 +55,7 @@ $ whichllm
 
 8GB のカードで1位になったのは 35B のモデルです。これは mixture-of-experts（MoE）モデルで、1トークンの生成に使うパラメータは約 3B しかありません。whichllm は attention、共有の重み、KV キャッシュを VRAM に置き、40層のうち33層のエキスパートをシステム RAM に残します。llama.cpp の `--n-cpu-moe` と同じ配置です。速度は、1トークンごとに VRAM と RAM からそれぞれ読む量をもとに見積もります。VRAM に収まるかどうかだけで判定すればこのモデルは候補から外れ、普通の部分オフロードとして見積もれば遅すぎると判定されていたはずです。
 
-24GB の RTX 4090 では、同じ計算で Qwen3.8-27B が1位になります。Qwen3-32B も Q4_K_M なら収まりますが、現行のベンチマークでは 27B のほうがスコアが高く、32B は19位に下がります。
+24GB の RTX 4090 では、同じ計算で Qwen3.8-27B が1位になります。Qwen3-32B も Q4_K_M なら収まりますが、27B は同じ系列のほぼ同じサイズの新しい世代で、現行のベンチマークでもスコアが高いので、32B は別の行としては出さず、表の下の注記に名前を出します。
 
 表示される速度はメモリ帯域からの推定で、あなたのマシンで測った値ではありません。推定がどのくらい確かかは表に表示されます。
 
@@ -62,7 +65,7 @@ $ whichllm
 
 収まるかどうかは、重み、KV キャッシュ、実行時のバッファの合計で判定します。KV キャッシュはモデルの `config.json` から層ごとに計算し、grouped-query attention、latent attention、スライディングウィンドウ、再帰層を区別します。VRAM に収まらない場合、MoE モデルはまずエキスパートを RAM に移し、それ以外のモデルは層単位で RAM に出します。
 
-速度を決めるのはメモリ帯域です。GPU は担当分の重みを VRAM の速度で読み、残りは CPU が RAM の速度で読みます。CPU 側の値は llama.cpp での実測に合わせてあります。収まっても 1 tok/s しか出ないようなモデルは順位を下げます。
+速度を決めるのはメモリ帯域です。GPU は担当分の重みを VRAM の速度で読み、残りは CPU が RAM の速度で読みます。CPU 側の値は llama.cpp での実測に合わせてあります。どの置き方でも 8 tok/s を基準にし、それより遅いモデルは品質のスコアを割り引きます。そのため、3 tok/s でしか答えられない賢いモデルが、25 tok/s で答えるモデルより上に来ることはありません。
 
 詳しくは [スコアリング](scoring.md) と [仕組み](how-it-works.md) を参照してください。
 
@@ -71,7 +74,7 @@ $ whichllm
 推薦の間違いはバグとして扱うので、ランキングには回帰テストがあります（[`tests/golden/`](../tests/golden/)）。
 
 - 6GB の RTX 2060 から 128GB の M4 Max まで、CPU だけのマシンや 32K/128K コンテキストの構成も含めた17のハードウェア構成を、1,129モデルの凍結カタログでランキングします。
-- 順位そのものは固定せず、良い推薦が満たすべき条件を9個の制約として書いています。たとえば、事前学習だけのチェックポイントを出さない、古い世代を上位3位に入れない、RAM へのオフロードが必要な1位でも 4 tok/s は出る、24GB 以上では最新の dense 27B が上位3位に入る、16GB のカードと 64GB の RAM ならエキスパートを RAM に置いた大きな MoE が上位5位に入る、コーディング向けの推薦が名前に「coder」を含むモデルに偏らない、などです。
+- 順位そのものは固定せず、良い推薦が満たすべき条件を9個の制約として書いています。たとえば、事前学習だけのチェックポイントを出さない、古い世代を上位3位に入れない、上位3件は（そこまで速い候補がある限り）8 tok/s 以上で動く、24GB 以上では最新の dense 27B が上位3位に入る、16GB のカードと 64GB の RAM ならエキスパートを RAM に置いた大きな MoE が上位5位に入る、コーディング向けの推薦が名前に「coder」を含むモデルに偏らない、などです。
 - 全構成の上位候補を [`top_picks.md`](../tests/golden/top_picks.md) としてコミットしているので、ランキングが変わればレビューで diff として見えます。
 - 失敗すると分かっている制約は、理由を添えて strict な expected failure として記録します。バグを直すとテストが失敗に変わるので、そこで記録を消します。
 

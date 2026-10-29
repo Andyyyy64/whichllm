@@ -211,13 +211,15 @@ pairs = [
 ]
 
 [[constraint]]
-id = "top1-offload-usable"
-kind = "top1_offload_speed"
-min_tok_per_sec = 4.0
-gpu = true
-profiles = ["general", "coding"]
-rationale = """A #1 pick that needs CPU offload must still be usable: at
-least 4 tok/s by whichllm's own estimate (#76, #104)."""
+id = "top3-usable-speed"
+kind = "top_speed"
+top = 3
+min_tok_per_sec = 8.0
+profiles = ["general", "coding", "vision"]
+rationale = """The top 3 must be usable, whatever the placement: at least
+8 tok/s by whichllm's own estimate, as far as the machine has that many
+candidates that fast. A slow model with a benchmark lead is not a better
+recommendation (#76, #104; andy's decision of 2026-10-29)."""
 
 [[constraint]]
 id = "coding-modern-top5"

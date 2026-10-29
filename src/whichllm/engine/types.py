@@ -29,6 +29,9 @@ class CompatibilityResult:
     benchmark_confidence: float = 0.0  # 0.0-1.0 from BenchmarkEvidence
     # Which scores the quality used: "general", or the profile ("coding", ...)
     benchmark_basis: str = "general"
+    # Older generations of this model line that ranked below it and were
+    # left out of the list.
+    older_generations: list[str] = field(default_factory=list)
     context_fits: bool = True  # False when known model max context < requested
     uses_multi_gpu: bool = False
     multi_gpu_effective_vram_bytes: int | None = None

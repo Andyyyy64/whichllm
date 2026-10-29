@@ -117,24 +117,26 @@ when mixed with GPU-backed candidates.
 
 Speed is treated as a usability gate. It is not the main quality signal.
 
-Required speed depends on fit:
+Every placement (full GPU, experts in RAM, layers in RAM, CPU-only) is held
+to the same bar, `8 tok/s`: fast enough not to wait on in a chat or a coding
+loop.
 
-| Fit | Required speed |
-| --- | ---: |
-| Full GPU | `8 tok/s` |
-| MoE experts in RAM | `8 tok/s` |
-| Layers in RAM | `4 tok/s` |
-| CPU-only | `4 tok/s` |
-
-Expert offload is held to the full-GPU bar because it is only worth
-recommending when it is interactive.
-
-Candidates below the required speed receive up to `-8` points. Candidates above
-it receive up to `+8` points.
+Below the bar, the quality score is multiplied by `(speed / 8) ** 0.5` and
+loses up to another `8` points, so a 4 tok/s model keeps about 70% of its
+quality and a 2 tok/s model about half. A benchmark lead cannot carry a model
+that answers at 3 tok/s past one that answers at 25. Candidates above the bar
+receive up to `+8` points.
 
 After ranking, if any candidate is at least `5 tok/s`, whichllm drops candidates
 below `1.5 tok/s`. This avoids recommending models that technically fit but are
 not practical to use.
+
+When a newer generation of a model line ranks above an older one of about
+the same size (total parameters within 25%, dense or MoE alike, and the same
+specialization), the older one is left out of the list and named under the
+table instead (`older_generations` in JSON). Qwen3.8-27B, Qwen3.6-27B and
+Qwen3.5-27B filling the top three said less than three different models
+would. An older generation that ranks above the newer one stays.
 
 The reported speed is a point estimate, not a live benchmark. On a discrete
 GPU with a partial fit it adds the GPU's reads at VRAM bandwidth to the CPU's

@@ -532,10 +532,10 @@ def test_full_gpu_estimated_ranks_above_partial_direct():
     assert results[0].model.id == "Qwen/Qwen3-8B-AWQ"
 
 
-def test_dense_partial_offload_beats_old_full_gpu_but_not_a_fast_modern_one():
-    # #104: on an RTX 3060 a strong 27B that spills to RAM must still beat
-    # an old full-GPU model. Its speed now follows RAM bandwidth (~2 tok/s
-    # here), so a modern 8B at 35 tok/s ranks above it.
+def test_dense_model_spilling_to_ram_ranks_below_usable_models():
+    # #104: on an RTX 3060 a strong 27B that spills to RAM runs at ~2 tok/s,
+    # which follows RAM bandwidth. Every placement is held to 8 tok/s, so the
+    # usable full-GPU models rank above it, but it is still listed.
     strong_partial = ModelInfo(
         id="Qwen/Qwen3.6-27B",
         family_id="qwen3.6-27b",
@@ -628,8 +628,7 @@ def test_dense_partial_offload_beats_old_full_gpu_but_not_a_fast_modern_one():
     )
 
     ids = [r.model.id for r in results]
-    assert ids.index("Qwen/Qwen3.6-27B") < ids.index("google/gemma-2-9b-it")
-    assert ids.index("Qwen/Qwen3-8B") < ids.index("Qwen/Qwen3.6-27B")
+    assert ids[-1] == "Qwen/Qwen3.6-27B"
     strong = next(r for r in results if r.model.id == "Qwen/Qwen3.6-27B")
     assert strong.fit_type == "partial_offload"
     assert strong.placement is not None
