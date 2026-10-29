@@ -117,6 +117,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   build that llama.cpp would not keep on the GPU; it is now gpt-oss-20b. A
   model past the working set can spill layers to the CPU within unified
   memory, and a raised `iogpu.wired_limit_mb` is detected.
+- RAM bandwidth is detected on Linux from systemd's udev DMI properties,
+  which need no root, and on WSL by asking Windows through
+  `powershell.exe`; both fell back to a CPU-name estimate. Windows and WSL
+  cache the module list for a week instead of starting PowerShell on every
+  run.
+- AMD shared-memory APUs on Linux (Strix Halo and others) get their BIOS
+  carve-out plus the GTT the driver lets the GPU map, instead of all of
+  system RAM.
+- `--gpu "RTX 3060"` means the 12 GB card (360 GB/s), and `--vram` picks the
+  memory variant it names. The 8 GB card's 240 GB/s was used for both, so
+  the RTX 3060 archetype was a third slower than the real card.
 - `run` without a model name ranks with the index's benchmark scores, as
   `snippet` does. It read only the `--live` benchmark cache, which the index
   path never writes, so its pick was ranked without any benchmarks.
