@@ -273,12 +273,19 @@ whichllm snippet "llama 3 8b gguf" --quant Q5_K_M
 
 ## Profiles
 
-The ranker detects specialization from repository names.
+The ranker detects specialization from repository names, and image support
+from the Hub's `image-text-to-text` tag. All profiles rank by the same
+benchmark quality; a profile decides which models are eligible.
 
 | Profile | Behavior |
 | --- | --- |
 | `general` | Excludes coding, vision, and math-specialized names |
-| `coding` | Keeps coding-specialized names |
-| `vision` | Keeps vision or multimodal names and includes VLM candidates |
-| `math` | Keeps math-specialized names plus general reasoning models (excludes coding and vision names) |
+| `coding` | General models plus coding-specialized names (excludes vision and math names). A code-tuned model gets a 2-point edge over an otherwise equal general one |
+| `vision` | Models that accept images: vision or multimodal names, and natively multimodal models tagged `image-text-to-text` (Gemma 3/4, Qwen3.5/3.6) |
+| `math` | General reasoning models plus math-specialized names (excludes coding and vision names) |
 | `any` | Keeps all recognized model types and includes VLM candidates |
+
+Pretrain-only (base) checkpoints are never recommended in any profile: names
+ending in `-Base` or `-pt`, checkpoints whose publisher ships an instruct
+version derived from them (`Qwen2.5-7B` for `Qwen2.5-7B-Instruct`), and
+quantized uploads of those.

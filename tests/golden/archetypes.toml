@@ -176,7 +176,6 @@ patterns = [
     'Qwen2\.5-Coder-\d+(\.\d+)?B(-GGUF)?$',
     '^google/gemma-2b$',
 ]
-xfail = { "*/coding" = "6-4 roles: the base Qwen2.5-Coder-7B and its GGUF reach the coding top 10" }
 
 [[constraint]]
 id = "qwen25-not-top1"
@@ -201,7 +200,6 @@ pairs = [
     { old = '(?i)gemma-2-', new = '^google/gemma-[34]-' },
     { old = '(?i)phi-3', new = '(?i)^microsoft/phi-4' },
 ]
-xfail = { "*/coding" = "6-4: Qwen2.5-Coder keeps carryover LiveBench / peer AA scores that escape recency demotion, so it outranks runnable Qwen3-Coder" }
 
 [[constraint]]
 id = "top1-offload-usable"
@@ -237,7 +235,6 @@ rationale = """Strong general models that code well (gpt-oss, Devstral,
 Qwen3.6/3.8-27B) belong in the coding top 10. Today --profile coding only
 admits repos whose names contain "coder" and similar words (#76)."""
 patterns = ['(?i)gpt-oss', '(?i)devstral', '^Qwen/Qwen3\.[68]-27B$']
-xfail = { "*" = "6-4: --profile coding only admits ids matching coder/codegen/starcoder/program/coding" }
 
 [[constraint]]
 id = "qwen38-top3-24gb"

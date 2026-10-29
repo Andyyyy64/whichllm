@@ -20,6 +20,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Changed
 
+- `--profile coding` is no longer limited to repositories with "coder" in
+  their names: strong general models such as gpt-oss, Devstral and
+  Qwen3.6-27B are eligible, and a code-tuned model gets a 2-point edge over
+  an otherwise equal general one. `--profile vision` includes natively
+  multimodal models (Gemma 3/4, Qwen3.5/3.6) through the Hub's
+  `image-text-to-text` tag, not only names with "VL".
+- Pretrain-only checkpoints are never recommended: `-Base`/`-pt` names,
+  checkpoints whose publisher ships an instruct version derived from them
+  (`Qwen2.5-7B`, `Qwen2.5-Coder-7B`, `Llama-3.1-8B`) and their quantized
+  uploads. The coding top 10 used to include the base `Qwen2.5-Coder-7B`.
+
 - The KV cache is computed per layer from each model's `config.json` instead
   of from its parameter count. whichllm reads the config for the families
   near the top of a ranking (and for the model `plan` shows), caches it for a

@@ -5,6 +5,7 @@ from __future__ import annotations
 from whichllm.engine.compatibility import check_compatibility
 from whichllm.engine.performance import estimate_speed_uncertainty, estimate_tok_per_sec
 from whichllm.engine.ranking_filters import (
+    _detect_specializations,
     _is_excluded_model,
     _is_gguf_only_backend,
     _knowledge_capacity_b,
@@ -22,9 +23,12 @@ from whichllm.models.benchmark import (
     build_score_name_index,
     lookup_benchmark_evidence,
 )
+from whichllm.models.roles import find_base_checkpoints
 from whichllm.models.types import ModelInfo
 
 _MULTI_GPU_SPEED_FACTOR = 0.70
+# Quality points a code-tuned model gains under --profile coding.
+_CODING_SPECIALIST_BONUS = 2.0
 
 
 def rank_models(
@@ -68,6 +72,9 @@ def rank_models(
 
     # Sort models by downloads (popular first) to process best candidates first
     sorted_models = sorted(models, key=lambda m: m.downloads, reverse=True)
+    # Pretrain-only checkpoints are not chat models; never recommend them.
+    base_checkpoints = find_base_checkpoints(models)
+    coding_profile = task_profile.lower() == "coding"
 
     # Build benchmark indices once (case-insensitive, model line, repo name)
     if benchmark_scores:
@@ -85,7 +92,7 @@ def rank_models(
             best_gpu = gpu
 
     for model in sorted_models:
-        if _is_excluded_model(model.id):
+        if _is_excluded_model(model.id) or model.id in base_checkpoints:
             continue
         if not _matches_profile(model, task_profile):
             continue
@@ -202,6 +209,13 @@ def rank_models(
                 benchmark_avg=bench_avg,
                 benchmark_source=bench_evidence.source,
             )
+            if coding_profile and "coding" in _detect_specializations(model.id):
+                # Between otherwise equal candidates, prefer the code-tuned
+                # variant (Qwen3-Coder-30B-A3B over Qwen3-30B-A3B). Small
+                # enough that an older coder cannot pass a stronger new model.
+                compat.quality_score = min(
+                    100.0, compat.quality_score + _CODING_SPECIALIST_BONUS
+                )
             # Map evidence source to a 4-value display status. "self_reported"
             # is shown distinctly so users can spot uploader-claimed numbers.
             if bench_evidence.score is None:
