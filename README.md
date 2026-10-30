@@ -107,16 +107,19 @@ The details are in [Scoring](docs/scoring.md) and
 A wrong recommendation is a bug, so the rankings have regression tests:
 [`tests/golden/`](tests/golden/).
 
-- 17 hardware archetypes, from a 6 GB RTX 2060 to a 128 GB M4 Max, plus
-  CPU-only boxes and 32K/128K-context setups, ranked against a frozen catalog
-  of 1,129 models.
-- 9 constraints describe what a good answer looks like instead of pinning an
-  exact order: no pretrain-only checkpoints, no outdated generation in the
-  top 3, the top 3 run at 8 tok/s or more whenever the machine has that many
-  options that fast, the newest
-  dense 27B makes the top 3 on 24 GB+, a big MoE with experts in RAM makes the
-  top 5 on a 16 GB card with 64 GB of RAM, and coding picks are not limited
-  to models named "coder".
+- 28 hardware archetypes, from a 4 GB GTX 1650 to a 128 GB M4 Max and a DGX
+  Spark, with AMD, Intel and mixed GPU sets, CPU-only boxes and
+  32K/128K-context setups, ranked against a frozen catalog of 1,129 models.
+- 27 constraints describe what a good answer looks like instead of pinning an
+  exact order: no pretrain-only checkpoints, draft heads or diffusion models,
+  no outdated generation in the top 5, the top 3 run at 8 tok/s or more
+  whenever the machine has that many options that fast, full-GPU rows keep
+  their VRAM headroom and stay inside Metal's working set, `run` can launch
+  the top rows, the newest dense 27B makes the top 3 on 24 GB+, a big MoE with
+  experts in RAM makes the top 5 on a 16 GB card with 64 GB of RAM, and coding
+  picks are not limited to models named "coder".
+- Speed and memory estimates stay within set bounds of runs measured on an
+  RTX 5080 and its CPU, so the estimator cannot drift without a test failing.
 - The top picks for every archetype are committed in
   [`top_picks.md`](tests/golden/top_picks.md), so any ranking change shows up
   as a diff in review.

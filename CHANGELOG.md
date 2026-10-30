@@ -147,6 +147,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- `--gpu "DGX Spark"` and other simulated NVIDIA unified-memory GPUs no longer
+  count as dedicated VRAM with the same amount of system RAM next to it.
 - Pretrain-only checkpoints that the naming rules missed are no longer
   recommended: Olmo-3-1025-7B, Mistral-7B-v0.1, Gemma 2B and 7B, Gemma 2 2B,
   Llama-2-7b-hf and PaliGemma's `pt` release. Their chat release has another

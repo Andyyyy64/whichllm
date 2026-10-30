@@ -22,6 +22,7 @@ from whichllm.constants import (
     CuratedGPUSpec,
     _GiB,
 )
+from whichllm.hardware.nvidia import _is_unified_memory_nvidia_gpu
 from whichllm.hardware.types import GPUInfo
 
 logger = logging.getLogger(__name__)
@@ -368,6 +369,7 @@ def create_synthetic_gpu(name: str, vram_override_gb: float | None = None) -> GP
         vram_bytes=vram_bytes,
         compute_capability=compute_cap,
         memory_bandwidth_gbps=bandwidth,
-        shared_memory=curated.shared_memory if curated else amd_shared_memory_apu,
+        shared_memory=(curated.shared_memory if curated else amd_shared_memory_apu)
+        or _is_unified_memory_nvidia_gpu(name),
         vram_overridden=vram_override_gb is not None,
     )
