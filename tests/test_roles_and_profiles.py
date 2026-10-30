@@ -53,6 +53,24 @@ def test_named_instruct_sibling_marks_base_but_dated_refresh_does_not():
     }
 
 
+def test_known_bases_without_a_matching_chat_release():
+    models = [
+        _model("allenai/Olmo-3-1025-7B"),
+        _model("allenai/Olmo-3-7B-Instruct"),
+        _model("mistralai/Mistral-7B-v0.1"),
+        _model("mistralai/Mistral-7B-Instruct-v0.3"),
+        _model("google/gemma-2b"),
+        # A quantized upload of a base is a base too.
+        _model("TheBloke/Mistral-7B-v0.1-GGUF", relation="quantized"),
+    ]
+    assert find_base_checkpoints(models) == {
+        "allenai/Olmo-3-1025-7B",
+        "mistralai/Mistral-7B-v0.1",
+        "google/gemma-2b",
+        "TheBloke/Mistral-7B-v0.1-GGUF",
+    }
+
+
 def test_post_trained_model_is_not_a_base_even_if_an_instruct_names_it():
     models = [
         _model("Qwen/Qwen3-8B", tags=_finetune_of("Qwen/Qwen3-8B-Base")),

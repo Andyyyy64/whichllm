@@ -9,6 +9,9 @@ derived from it. A checkpoint counts as a base when:
   declares it as its fine-tune parent, or that is named after it
   (``Qwen2.5-7B`` → ``Qwen2.5-7B-Instruct``).
 
+A few older bases fit neither rule, because their chat release has another
+name or the catalog does not list it, so they are named in ``_KNOWN_BASES``.
+
 A quantized or converted upload counts as a base when its model name is the
 name of such a base. Names that carry an instruct marker are never bases;
 uploaders often tag the wrong ``base_model``, so tags alone do not decide.
@@ -27,6 +30,20 @@ _CONVERSION_SUFFIX = re.compile(
     r"(?i)([-_.](gguf|awq|gptq|fp8|fp16|bf16|mlx|exl2|int4|int8|\d+bit))+$"
 )
 _FINETUNE_TAG = "base_model:finetune:"
+# Lower-case repo ids. Olmo's chat release is Olmo-3-7B-Instruct, Mistral's is
+# Mistral-7B-Instruct-v0.1, Llama 2's is Llama-2-7b-chat-hf, and the Gemma -it
+# releases are often outside the catalog.
+_KNOWN_BASES = frozenset(
+    {
+        "allenai/olmo-3-1025-7b",
+        "google/gemma-2-2b",
+        "google/gemma-2b",
+        "google/gemma-7b",
+        "google/paligemma-3b-pt-224",
+        "meta-llama/llama-2-7b-hf",
+        "mistralai/mistral-7b-v0.1",
+    }
+)
 
 
 def _org(model_id: str) -> str:
@@ -77,6 +94,7 @@ def find_base_checkpoints(models: list[ModelInfo]) -> set[str]:
             _CONVERSION_SUFFIX.sub("", _name(model.id))
         ):
             base_ids.add(model.id.lower())
+    base_ids |= _KNOWN_BASES & ids.keys()
 
     # A fine-tune of a -Base checkpoint is the post-trained model (Qwen3-4B
     # from Qwen3-4B-Base), whatever else refers to it.

@@ -147,6 +147,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- Pretrain-only checkpoints that the naming rules missed are no longer
+  recommended: Olmo-3-1025-7B, Mistral-7B-v0.1, Gemma 2B and 7B, Gemma 2 2B,
+  Llama-2-7b-hf and PaliGemma's `pt` release. Their chat release has another
+  name or is not in the catalog. They ranked from #13 down on the machines
+  in the golden set.
 - Fit and speed of an official repo use the real size of the GGUF file its
   recipe downloads. On a 16 GB RTX 5080, Qwen3.6-35B-A3B at Q4_K_M was
   sized at 20.2 GB and given `--n-cpu-moe 12`, but unsloth's file is
