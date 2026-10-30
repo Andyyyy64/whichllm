@@ -2,6 +2,7 @@
 
 from whichllm.constants import _GiB
 from whichllm.engine.compatibility import check_compatibility
+from whichllm.engine.multi_gpu import PER_DEVICE_RUNTIME_BUFFER_BYTES
 from whichllm.hardware.memory import estimate_usable_ram
 from whichllm.hardware.types import GPUInfo, HardwareInfo
 from whichllm.models.types import GGUFVariant, ModelInfo
@@ -547,4 +548,179 @@ def test_context_fits_unknown_is_true():
     hw = _make_hardware(vram=24 * 1024**3)
     result = check_compatibility(model, variant, hw, context_length=32768)
     assert result.context_fits is True
+
+
+# --------------- per-device multi-GPU planning ---------------
+
+
+def _dual_gpu_hardware(small: int, large: int, *, ram: int = 64 * _GiB) -> HardwareInfo:
+    return HardwareInfo(
+        gpus=[
+            GPUInfo(
+                name="NVIDIA GeForce GTX 1660 SUPER",
+                vendor="nvidia",
+                vram_bytes=small,
+                compute_capability=(7, 5),
+                memory_bandwidth_gbps=336.0,
+            ),
+            GPUInfo(
+                name="NVIDIA GeForce RTX 5060 Ti",
+                vendor="nvidia",
+                vram_bytes=large,
+                compute_capability=(10, 0),
+                memory_bandwidth_gbps=448.0,
+            ),
+        ],
+        cpu_name="Test CPU",
+        cpu_cores=16,
+        ram_bytes=ram,
+        disk_free_bytes=200 * _GiB,
+        os="linux",
+    )
+
+
+def test_unequal_gpus_report_a_share_per_device():
+    result = check_compatibility(
+        _make_model(), _make_variant(17 * _GiB), _dual_gpu_hardware(6 * _GiB, 16 * _GiB)
+    )
+
+    assert result.fit_type == "full_gpu"
+    assert result.uses_multi_gpu is True
+    devices = result.placement.devices
+    assert len(devices) == 2
+    small, large = devices
+    assert small.name == "NVIDIA GeForce GTX 1660 SUPER"
+    assert small.budget_bytes == 6 * _GiB - PER_DEVICE_RUNTIME_BUFFER_BYTES
+    assert large.budget_bytes == 16 * _GiB - PER_DEVICE_RUNTIME_BUFFER_BYTES
+    assert 0 < small.weight_bytes < large.weight_bytes
+    assert small.fits is True
+    assert large.fits is True
+    # The whole estimate lands somewhere in the plan.
+    assert abs(
+        sum(device.required_bytes for device in devices) - result.vram_required_bytes
+    ) <= (2 * len(devices))
+
+
+def test_multi_gpu_budget_keeps_a_runtime_buffer_per_device():
+    result = check_compatibility(
+        _make_model(), _make_variant(17 * _GiB), _dual_gpu_hardware(6 * _GiB, 16 * _GiB)
+    )
+
+    assert result.uses_multi_gpu is True
+    assert result.multi_gpu_effective_vram_bytes is not None
+    budgets = 22 * _GiB - 2 * PER_DEVICE_RUNTIME_BUFFER_BYTES
+    assert result.multi_gpu_effective_vram_bytes == int(budgets * 0.90)
+    assert result.multi_gpu_effective_vram_bytes < result.vram_available_bytes
+
+
+def test_device_below_its_runtime_buffer_keeps_the_other_card_usable():
+    """A card that cannot pay its buffer must not zero the remaining GPU."""
+    hw = HardwareInfo(
+        gpus=[
+            GPUInfo(
+                name="NVIDIA GeForce RTX 5060 Ti",
+                vendor="nvidia",
+                vram_bytes=256 * 1024**2,
+                compute_capability=(10, 0),
+                memory_bandwidth_gbps=448.0,
+            ),
+            GPUInfo(
+                name="NVIDIA GeForce GTX 1660 SUPER",
+                vendor="nvidia",
+                vram_bytes=6 * _GiB,
+                compute_capability=(7, 5),
+                memory_bandwidth_gbps=336.0,
+            ),
+        ],
+        cpu_name="Test CPU",
+        cpu_cores=16,
+        ram_bytes=8 * _GiB,
+        disk_free_bytes=200 * _GiB,
+        os="linux",
+    )
+
+    result = check_compatibility(_make_model(), _make_variant(8 * _GiB), hw)
+
+    # The 256 MiB card cannot host its own runtime buffer, and the remaining
+    # card still gives a partial offload instead of collapsing to a CPU-only run.
+    assert result.can_run is True
+    assert result.fit_type == "partial_offload"
+    assert result.uses_multi_gpu is False
+    assert result.multi_gpu_effective_vram_bytes is None
+    assert result.placement.devices == ()
+    assert any("stay out of the multi-GPU pool" in w for w in result.warnings)
+
+
+def test_oversized_model_keeps_its_pooled_partial_offload():
+    """6 + 16 GiB with 16 GiB RAM: the split fails, the pooled offload stands."""
+    result = check_compatibility(
+        _make_model(),
+        _make_variant(27 * _GiB),
+        _dual_gpu_hardware(6 * _GiB, 16 * _GiB, ram=16 * _GiB),
+    )
+
+    assert result.can_run is True
+    assert result.fit_type == "partial_offload"
+    assert result.uses_multi_gpu is True
+    # The pooled budget is retained instead of collapsing to one card.
+    budgets = 22 * _GiB - 2 * PER_DEVICE_RUNTIME_BUFFER_BYTES
+    assert result.multi_gpu_effective_vram_bytes == int(budgets * 0.90)
+    assert 0.0 < result.offload_ratio < 1.0
+    # The GPU-resident part of the offload is still split per device, and the
+    # shares add up to the weight bytes the placement keeps on the GPUs.
+    devices = result.placement.devices
+    assert len(devices) == 2
+    assert all(device.fits for device in devices)
+    assert abs(
+        sum(device.weight_bytes for device in devices)
+        - result.placement.gpu_weight_bytes
+    ) <= len(devices)
+
+
+def test_combined_fit_is_rejected_when_one_device_cannot_hold_the_runtime_part():
+    hw = HardwareInfo(
+        gpus=[
+            GPUInfo(
+                name="NVIDIA GeForce GT 1030",
+                vendor="nvidia",
+                vram_bytes=900 * 1024**2,
+                compute_capability=(6, 1),
+                memory_bandwidth_gbps=112.0,
+            ),
+            GPUInfo(
+                name="NVIDIA GeForce GT 1030",
+                vendor="nvidia",
+                vram_bytes=900 * 1024**2,
+                compute_capability=(6, 1),
+                memory_bandwidth_gbps=112.0,
+            ),
+        ],
+        cpu_name="Test CPU",
+        cpu_cores=8,
+        ram_bytes=32 * _GiB,
+        disk_free_bytes=100 * _GiB,
+        os="linux",
+    )
+
+    result = check_compatibility(
+        _make_model(100_000_000), _make_variant(400 * 1024**2), hw
+    )
+
+    # The pooled 1.71 GiB budget would cover the estimate, but the activation
+    # buffers and framework overhead have to live on one device and fit neither.
+    assert result.uses_multi_gpu is False
+    assert result.fit_type == "partial_offload"
+    assert result.multi_gpu_effective_vram_bytes is None
+    assert any("placement rejected" in w for w in result.warnings)
+    assert any("fits no single device" in w for w in result.warnings)
+    assert not any("fits no device" in w for w in result.warnings)
+
+
+def test_single_gpu_reports_no_device_split():
+    result = check_compatibility(
+        _make_model(), _make_variant(4 * _GiB), _make_hardware(vram=24 * _GiB)
+    )
+
+    assert result.placement.devices == ()
+
     assert not any("max context" in w.lower() for w in result.warnings)

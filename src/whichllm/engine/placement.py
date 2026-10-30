@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from whichllm.engine.moe import moe_layer_count, routed_expert_params
+from whichllm.engine.multi_gpu import DevicePlacement
 from whichllm.engine.vram import MemoryBreakdown
 from whichllm.models.types import ModelInfo
 
@@ -31,6 +32,9 @@ class Placement:
     # llama.cpp -ngl; None when the layer count is unknown.
     n_gpu_layers: int | None = None
     num_layers: int | None = None
+    # Per-device share of the GPU-resident part. Empty unless the fit pooled
+    # more than one dedicated GPU; see whichllm.engine.multi_gpu.
+    devices: tuple[DevicePlacement, ...] = ()
 
 
 def _num_layers(model: ModelInfo) -> int | None:
