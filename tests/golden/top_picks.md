@@ -51,7 +51,7 @@ Catalog captured 2026-10-28 with whichllm 0.5.21 (9f3709f): 1129 models, 4728 be
 2. google/gemma-4-26B-A4B-it [Q4_K_M, full_gpu, 115.3 tok/s, score 74.4]
 3. google/gemma-4-31B-it [Q3_K_M, full_gpu, 16.4 tok/s, score 71.7]
 4. Qwen/Qwen3.6-35B-A3B [Q6_K, partial_offload, 32.2 tok/s, score 71.1]
-5. RadixArk/Muse-Glimmer-NVFP4 [-, full_gpu, 24.6 tok/s, score 69.5]
+5. openai/gpt-oss-20b [Q5_K_M, full_gpu, 94.1 tok/s, score 68.9]
 
 ## rtx5060ti-16gb-64gb-linux / coding
 
@@ -130,8 +130,8 @@ Catalog captured 2026-10-28 with whichllm 0.5.21 (9f3709f): 1129 models, 4728 be
 1. Qwen/Qwen3.8-27B [Q3_K_M, full_gpu, 41.5 tok/s, score 86.2]
 2. google/gemma-4-26B-A4B-it [Q5_K_M, full_gpu, 150.1 tok/s, score 75.7]
 3. Qwen/Qwen3.6-35B-A3B [Q3_K_M, full_gpu, 162.8 tok/s, score 74.2]
-4. RadixArk/Muse-Glimmer-NVFP4 [-, full_gpu, 55.6 tok/s, score 71.0]
-5. unsloth/gemma-4-12b-it-GGUF [Q8_0, full_gpu, 35.9 tok/s, score 70.2]
+4. unsloth/gemma-4-12b-it-GGUF [Q8_0, full_gpu, 35.9 tok/s, score 70.2]
+5. openai/gpt-oss-20b [Q6_K, full_gpu, 150.6 tok/s, score 69.5]
 
 ## rtx4090-24gb-linux-128k / coding (context 131072)
 

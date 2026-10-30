@@ -23,14 +23,19 @@ _NON_GGUF_PATTERNS: list[tuple[str, str]] = [
 ]
 
 # GGUF以外の簡易推定: 重み1つあたりのバイト数
+# The index carries real sizes; these are the fallback for repos it has not
+# reached and for --live. AWQ, BNB and FP8 keep some tensors uncompressed, and
+# an NVFP4 repo reports only part of its parameters, so its rate is per
+# reported parameter (real sizes of five repos over their reported counts:
+# 1.06 to 1.44).
 _NON_GGUF_BYTES_PER_WEIGHT: dict[str, float] = {
-    "AWQ": 0.5,
-    "GPTQ": 0.5,
-    "BNB_4BIT": 0.5,
+    "AWQ": 0.72,
+    "GPTQ": 0.63,
+    "BNB_4BIT": 0.62,
     "MXFP4": 0.53125,
-    "NVFP4": 0.5625,
+    "NVFP4": 1.25,
     "INT8": 1.0,
-    "FP8": 1.0,
+    "FP8": 1.1,
     "BF16": 2.0,
     "FP16": 2.0,
 }
@@ -69,6 +74,8 @@ def estimate_weight_bytes(model: ModelInfo, variant: GGUFVariant | None) -> int:
     """Estimate model weight size in bytes."""
     if variant and variant.file_size_bytes > 0:
         return variant.file_size_bytes
+    if model.weight_bytes:
+        return model.weight_bytes
     quant_type = infer_non_gguf_quant_type(model.id)
     bytes_per_weight = _NON_GGUF_BYTES_PER_WEIGHT.get(quant_type, 2.0)
     return int(model.parameter_count * bytes_per_weight)

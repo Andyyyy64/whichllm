@@ -7,7 +7,7 @@ from pathlib import Path
 
 from whichllm.models.benchmark_fetch import fetch_benchmark_data
 from whichllm.models.fetcher import ModelFetchReport, fetch_models, models_to_dicts
-from whichllm.models.gguf_sizes import fill_gguf_sizes
+from whichllm.models.file_sizes import fill_file_sizes, is_quantized_checkpoint
 from whichllm.models.grouper import group_models
 from whichllm.models.hf import _FRONTIER_MODEL_IDS, fetch_model_published_at
 from whichllm.models.index_format import INDEX_SCHEMA_VERSION, structure_problems
@@ -42,9 +42,9 @@ async def build_index(
 
     ``shape_cache`` lets successive builds reuse config.json lookups, and
     publish dates already in the ``previous`` index are reused, so a daily
-    build only asks the Hub about repositories it has not seen before. GGUF
-    file sizes from the ``previous`` index are reused while a repository's
-    commit is unchanged.
+    build only asks the Hub about repositories it has not seen before. File
+    sizes from the ``previous`` index are reused while a repository's commit
+    is unchanged.
     """
     report = ModelFetchReport()
     models = await fetch_models(include_vision=True, report=report)
@@ -72,7 +72,7 @@ async def build_index(
             model.published_at = published[model.id]
     # Last, so the per-build cap only spends what the steps above left of the
     # Hub's rate limit.
-    sizes = await fill_gguf_sizes(models, previous)
+    sizes = await fill_file_sizes(models, previous)
 
     model_dicts = models_to_dicts(models)
     payload = {
@@ -90,7 +90,9 @@ async def build_index(
                 for m in models
                 if m.gguf_variants and not any(v.is_estimated for v in m.gguf_variants)
             ),
-            "gguf_sizes": {
+            "checkpoint_repos": sum(1 for m in models if is_quantized_checkpoint(m)),
+            "checkpoint_real_sizes": sum(1 for m in models if m.weight_bytes),
+            "size_lookups": {
                 "reused": sizes.reused,
                 "fetched": sizes.fetched,
                 "failed": sizes.failed,
