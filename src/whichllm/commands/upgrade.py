@@ -7,7 +7,6 @@ import typer
 
 from whichllm.cli_shared import _format_fetch_error, _run_async, console
 from whichllm.cli_validation import (
-    _auto_min_params_for_profile,
     _validate_profile,
     _validate_ranking_flags,
 )
@@ -33,7 +32,9 @@ def upgrade_command(
     """
     from rich.progress import Progress, SpinnerColumn, TextColumn
 
-    from whichllm.engine.ranker import rank_models
+    from dataclasses import replace
+
+    from whichllm.commands.ranking import apply_default_budgets, rank_for_hardware
     from whichllm.hardware.detector import detect_hardware
     from whichllm.hardware.gpu_simulator import create_synthetic_gpu
     from whichllm.hardware.types import HardwareInfo
@@ -68,6 +69,7 @@ def upgrade_command(
         current_hw = detect_hardware()
         if cpu_only:
             current_hw.gpus = []
+        apply_default_budgets(current_hw)
 
         progress.update(task, description="Loading models...")
         catalog = load_index(refresh=refresh)
@@ -110,31 +112,15 @@ def upgrade_command(
         attach_cached_shapes(all_models)
 
         def _rank_for(hw: HardwareInfo):
-            min_p = _auto_min_params_for_profile(hw, profile)
-            results = rank_models(
+            return rank_for_hardware(
                 all_models,
                 hw,
                 context_length=context_length,
                 top_n=top,
                 benchmark_scores=bench_scores,
                 task_scores=task_scores.get(profile),
-                task_profile=profile,
-                require_direct_top=True,
-                min_params_b=min_p,
+                profile=profile,
             )
-            if not results and min_p is not None:
-                results = rank_models(
-                    all_models,
-                    hw,
-                    context_length=context_length,
-                    top_n=top,
-                    benchmark_scores=bench_scores,
-                    task_scores=task_scores.get(profile),
-                    task_profile=profile,
-                    require_direct_top=True,
-                    min_params_b=None,
-                )
-            return results
 
         progress.update(task, description="Ranking current hardware...")
         current_results = _rank_for(current_hw)
@@ -147,15 +133,8 @@ def upgrade_command(
             except ValueError as e:
                 console.print(f"[yellow]Skipping {raw_name}:[/] {e}")
                 continue
-            sim_hw = HardwareInfo(
-                gpus=[synthetic],
-                cpu_name=current_hw.cpu_name,
-                cpu_cores=current_hw.cpu_cores,
-                has_avx2=current_hw.has_avx2,
-                has_avx512=current_hw.has_avx512,
-                ram_bytes=current_hw.ram_bytes,
-                disk_free_bytes=current_hw.disk_free_bytes,
-                os=current_hw.os,
+            sim_hw = apply_default_budgets(
+                replace(current_hw, gpus=[synthetic], budget_notes=[])
             )
             sim_results = _rank_for(sim_hw)
             target_results.append((raw_name, sim_hw, sim_results))

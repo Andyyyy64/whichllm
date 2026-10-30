@@ -5,6 +5,7 @@ from __future__ import annotations
 import typer
 
 from whichllm.cli_shared import console
+from whichllm.commands.ranking import apply_default_budgets, rank_for_hardware
 from whichllm.engine.types import CompatibilityResult
 from whichllm.models.artifacts import resolve_ranked_gguf_artifact
 from whichllm.models.types import GGUFVariant, ModelInfo
@@ -25,7 +26,6 @@ def pick_top_runnable(
     The returned variant is None for a non-GGUF pick; the ranked result
     carries the placement the pick was estimated with.
     """
-    from whichllm.engine.ranker import rank_models
     from whichllm.hardware.detector import detect_hardware
     from whichllm.models.benchmark import load_benchmark_cache
     from whichllm.models.grouper import group_models
@@ -35,6 +35,7 @@ def pick_top_runnable(
     hardware = detect_hardware()
     if cpu_only:
         hardware.gpus = []
+    apply_default_budgets(hardware)
     catalog = load_index()
     bench_scores = (
         catalog.benchmark_scores if catalog is not None else load_benchmark_cache()
@@ -45,12 +46,12 @@ def pick_top_runnable(
         all_models.extend(family.variants)
     attach_cached_shapes(all_models)
 
-    results = rank_models(
+    results = rank_for_hardware(
         all_models,
         hardware,
         context_length=context_length,
         top_n=top_n,
-        quant_filter=quant,
+        quant=quant,
         benchmark_scores=bench_scores,
     )
     if not results:

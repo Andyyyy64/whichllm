@@ -2155,6 +2155,69 @@ def test_run_named_model_lets_llama_cpp_fit_it(monkeypatch):
     ]
 
 
+def test_run_ranks_like_the_main_command(monkeypatch):
+    from whichllm.commands.autopick import pick_top_runnable
+    from whichllm.models.index_client import IndexCatalog
+
+    model = ModelInfo(
+        id="org/Model-8B-GGUF",
+        family_id="org/model-8b",
+        name="Model-8B-GGUF",
+        parameter_count=8_000_000_000,
+        gguf_variants=[
+            GGUFVariant(
+                filename="m.gguf", quant_type="Q4_K_M", file_size_bytes=5 * 10**9
+            )
+        ],
+    )
+    calls: list[tuple] = []
+
+    def fake_rank_models(models, hardware, **kwargs):
+        calls.append(
+            (
+                hardware.gpus[0].usable_vram_bytes,
+                {k: kwargs.get(k) for k in sorted(kwargs) if k != "top_n"},
+            )
+        )
+        return [
+            CompatibilityResult(
+                model=model,
+                gguf_variant=model.gguf_variants[0],
+                can_run=True,
+                vram_required_bytes=0,
+                vram_available_bytes=0,
+                quality_score=60.0,
+            )
+        ]
+
+    catalog = IndexCatalog(
+        models=[model],
+        benchmark_scores={"org/Model-8B": 61.0},
+        built_at="2026-10-29T00:00:00Z",
+    )
+    monkeypatch.setattr(
+        "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(12)
+    )
+    monkeypatch.setattr(
+        "whichllm.models.index_client.load_index", lambda refresh=False: catalog
+    )
+    monkeypatch.setattr("whichllm.engine.ranker.rank_models", fake_rank_models)
+    monkeypatch.setattr(
+        "whichllm.output.display.display_hardware", lambda hardware: None
+    )
+    monkeypatch.setattr(
+        "whichllm.output.display.display_ranking", lambda results, **kwargs: None
+    )
+
+    assert CliRunner().invoke(app, []).exit_code == 0
+    main_call = calls[-1]
+    pick_top_runnable([model], context_length=4096, quant=None)
+
+    # The same VRAM headroom, size floor and evidence rules as `whichllm`.
+    assert calls[-1] == main_call
+    assert main_call[0] < _hw_with_gpu(12).gpus[0].vram_bytes
+
+
 def test_snippet_no_model_found(monkeypatch):
     monkeypatch.setattr(snippet_mod, "_load_models", lambda refresh: [])
     runner = CliRunner()

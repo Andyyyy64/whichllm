@@ -152,6 +152,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   Llama-2-7b-hf and PaliGemma's `pt` release. Their chat release has another
   name or is not in the catalog. They ranked from #13 down on the machines
   in the golden set.
+- `run`, `snippet` and `upgrade` rank the way `whichllm` does. `run` and
+  `snippet` skipped the VRAM headroom, the size floor and the rule that
+  prefers models with direct benchmarks, so they could pick another model
+  than the one at the top of the table. `upgrade` skipped the headroom and
+  ranked simulated GPUs with the default RAM bandwidth.
 - Fit and speed of an official repo use the real size of the GGUF file its
   recipe downloads. On a 16 GB RTX 5080, Qwen3.6-35B-A3B at Q4_K_M was
   sized at 20.2 GB and given `--n-cpu-moe 12`, but unsloth's file is
