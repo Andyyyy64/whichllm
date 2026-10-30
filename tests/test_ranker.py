@@ -910,7 +910,7 @@ def test_multi_gpu_speed_confidence_is_low():
             GGUFVariant(
                 filename="test-34b-Q4_K_M.gguf",
                 quant_type="Q4_K_M",
-                file_size_bytes=22 * 1024**3,
+                file_size_bytes=23 * 1024**3,
             )
         ],
     )
@@ -1138,3 +1138,39 @@ def test_ctx_penalty_demotes_non_fitting():
     assert results[0].model.family_id == "longctx-8b"
     assert results[0].context_fits is True
     assert results[1].context_fits is False
+
+
+def test_synthetic_variant_takes_the_real_size_of_its_upload():
+    from whichllm.engine.ranking_variants import _iter_candidate_variants
+
+    official = ModelInfo(
+        id="Qwen/Test-35B-A3B",
+        family_id="qwen/test-35b-a3b",
+        name="Test-35B-A3B",
+        parameter_count=36_000_000_000,
+    )
+    upload = ModelInfo(
+        id="unsloth/Test-35B-A3B-GGUF",
+        family_id="qwen/test-35b-a3b",
+        name="Test-35B-A3B-GGUF",
+        parameter_count=36_000_000_000,
+        base_model="Qwen/Test-35B-A3B",
+        base_model_relation="quantized",
+        tags=("base_model:quantized:Qwen/Test-35B-A3B",),
+        gguf_variants=[
+            GGUFVariant("Test-35B-A3B-UD-Q4_K_M.gguf", "Q4_K_M", 22_134_528_992),
+            GGUFVariant(
+                "Test-35B-A3B-Q8_0.gguf", "Q8_0", 38_000_000_000, is_estimated=True
+            ),
+        ],
+    )
+
+    variants = {
+        v.quant_type: v for v in _iter_candidate_variants(official, None, [upload])
+    }
+
+    assert variants["Q4_K_M"].file_size_bytes == 22_134_528_992
+    assert variants["Q4_K_M"].is_estimated is False
+    # An estimated upload size is no better than the parameter count.
+    assert variants["Q8_0"].is_estimated is True
+    assert variants["Q5_K_M"].is_estimated is True

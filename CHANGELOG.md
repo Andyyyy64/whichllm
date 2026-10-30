@@ -147,6 +147,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- Fit and speed of an official repo use the real size of the GGUF file its
+  recipe downloads. On a 16 GB RTX 5080, Qwen3.6-35B-A3B at Q4_K_M was
+  sized at 20.2 GB and given `--n-cpu-moe 12`, but unsloth's file is
+  22.1 GB; it now gets `--n-cpu-moe 15`.
+- The runtime memory beyond the weights is closer to what llama-server
+  allocates. The compute buffer was counted at 0.08 byte per parameter
+  (2.6 GB for a 27B); llama-server used 146 MiB. With the real 13.4 GB
+  file, that would have split Qwen3.8-27B at Q3_K_M across a 16 GB card,
+  where it runs fully on the GPU at 55 tok/s using 12.8 GiB. Recurrent
+  state (Qwen3.5 and later, Qwen3-Next, Granite 4.0, LFM2) is counted for
+  llama-server's 4 default slots. Dense models now fit one quant higher
+  in a few places (Qwen3.8-27B at Q6_K on a 24 GB card).
 - GGUF variants: `run` downloads part 1 of a split file (it could pick a
   later part), and vision projectors (`mmproj`) and draft models are no
   longer listed as a model's F16, BF16 or Q8_0 variant. With real sizes, a

@@ -146,3 +146,28 @@ def test_kv_cache_below_window_matches_dense():
     )
     dense = _make_model(7_000_000_000)
     assert estimate_kv_cache(swa, 4096) == estimate_kv_cache(dense, 4096)
+
+
+def test_recurrent_state_counts_every_llama_server_slot():
+    from whichllm.models.shape import ModelShape
+
+    shape = ModelShape(
+        model_type="qwen3_5",
+        num_layers=64,
+        full_kv_bytes_per_token=65_536,
+        recurrent_state_bytes=150 * 1024**2,
+    )
+    model = _make_model(27_000_000_000, shape=shape)
+
+    # One K/V pool for the context, recurrent state for each of the 4 slots
+    # (Qwen3.8-27B: 256 MiB of K/V and 598 MiB of state at 4096 tokens).
+    assert estimate_kv_cache(model, 4096) == 256 * 1024**2 + 4 * 150 * 1024**2
+
+
+def test_a_27b_that_llama_server_fits_in_13_gib_fits_a_16_gb_card():
+    model = _make_model(27_800_000_000)
+    variant = GGUFVariant("m-Q3_K_M.gguf", "Q3_K_M", 13_404_051_168)
+    vram = estimate_vram(model, variant, context_length=4096)
+    # llama-server used 12.8 GiB; the estimate stays above it and under the
+    # 15.1 GiB a 16 GB card has after headroom.
+    assert 12.8 * 1024**3 < vram < 15.1 * 1024**3
