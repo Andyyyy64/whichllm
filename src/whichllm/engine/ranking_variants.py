@@ -40,7 +40,10 @@ def _synthesize_variants_for_official_repo(
     quant resolves to one of their files and the index knows its real size,
     the variant takes that size, so fit and speed are those of the file the
     recipe downloads (unsloth's Qwen3.6-35B-A3B Q4_K_M is 22.1 GB, not the
-    20.2 GB the parameter count gives).
+    20.2 GB the parameter count gives). When uploads cover some quants, only
+    those are offered: a pick needs a file to download. A repo with no known
+    upload keeps every quant, since its conversions are usually just outside
+    the catalog.
     """
     org = model.id.split("/", 1)[0] if "/" in model.id else ""
     if org not in _OFFICIAL_ORGS:
@@ -48,6 +51,7 @@ def _synthesize_variants_for_official_repo(
     if _PREQUANTIZED_REPO_RE.search(model.id):
         return []
     out: list[GGUFVariant] = []
+    uploaded: list[GGUFVariant] = []
     for quant in _SYNTHETIC_QUANTS:
         if quant_filter_upper and quant != quant_filter_upper:
             continue
@@ -63,11 +67,13 @@ def _synthesize_variants_for_official_repo(
             if gguf_uploads
             else None
         )
-        if resolved is not None and not resolved[1].is_estimated:
-            variant.file_size_bytes = resolved[1].file_size_bytes
-            variant.is_estimated = False
+        if resolved is not None:
+            uploaded.append(variant)
+            if not resolved[1].is_estimated:
+                variant.file_size_bytes = resolved[1].file_size_bytes
+                variant.is_estimated = False
         out.append(variant)
-    return out
+    return uploaded or out
 
 
 def _iter_candidate_variants(
