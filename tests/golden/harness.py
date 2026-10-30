@@ -17,12 +17,8 @@ from fnmatch import fnmatch
 from functools import cached_property, lru_cache
 from pathlib import Path
 
-from whichllm.cli_hardware import (
-    _apply_memory_budgets,
-    _apply_ram_bandwidth,
-    _auto_min_params_for_profile,
-)
-from whichllm.engine.ranker import rank_models
+from whichllm.cli_hardware import _apply_memory_budgets, _apply_ram_bandwidth
+from whichllm.commands.ranking import rank_for_hardware
 from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.gpu_simulator import create_synthetic_gpu
 from whichllm.hardware.types import HardwareInfo
@@ -266,23 +262,15 @@ def _rank(
     models: list[ModelInfo],
     context_length: int = CONTEXT_LENGTH,
 ) -> list[CompatibilityResult]:
-    benchmark_scores = catalog_benchmarks()
-    auto_min_params = _auto_min_params_for_profile(hardware, profile)
-    kwargs = dict(
+    return rank_for_hardware(
+        models,
+        hardware,
         context_length=context_length,
         top_n=RANK_DEPTH,
-        benchmark_scores=benchmark_scores,
+        benchmark_scores=catalog_benchmarks(),
         task_scores=catalog_task_scores(profile),
-        task_profile=profile,
-        require_direct_top=True,
-        evidence_filter="any",
-        fit_filter="any",
+        profile=profile,
     )
-    results = rank_models(models, hardware, min_params_b=auto_min_params, **kwargs)
-    # `whichllm` relaxes the automatic size floor when it removes everything.
-    if not results and auto_min_params is not None:
-        results = rank_models(models, hardware, min_params_b=None, **kwargs)
-    return results
 
 
 def describe(result: CompatibilityResult) -> str:

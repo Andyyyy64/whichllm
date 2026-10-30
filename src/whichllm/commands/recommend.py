@@ -11,7 +11,6 @@ from whichllm.cli_validation import (
     _apply_gpu_overrides,
     _apply_ram_bandwidth,
     _apply_memory_budgets,
-    _auto_min_params_for_profile,
     _fill_missing_published_at,
     _include_vision_candidates,
     _resolve_evidence_mode,
@@ -156,7 +155,7 @@ def main_command(
 
     from rich.progress import Progress, SpinnerColumn, TextColumn
 
-    from whichllm.engine.ranker import rank_models
+    from whichllm.commands.ranking import rank_for_hardware
     from whichllm.hardware.detector import detect_hardware
     from whichllm.models.cache import update_cached_models
     from whichllm.models.fetcher import fetch_model_published_at, models_to_dicts
@@ -218,35 +217,21 @@ def main_command(
         # "self_reported" evidence tier with much lower trust. See
         # ranker.lookup_benchmark_evidence + _SOURCE_WEIGHTS.
 
-        # general用途はGPUクラスに応じた自動しきい値で小さすぎるモデルを抑制する
-        auto_min_params = (
-            _auto_min_params_for_profile(hardware, profile)
-            if min_params is None
-            else min_params
-        )
-
         def _rank(top_n: int) -> list:
-            rank_kwargs = dict(
+            return rank_for_hardware(
+                all_models,
+                hardware,
                 context_length=context_length,
                 top_n=top_n,
-                quant_filter=quant,
+                quant=quant,
                 min_speed=speed_filter,
                 benchmark_scores=bench_scores,
                 task_scores=task_scores.get(profile),
-                task_profile=profile,
-                require_direct_top=True,
+                profile=profile,
+                min_params=min_params,
                 evidence_filter=evidence_mode,
                 fit_filter=fit_filter,
             )
-            ranked = rank_models(
-                all_models, hardware, min_params_b=auto_min_params, **rank_kwargs
-            )
-            # 自動しきい値で候補ゼロなら緩和して表示を維持する
-            if not ranked and auto_min_params is not None and min_params is None:
-                ranked = rank_models(
-                    all_models, hardware, min_params_b=None, **rank_kwargs
-                )
-            return ranked
 
         # Exact KV sizes need each model's config.json. The index carries the
         # shapes it could read; a live fetch looks them up only for the
