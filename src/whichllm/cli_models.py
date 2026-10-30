@@ -263,26 +263,37 @@ def _generate_chat_script(
     context_length: int,
     cpu_only: bool,
     n_gpu_layers: int | None = None,
+    local_path: str | None = None,
 ) -> str:
     """Generate a self-contained Python chat script for any model type.
 
     ``n_gpu_layers`` is the GGUF layer split from the ranking (-1 = all on
-    the GPU); without it every layer goes to the GPU.
+    the GPU); without it every layer goes to the GPU. A verified local artifact
+    path replaces the Hugging Face download, so the generated script never
+    imports the Hugging Face client.
     """
     if variant:
         if cpu_only:
             n_gpu = 0
         else:
             n_gpu = n_gpu_layers if n_gpu_layers is not None else -1
+        if local_path is not None:
+            hub_import = ""
+            loader = f"""\
+model_path = {local_path!r}
+print(f"Using local GGUF {{quant_type}}: {{model_path}}")"""
+        else:
+            hub_import = "from huggingface_hub import hf_hub_download\n"
+            loader = """\
+print(f"Downloading {model_id} ({quant_type})...")
+model_path = hf_hub_download(repo_id=model_id, filename=filename)"""
         return f"""\
-from huggingface_hub import hf_hub_download
-from llama_cpp import Llama
+{hub_import}from llama_cpp import Llama
 
 model_id = {model.id!r}
 filename = {variant.filename!r}
 quant_type = {variant.quant_type!r}
-print(f"Downloading {{model_id}} ({{quant_type}})...")
-model_path = hf_hub_download(repo_id=model_id, filename=filename)
+{loader}
 print("Loading model...")
 llm = Llama(
     model_path=model_path,

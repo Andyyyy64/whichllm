@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Added
 
+- `whichllm run` opens a verified local LM Studio GGUF artifact instead of
+  downloading a second copy, with the repeatable `--lm-studio-path` option. A
+  match needs the resolved repository, the exact artifact path, and every part
+  of a split GGUF beside the entry file in the same library. With llama-cli
+  installed the recipe's `-hf` source becomes `-m <path>`; otherwise the
+  generated script opens the file and drops `huggingface-hub` from the isolated
+  run. The match is checked again immediately before launch, and a set that
+  disappeared or is incomplete prints a warning and falls back to the download.
+  (#20, #186)
 - The whichllm index: a daily prebuilt file with the model catalog,
   `config.json` shapes for every family, published dates and merged
   benchmark scores, published on GitHub Pages. Recommendations, `plan`,

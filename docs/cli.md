@@ -74,10 +74,11 @@ with the GPU number from `whichllm hardware`.
 
 whichllm scans `~/.lmstudio/models` for GGUF files. A recommendation is marked
 `Installed` only when its resolved Hugging Face repository and exact artifact
-path match a readable local file. Every part of a split GGUF must be present.
-Libraries are only read; whichllm does not move, modify, or delete LM Studio
-files. Use `--lm-studio-path` for legacy or custom model libraries; an explicit
-path that cannot be read is reported as an error.
+path match a readable local file. Every part of a split GGUF must be present
+beside the entry file in the same library, because that is where llama.cpp
+looks for it. Libraries are only read; whichllm does not move, modify, or
+delete LM Studio files. Use `--lm-studio-path` for legacy or custom model
+libraries; an explicit path that cannot be read is reported as an error.
 
 Examples:
 
@@ -256,6 +257,7 @@ Options:
 | `--quant`, `-q` | Preferred GGUF quantization |
 | `--refresh` | Ignore model cache and fetch again |
 | `--cpu-only` | Force CPU-only execution (`-ngl 0` for llama-cli) |
+| `--lm-studio-path` | Scan an additional LM Studio model library. Repeat the option for legacy or multiple custom locations |
 
 Examples:
 
@@ -264,7 +266,22 @@ whichllm run
 whichllm run "qwen 2.5 1.5b gguf"
 whichllm run "phi 3 mini gguf" --cpu-only
 whichllm run "mistral 7b gguf" --context-length 64k
+whichllm run "qwen 2.5 1.5b gguf" --lm-studio-path /mnt/models/lm-studio
 ```
+
+If the resolved model has an exact local match in an LM Studio library, `run`
+opens that file instead of downloading a second copy from Hugging Face. A match
+requires the resolved repository and the complete artifact path, every part of a
+split GGUF beside the entry file, and a readable file. For a split artifact,
+`run` opens the first part. With llama-cli installed the recipe's `-hf` source
+becomes `-m <path>`; otherwise the generated script sets `model_path` and no
+longer imports `huggingface_hub`.
+
+The match is checked again immediately before launch. If the file disappeared or
+a part is no longer readable, `run` prints a warning and downloads the artifact
+instead, and only an explicit set that is incomplete from the start is worth a
+warning: a library without the artifact stays quiet. LM Studio libraries are
+only read.
 
 `run` needs llama.cpp's `llama-cli` (GGUF models) or `uv` in `PATH`.
 
