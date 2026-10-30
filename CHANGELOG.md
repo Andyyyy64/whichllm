@@ -161,6 +161,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   be recommended at a quant nobody published: Qwen3.8-Flash-Next at Q3_K_M
   was #2 on an RTX 5090 and on a 128 GB Mac, with no file to download and no
   recipe. A repo with no upload in the catalog keeps its estimates.
+- Pre-quantized checkpoints are sized from their real files. NVFP4 repos
+  report only part of their parameters, so they were counted at under half
+  their size: Muse-Glimmer-NVFP4 is 19.7 GB and showed as a 9.5 GB full-GPU
+  fit on a 16 GB card. The index now carries the real size of NVFP4, FP8,
+  AWQ, GPTQ and BNB repos, and the fallback rates for `--live` and repos it
+  has not reached yet are corrected.
 - Fit and speed of an official repo use the real size of the GGUF file its
   recipe downloads. On a 16 GB RTX 5080, Qwen3.6-35B-A3B at Q4_K_M was
   sized at 20.2 GB and given `--n-cpu-moe 12`, but unsloth's file is

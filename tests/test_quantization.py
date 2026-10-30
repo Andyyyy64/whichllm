@@ -26,7 +26,7 @@ def test_infer_non_gguf_awq():
 
 def test_estimate_weight_bytes_for_awq():
     model = _make_model("Qwen/Qwen2.5-14B-Instruct-AWQ", params=10_000_000_000)
-    assert estimate_weight_bytes(model, None) == 5_000_000_000
+    assert estimate_weight_bytes(model, None) == 7_200_000_000
 
 
 def test_awq_vram_is_lower_than_fp16_fallback():
@@ -59,7 +59,7 @@ def test_estimate_weight_bytes_for_fp4_formats():
     mxfp4 = _make_model("openai/gpt-oss-20b-MXFP4", params=20_000_000_000)
     nvfp4 = _make_model("nvidia/model-NVFP4", params=20_000_000_000)
     assert estimate_weight_bytes(mxfp4, None) == int(20_000_000_000 * 0.53125)
-    assert estimate_weight_bytes(nvfp4, None) == int(20_000_000_000 * 0.5625)
+    assert estimate_weight_bytes(nvfp4, None) == 25_000_000_000
 
 
 def test_fp4_vram_is_lower_than_fp16_fallback():

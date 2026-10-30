@@ -75,10 +75,13 @@ def _summary(payload: dict, previous: dict | None) -> list[str]:
         f"shapes {stats['shapes']}, publish dates {stats['published_dates']}"
     ]
     if "gguf_repos" in stats:
-        detail = stats.get("gguf_sizes", {})
+        detail = stats.get("size_lookups", {})
         lines.append(
-            f"GGUF repos with real file sizes: {stats['gguf_real_sizes']} of "
-            f"{stats['gguf_repos']} (reused {detail.get('reused', 0)}, fetched "
+            f"Real file sizes: {stats['gguf_real_sizes']} of "
+            f"{stats['gguf_repos']} GGUF repos, "
+            f"{stats.get('checkpoint_real_sizes', 0)} of "
+            f"{stats.get('checkpoint_repos', 0)} quantized checkpoints "
+            f"(reused {detail.get('reused', 0)}, fetched "
             f"{detail.get('fetched', 0)}, failed {detail.get('failed', 0)}, left "
             f"for a later build {detail.get('pending', 0)})"
         )

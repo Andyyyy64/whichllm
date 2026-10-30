@@ -1,4 +1,4 @@
-"""Real GGUF file sizes in the index: fetched, reused by commit, capped."""
+"""Real file sizes in the index: fetched, reused by commit, capped."""
 
 from __future__ import annotations
 
@@ -6,7 +6,8 @@ import asyncio
 
 import httpx
 
-import whichllm.models.gguf_sizes as gguf_sizes
+import whichllm.models.file_sizes as file_sizes
+from whichllm.engine.quantization import estimate_weight_bytes
 from whichllm.models.serialization import dicts_to_models, models_to_dicts
 from whichllm.models.types import GGUFVariant, ModelInfo
 
@@ -46,7 +47,7 @@ def _serve(monkeypatch, answers: dict[str, dict | int]) -> list[str]:
             return httpx.Response(answer, request=request)
         return httpx.Response(200, json=answer, request=request)
 
-    monkeypatch.setattr(gguf_sizes, "get_with_retries", fake_get)
+    monkeypatch.setattr(file_sizes, "get_with_retries", fake_get)
     return asked
 
 
@@ -57,7 +58,7 @@ def test_estimated_sizes_are_replaced_by_the_real_ones(monkeypatch):
     model = _repo("org/Small-2B-GGUF", "abc")
     _serve(monkeypatch, {"org/Small-2B-GGUF": _detail("abc", _REAL)})
 
-    report = asyncio.run(gguf_sizes.fill_gguf_sizes([model]))
+    report = asyncio.run(file_sizes.fill_file_sizes([model]))
 
     assert report.fetched == 1
     sizes = {
@@ -76,7 +77,7 @@ def test_previous_sizes_are_reused_while_the_commit_is_unchanged(monkeypatch):
     changed = _repo("org/Other-2B-GGUF", "new")
     asked = _serve(monkeypatch, {"org/Other-2B-GGUF": _detail("new", _REAL)})
 
-    report = asyncio.run(gguf_sizes.fill_gguf_sizes([same, changed], previous))
+    report = asyncio.run(file_sizes.fill_file_sizes([same, changed], previous))
 
     assert asked == ["org/Other-2B-GGUF"]
     assert (report.reused, report.fetched) == (1, 1)
@@ -91,7 +92,7 @@ def test_a_new_commit_is_fetched_again(monkeypatch):
     asked = _serve(monkeypatch, {"org/Small-2B-GGUF": _detail("new", _REAL)})
 
     model = _repo("org/Small-2B-GGUF", "new")
-    asyncio.run(gguf_sizes.fill_gguf_sizes([model], previous))
+    asyncio.run(file_sizes.fill_file_sizes([model], previous))
 
     assert asked == ["org/Small-2B-GGUF"]
 
@@ -100,7 +101,7 @@ def test_requests_are_capped_most_downloaded_first(monkeypatch):
     models = [_repo(f"org/M{i}-GGUF", "s", downloads=i) for i in range(5)]
     asked = _serve(monkeypatch, {m.id: _detail("s", _REAL) for m in models})
 
-    report = asyncio.run(gguf_sizes.fill_gguf_sizes(models, max_requests=2))
+    report = asyncio.run(file_sizes.fill_file_sizes(models, max_requests=2))
 
     assert sorted(asked) == ["org/M3-GGUF", "org/M4-GGUF"]
     assert (report.fetched, report.pending) == (2, 3)
@@ -109,10 +110,10 @@ def test_requests_are_capped_most_downloaded_first(monkeypatch):
 
 def test_a_rate_limit_stops_the_remaining_requests(monkeypatch):
     models = [_repo(f"org/M{i}-GGUF", "s", downloads=10 - i) for i in range(6)]
-    monkeypatch.setattr(gguf_sizes, "_CONCURRENCY", 1)
+    monkeypatch.setattr(file_sizes, "_CONCURRENCY", 1)
     asked = _serve(monkeypatch, {m.id: 429 for m in models})
 
-    report = asyncio.run(gguf_sizes.fill_gguf_sizes(models))
+    report = asyncio.run(file_sizes.fill_file_sizes(models))
 
     assert asked == ["org/M0-GGUF"]
     assert (report.fetched, report.failed, report.pending) == (0, 0, 6)
@@ -122,13 +123,13 @@ def test_a_failed_request_keeps_the_estimates(monkeypatch):
     model = _repo("org/Gone-GGUF", "s")
     _serve(monkeypatch, {"org/Gone-GGUF": 404})
 
-    report = asyncio.run(gguf_sizes.fill_gguf_sizes([model]))
+    report = asyncio.run(file_sizes.fill_file_sizes([model]))
 
     assert report.failed == 1
     assert all(v.is_estimated for v in model.gguf_variants)
 
 
-def test_the_commit_round_trips_for_gguf_repos_only():
+def test_the_commit_round_trips_for_repos_with_sizes_only():
     gguf = _repo("org/Small-2B-GGUF", "abc")
     plain = ModelInfo(
         id="org/Plain-2B", family_id="p", name="Plain-2B", parameter_count=2, sha="def"
@@ -139,3 +140,70 @@ def test_the_commit_round_trips_for_gguf_repos_only():
     assert dicts[0]["sha"] == "abc"
     assert "sha" not in dicts[1]
     assert dicts_to_models(dicts)[0].sha == "abc"
+
+
+def _checkpoint(model_id: str, sha: str = "abc", downloads: int = 1000) -> ModelInfo:
+    return ModelInfo(
+        id=model_id,
+        family_id=model_id.lower(),
+        name=model_id.rsplit("/", 1)[-1],
+        parameter_count=18_700_000_000,
+        downloads=downloads,
+        sha=sha,
+    )
+
+
+def test_quantized_checkpoints_get_their_real_size(monkeypatch):
+    model = _checkpoint("nvidia/Test-35B-A3B-NVFP4")
+    siblings = {
+        "model-00001-of-00002.safetensors": 10**10,
+        "model-00002-of-00002.safetensors": 13 * 10**9,
+    }
+    _serve(monkeypatch, {model.id: _detail("abc", {**siblings, "README.md": 900})})
+
+    report = asyncio.run(file_sizes.fill_file_sizes([model]))
+
+    assert report.fetched == 1
+    assert model.weight_bytes == 23 * 10**9
+    assert estimate_weight_bytes(model, None) == 23 * 10**9
+
+
+def test_previous_checkpoint_size_is_reused_while_the_commit_holds(monkeypatch):
+    done = _checkpoint("nvidia/Test-35B-A3B-NVFP4")
+    done.weight_bytes = 23 * 10**9
+    previous = {"models": models_to_dicts([done])}
+    asked = _serve(monkeypatch, {})
+
+    same = _checkpoint("nvidia/Test-35B-A3B-NVFP4")
+    report = asyncio.run(file_sizes.fill_file_sizes([same], previous))
+
+    assert asked == []
+    assert report.reused == 1
+    assert same.weight_bytes == 23 * 10**9
+
+
+def test_unquantized_checkpoints_are_left_to_the_parameter_count(monkeypatch):
+    model = _checkpoint("Qwen/Qwen3-8B")
+    asked = _serve(monkeypatch, {})
+    asyncio.run(file_sizes.fill_file_sizes([model]))
+    assert asked == []
+    assert model.weight_bytes is None
+
+
+def test_shards_win_over_a_consolidated_copy():
+    data = _detail(
+        "abc",
+        {
+            "consolidated.safetensors": 5 * 10**9,
+            "model-00001-of-00001.safetensors": 5 * 10**9,
+            "onnx/model.safetensors": 9 * 10**9,
+        },
+    )
+    assert file_sizes._checkpoint_bytes(data) == 5 * 10**9
+
+
+def test_pickle_shards_count_when_there_are_no_safetensors():
+    data = _detail(
+        "abc", {"pytorch_model-00001.bin": 3 * 10**9, "training_args.bin": 4000}
+    )
+    assert file_sizes._checkpoint_bytes(data) == 3 * 10**9

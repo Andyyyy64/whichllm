@@ -47,8 +47,10 @@ def models_to_dicts(models: list[ModelInfo]) -> list[dict]:
                 "shape": m.shape.to_dict() if m.shape else None,
             }
         )
-        # Only GGUF repositories need their commit (to reuse file sizes).
-        if m.sha and m.gguf_variants:
+        # Only repositories with file sizes need their commit, to reuse them.
+        if m.weight_bytes:
+            result[-1]["weight_bytes"] = m.weight_bytes
+        if m.sha and (m.gguf_variants or m.weight_bytes):
             result[-1]["sha"] = m.sha
     return result
 
@@ -103,6 +105,7 @@ def dicts_to_models(data: list[dict]) -> list[ModelInfo]:
                 sliding_window_global_ratio=d.get("sliding_window_global_ratio"),
                 shape=ModelShape.from_dict(d.get("shape")),
                 sha=d.get("sha"),
+                weight_bytes=d.get("weight_bytes"),
             )
         )
         fill_moe_from_shape(models[-1])

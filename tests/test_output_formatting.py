@@ -87,7 +87,7 @@ def test_display_ranking_includes_weights_column():
         assert "Fit" in output
         assert "VRAM" in output
         assert "15.0 GB" in output
-        assert "~3.3 GB" in output
+        assert "~4.7 GB" in output
         assert "Weights:  ~ = estimated size" in output
     finally:
         console_mod.console = orig_console
@@ -174,7 +174,7 @@ def test_format_weights():
         vram_available_bytes=16 * 1024**3,
     )
     text, is_est = _format_weights(res_non_gguf)
-    assert text == "~3.3 GB"
+    assert text == "~4.7 GB"
     assert is_est is True
 
 
