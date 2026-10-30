@@ -1173,4 +1173,54 @@ def test_synthetic_variant_takes_the_real_size_of_its_upload():
     assert variants["Q4_K_M"].is_estimated is False
     # An estimated upload size is no better than the parameter count.
     assert variants["Q8_0"].is_estimated is True
-    assert variants["Q5_K_M"].is_estimated is True
+    # Q5_K_M has no upload, so it is not offered.
+    assert set(variants) == {"Q4_K_M", "Q8_0"}
+
+
+def _official_with_upload(quants: dict[str, int | None]) -> tuple[ModelInfo, ModelInfo]:
+    official = ModelInfo(
+        id="Qwen/Test-180B",
+        family_id="qwen/test-180b",
+        name="Test-180B",
+        parameter_count=180_000_000_000,
+    )
+    upload = ModelInfo(
+        id="AtomicChat/Test-180B-GGUF",
+        family_id="qwen/test-180b",
+        name="Test-180B-GGUF",
+        parameter_count=180_000_000_000,
+        base_model="Qwen/Test-180B",
+        base_model_relation="quantized",
+        tags=("base_model:quantized:Qwen/Test-180B",),
+        gguf_variants=[
+            GGUFVariant(f"Test-180B-{q}.gguf", q, size or 1, is_estimated=size is None)
+            for q, size in quants.items()
+        ],
+    )
+    return official, upload
+
+
+def test_synthetic_variants_stop_at_the_quants_uploads_carry():
+    from whichllm.engine.ranking_variants import _iter_candidate_variants
+
+    official, upload = _official_with_upload({"Q4_K_M": 110 * 10**9, "Q5_K_M": None})
+
+    variants = _iter_candidate_variants(official, None, [upload])
+
+    assert [v.quant_type for v in variants] == ["Q4_K_M", "Q5_K_M"]
+
+
+def test_uploads_without_a_synthetic_quant_keep_the_estimates():
+    from whichllm.engine.ranking_variants import _iter_candidate_variants
+
+    official, upload = _official_with_upload({"IQ4_XS": 90 * 10**9})
+
+    variants = _iter_candidate_variants(official, None, [upload])
+
+    assert {v.quant_type for v in variants} == {
+        "Q3_K_M",
+        "Q4_K_M",
+        "Q5_K_M",
+        "Q6_K",
+        "Q8_0",
+    }

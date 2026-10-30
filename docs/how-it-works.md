@@ -278,7 +278,9 @@ For each `ModelInfo`, `engine/ranker.py` builds candidate variants:
   When the catalog has a GGUF upload of the repo that the recipe would
   download, and the index knows that file's real size, the variant takes it:
   unsloth's Qwen3.6-35B-A3B at Q4_K_M is 22.1 GB, not the 20.2 GB the
-  parameter count gives.
+  parameter count gives. When uploads exist, only the quants they carry are
+  ranked, so a pick has a file behind it. A repo with no upload in the catalog
+  keeps the estimates, and its row has no recipe.
 - Pre-quantized repos such as AWQ, GPTQ, FP8, and BF16 are not given synthetic
   GGUF variants.
 

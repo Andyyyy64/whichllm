@@ -157,6 +157,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   prefers models with direct benchmarks, so they could pick another model
   than the one at the top of the table. `upgrade` skipped the headroom and
   ranked simulated GPUs with the default RAM bandwidth.
+- An official repo is only ranked at quants its GGUF uploads carry. It could
+  be recommended at a quant nobody published: Qwen3.8-Flash-Next at Q3_K_M
+  was #2 on an RTX 5090 and on a 128 GB Mac, with no file to download and no
+  recipe. A repo with no upload in the catalog keeps its estimates.
 - Fit and speed of an official repo use the real size of the GGUF file its
   recipe downloads. On a 16 GB RTX 5080, Qwen3.6-35B-A3B at Q4_K_M was
   sized at 20.2 GB and given `--n-cpu-moe 12`, but unsloth's file is
