@@ -111,7 +111,7 @@ A wrong recommendation is a bug, so the rankings have regression tests:
   Spark, with AMD, Intel and mixed GPU sets, CPU-only boxes and
   32K/128K-context setups, ranked against a frozen copy of the index: 1,441
   models, most GGUF repos with their real file sizes.
-- 29 constraints describe what a good answer looks like instead of pinning an
+- 30 constraints describe what a good answer looks like instead of pinning an
   exact order: no pretrain-only checkpoints, draft heads or diffusion models,
   no outdated generation in the top 5, the top 3 stay within 1 tok/s of the
   8 tok/s bar whenever the machine has that many options that fast, full-GPU

@@ -12,6 +12,7 @@ from whichllm.constants import (
 from whichllm.engine.quantization import effective_quant_type
 from whichllm.engine.ranking_sources import _OFFICIAL_ORGS
 from whichllm.models.artifacts import resolve_ranked_gguf_artifact
+from whichllm.models.gguf import holds_the_whole_model
 from whichllm.models.types import GGUFVariant, ModelInfo
 
 _SYNTHETIC_QUANTS = ("Q3_K_M", "Q4_K_M", "Q5_K_M", "Q6_K", "Q8_0")
@@ -99,8 +100,17 @@ def _iter_candidate_variants(
             return []
         return [None]
 
+    # A cached index can predate the check the parser makes.
+    candidates: list[GGUFVariant] = [
+        v
+        for v in model.gguf_variants
+        if v.is_estimated
+        or holds_the_whole_model(v.file_size_bytes, v.quant_type, model.parameter_count)
+    ]
+    if not candidates:
+        return []
+
     # Filter by quant type if specified
-    candidates: list[GGUFVariant] = model.gguf_variants
     if quant_filter_upper:
         candidates = [
             v for v in candidates if v.quant_type.upper() == quant_filter_upper

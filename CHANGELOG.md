@@ -200,6 +200,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   CPU keep their own calibration.
 - An older generation keeps its own row only when it outscores the newer one by
   more than 2 points. Any lead at all used to keep it listed.
+- A derivative that claims under a tenth of its base model's parameters no longer
+  ranks. No quant shrinks a model that far, so these are heads, broken counts or
+  misread names, and one listed at 14,000 tok/s on an 8 GB Mac.
+- GGUF files too small for the quant on their label no longer count as the model.
+  A 4.7 GB LoRA named `F16` passed for a 27B model at 7 tok/s on the CPU. Files
+  with `MTP` in the name stay, since most are whole models.
+- `8bit` and `2.9bpw` in a repo name no longer read as a size of 8B and 2.9B.
 - Recipes for unsloth's dynamic quants and Bartowski's XL files work. A label
   like `UD-Q4_K_XL` lost its suffix, and the Hub answers 400 to
   `llama-server -hf repo:Q4_K`.

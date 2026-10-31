@@ -143,6 +143,21 @@ def _is_auxiliary_model(model: ModelInfo) -> bool:
     )
 
 
+# No quant shrinks a model tenfold, since even IQ1_S keeps 1.6 bits of the base's
+# 16. A derivative below this share is a head, a broken count or a name misread
+# as a size, and every estimate built on it is fiction: one such row claimed
+# 14,000 tok/s on an 8 GB Mac.
+_MIN_SHARE_OF_BASE = 0.1
+
+
+def _understates_its_base(model: ModelInfo, params_by_repo: dict[str, int]) -> bool:
+    """True when a derivative claims a tiny fraction of the model it derives from."""
+    if not model.base_model or not model.parameter_count:
+        return False
+    base_params = params_by_repo.get(model.base_model.casefold(), 0)
+    return model.parameter_count < base_params * _MIN_SHARE_OF_BASE
+
+
 # Checkpoints vLLM serves through its Marlin kernels, which need Ampere or newer
 # (compute capability 8.0). Blackwell (10.0+) runs FP4 natively.
 _AMPERE_FORMATS = frozenset({"NVFP4", "FP8"})

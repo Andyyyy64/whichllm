@@ -162,7 +162,6 @@ class TestFamilySizeInheritance:
             parameter_count=6_600_000_000,
             downloads=0,
             likes=0,
-            base_model="org/DeepSeek-Vx-Flash",
             gguf_variants=[_gguf("Q8_0", 7.0)],
         )
         # External leaderboard only knows the 158B base.
@@ -191,6 +190,33 @@ class TestFamilySizeInheritance:
             "tiny fork's score reflects inherited 158B evidence "
             f"(got {tiny_res.quality_score:.1f}, expected <30)"
         )
+
+    def test_tiny_fork_naming_its_huge_base_is_not_listed(self):
+        base = ModelInfo(
+            id="org/DeepSeek-Vx-Flash",
+            family_id="deepseek-vx-flash",
+            name="DeepSeek-Vx-Flash",
+            parameter_count=158_000_000_000,
+            downloads=1_000_000,
+            likes=1000,
+        )
+        tiny_fork = ModelInfo(
+            id="fork/DeepSeek-Vx-Flash-mtp-aligned",
+            family_id="deepseek-vx-flash",
+            name="DeepSeek-Vx-Flash-mtp-aligned",
+            parameter_count=6_600_000_000,
+            base_model="org/DeepSeek-Vx-Flash",
+            gguf_variants=[_gguf("Q8_0", 7.0)],
+        )
+
+        ranked = rank_models(
+            [base, tiny_fork],
+            _hw(vram_gb=12),
+            benchmark_scores={"org/DeepSeek-Vx-Flash": 92.0},
+            require_direct_top=False,
+        )
+
+        assert tiny_fork.id not in [r.model.id for r in ranked]
 
 
 # ------------------------------------------------------------------ R3-3
