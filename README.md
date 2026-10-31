@@ -184,6 +184,14 @@ ggml.llamacpp`), a GGUF model runs in its `llama-cli` with the flags of the
 printed recipe, so the chat uses the GPU and keeps MoE experts in RAM the way
 the ranking estimated. A named model is left to llama.cpp's automatic fit.
 
+A GGUF model already installed in LM Studio is opened from that library instead
+of being downloaded again; `whichllm recommend` marks those rows `Installed`.
+Pass `--lm-studio-path` (repeatable) for a legacy or custom library:
+
+```bash
+whichllm run "qwen 2.5 1.5b gguf" --lm-studio-path /mnt/models/lm-studio
+```
+
 Without llama-cli, `run` creates a throwaway environment with `uv` and uses
 `llama-cpp-python` for GGUF models and `transformers` for the rest. PyPI only
 ships llama-cpp-python as source, so the first run compiles it, which took

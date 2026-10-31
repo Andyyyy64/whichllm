@@ -340,6 +340,33 @@ Then retry:
 whichllm run
 ```
 
+## A local LM Studio file goes away under `run`
+
+`whichllm run` reuses an exact local LM Studio match instead of downloading the
+artifact again. Two things are guaranteed, and they differ by backend:
+
+- With `llama-cli`, the match is verified immediately before the process starts.
+- Without it, the isolated `uv` build runs first and can take minutes, so the
+  generated script checks every part again right before it loads the model.
+
+If the files went away in between, `run` says so and downloads the artifact
+instead of crashing:
+
+```
+Warning: Local LM Studio file for <repo> is missing or incomplete; downloading instead.
+```
+
+A set that was already incomplete when `run` looked it up names the missing
+part instead, including a set whose first part is the one that is gone:
+
+```
+Warning: Local LM Studio set for <repo> in <library> is missing part 1 of 3; downloading instead.
+```
+
+Check the library with `whichllm --lm-studio-path <path>`, or re-download the
+model in LM Studio to restore a complete artifact. A library that does not
+contain the artifact at all prints nothing.
+
 ## `run` cannot download a model
 
 Possible causes:

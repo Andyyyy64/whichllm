@@ -33,7 +33,15 @@ whichllm run
 whichllm run "qwen 2.5 1.5b gguf"
 whichllm run "phi 3 mini gguf" --cpu-only
 whichllm run "llama 3 8b gguf" --quant Q5_K_M
+whichllm run "qwen 2.5 1.5b gguf" --lm-studio-path /mnt/models/lm-studio
 ```
+
+A GGUF model already installed in LM Studio is opened from that library instead
+of being downloaded again. The match needs the resolved repository, the exact
+artifact path, and every part of a split GGUF beside the entry file. Libraries
+are only read; `--lm-studio-path` adds a legacy or custom one and can be
+repeated. The reuse and the fallback when the files change under it are covered
+under [How `run` executes](#how-run-executes).
 
 ## How `run` executes
 
@@ -50,7 +58,9 @@ llama-cli -hf <repo>:<quant> -c <context> <flags>
 
 where the flags are the printed recipe's (`-ngl 99 --n-cpu-moe 12 -fa on`, for
 example). llama-cli downloads the file into its own cache, keeps MoE experts in
-RAM when the ranking did, and uses the GPU. A named model gets no placement
+RAM when the ranking did, and uses the GPU. With a local LM Studio match the
+`-hf <repo>:<quant>` source becomes `-m <entry part>`, and the flags stay the
+same. A named model gets no placement
 flags: llama.cpp's `--fit`, on by default, sizes the GPU layers and experts to
 the free memory. `--cpu-only` adds `-ngl 0`. On an RTX 5080, `whichllm run
 unsloth/Qwen3.5-2B-GGUF` this way answered in 4 seconds once the file was
@@ -62,6 +72,13 @@ Otherwise it:
 2. Runs that script with `uv run --no-project`.
 3. Adds the required dependencies with repeated `--with` flags.
 4. Deletes the temporary script after the chat exits.
+
+With a local LM Studio match, the script opens the entry file and checks every
+part again before loading: the isolated build runs first and can take minutes, so
+a file that went away in the meantime prints a note and falls back to the
+Hugging Face download instead of failing. `huggingface-hub` stays in the
+dependency list as that fallback, and the reuse skips the download, not the
+package.
 
 This keeps the project environment clean. The temporary runtime dependencies
 are not added to `pyproject.toml`.
