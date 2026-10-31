@@ -713,7 +713,9 @@ def test_combined_fit_is_rejected_when_one_device_cannot_hold_the_runtime_part()
     assert result.fit_type == "partial_offload"
     assert result.multi_gpu_effective_vram_bytes is None
     assert any("placement rejected" in w for w in result.warnings)
-    assert any("fits no single device" in w for w in result.warnings)
+    assert any("after its runtime buffer" in w for w in result.warnings)
+    # The warning says what happens next: one card carries the GPU part.
+    assert any("largest card alone" in w for w in result.warnings)
     assert not any("fits no device" in w for w in result.warnings)
 
 
