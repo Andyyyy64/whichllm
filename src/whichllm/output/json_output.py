@@ -131,6 +131,7 @@ def display_plan_json(
     """Output plan results as JSON."""
     from whichllm.constants import (
         GPU_BANDWIDTH,
+        DEFAULT_BYTES_PER_WEIGHT,
         QUANT_BYTES_PER_WEIGHT,
         QUANT_QUALITY_PENALTY,
     )
@@ -158,7 +159,7 @@ def display_plan_json(
 
     target_vram = vram_by_quant.get(target_quant.upper(), {}).get("vram_bytes", 0)
     if target_vram == 0:
-        bpw = QUANT_BYTES_PER_WEIGHT.get(target_quant.upper(), 0.5625)
+        bpw = QUANT_BYTES_PER_WEIGHT.get(target_quant.upper(), DEFAULT_BYTES_PER_WEIGHT)
         fake_size = int(model.parameter_count * bpw)
         fake_variant = GGUFVariant(
             filename="", quant_type=target_quant, file_size_bytes=fake_size
@@ -180,7 +181,7 @@ def display_plan_json(
         ("H200", 141),
     ]
 
-    bpw = QUANT_BYTES_PER_WEIGHT.get(target_quant.upper(), 0.5625)
+    bpw = QUANT_BYTES_PER_WEIGHT.get(target_quant.upper(), DEFAULT_BYTES_PER_WEIGHT)
     fake_size = int(model.parameter_count * bpw)
     fake_variant = GGUFVariant(
         filename="", quant_type=target_quant, file_size_bytes=fake_size

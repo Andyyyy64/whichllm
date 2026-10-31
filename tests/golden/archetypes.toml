@@ -456,9 +456,8 @@ top = 3
 profiles = ["general", "coding", "vision", "math", "any"]
 rationale = """`whichllm run` launches the first row it can resolve to a real
 file, so the top rows must resolve for `run` to agree with the table. The frozen
-catalog has no GGUF upload for Qwen3.5-122B-A10B, DeepSeek-V4-Flash or
-granite-4.0-h-tiny."""
-xfail = { "strix-halo-128gb-linux/general" = "no Qwen3.5-122B-A10B GGUF in the catalog", "dgx-spark-128gb-linux/general" = "no DeepSeek-V4-Flash GGUF in the catalog", "cpu-16gb-win/general" = "no granite-4.0-h-tiny GGUF in the catalog" }
+catalog has no GGUF upload for Qwen3.5-122B-A10B or granite-4.0-h-tiny."""
+xfail = { "strix-halo-128gb-linux/general" = "no Qwen3.5-122B-A10B GGUF in the catalog", "cpu-16gb-win/general" = "no granite-4.0-h-tiny GGUF in the catalog" }
 
 [[constraint]]
 id = "memory-buys-quality"

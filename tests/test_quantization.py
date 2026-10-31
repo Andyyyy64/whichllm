@@ -1,12 +1,14 @@
 """Tests for non-GGUF quantization inference."""
 
+import pytest
+
 from whichllm.engine.quantization import (
     effective_quant_type,
     estimate_weight_bytes,
     infer_non_gguf_quant_type,
 )
 from whichllm.engine.vram import estimate_vram
-from whichllm.models.types import ModelInfo
+from whichllm.models.types import GGUFVariant, ModelInfo
 
 
 def _make_model(model_id: str, params: int = 14_000_000_000) -> ModelInfo:
@@ -100,7 +102,7 @@ def test_extract_quant_type_recognizes_ternary_gguf():
 
 def test_estimate_gguf_size_does_not_undersize_fp16():
     # An FP16 GGUF must size at full precision (2.0 bytes/weight), not collapse
-    # to the Q4_K_M 0.5625 default that an unrecognized token falls back to.
+    # to the Q4_K_M default that an unrecognized token falls back to.
     from whichllm.models.fetcher import _estimate_gguf_size, _extract_quant_type
 
     params = 7_000_000_000
@@ -139,3 +141,72 @@ def test_extract_quant_type_keys_resolve_in_byte_table():
         assert quant in QUANT_BYTES_PER_WEIGHT, (
             f"{fname} -> {quant!r} missing from QUANT_BYTES_PER_WEIGHT"
         )
+
+
+@pytest.mark.parametrize(
+    ("filename", "label"),
+    [
+        ("gpt-oss-20b-UD-Q8_K_XL.gguf", "Q8_K_XL"),
+        ("UD-Q4_K_XL/GLM-5.3-Flash-UD-Q4_K_XL-00001-of-00006.gguf", "Q4_K_XL"),
+        ("Qwen2.5-32B-Instruct-Q3_K_XL.gguf", "Q3_K_XL"),
+        ("Qwen2.5-32B-Instruct-Q6_K_L.gguf", "Q6_K_L"),
+        ("model-Q4_K_P.gguf", "Q4_K_P"),
+        ("model-Q4_K_M-00001-of-00002.gguf", "Q4_K_M"),
+        ("model-Q4_K.gguf", "Q4_K"),
+        ("Q6_K_STOCK/Ling-3.0-flash-Q6_K_STOCK-00001-of-00003.gguf", "Q6_K"),
+    ],
+)
+def test_extract_quant_type_keeps_the_label_a_recipe_needs(filename, label):
+    # `llama-server -hf repo:Q8_K` gets a 400 from the Hub; Q8_K_XL resolves.
+    from whichllm.models.fetcher import _extract_quant_type
+
+    assert _extract_quant_type(filename) == label
+
+
+@pytest.mark.parametrize(
+    ("label", "key"),
+    [
+        ("Q4_K_XL", "Q4_K_XL"),
+        ("Q4_K_P", "Q4_K"),
+        ("Q6_K_L", "Q6_K_L"),
+        ("Q6_K_M", "Q6_K"),
+        ("Q2_K_S", "Q2_K"),
+        ("IQ4_XS_FLAT", "IQ4_XS"),
+        ("IQ1_M_XL", "IQ1_M"),
+        ("iq2_s_xl", "IQ2_S"),
+        ("AWQ", "AWQ"),
+    ],
+)
+def test_quant_table_key_strips_uploader_suffixes(label, key):
+    from whichllm.data.quantization import QUANT_BYTES_PER_WEIGHT
+    from whichllm.models.gguf import quant_table_key
+
+    assert quant_table_key(label, QUANT_BYTES_PER_WEIGHT) == key
+
+
+def test_low_bit_labels_do_not_get_the_default_penalty():
+    from whichllm.engine.quantization import quant_quality_penalty
+
+    model = ModelInfo(id="org/model", family_id="f", name="model", parameter_count=1)
+
+    def penalty(label: str) -> float:
+        return quant_quality_penalty(
+            model, GGUFVariant(filename="m.gguf", quant_type=label, file_size_bytes=1)
+        )
+
+    assert penalty("IQ1_M_XL") == penalty("IQ1_M") == 0.50
+    assert penalty("Q2_K_L") == penalty("Q2_K") == 0.25
+    assert penalty("IQ2_S") < penalty("IQ2_XS") < penalty("IQ2_XXS")
+    # A larger file of the same format is no better, so it cannot outrank one
+    # the Hub resolves: `repo:Q4_K_L` gets a 400 even where the file exists.
+    assert penalty("Q4_K_L") == penalty("Q4_K_M")
+    assert penalty("Q5_K_L") == penalty("Q5_K_M")
+    assert penalty("Q8_K_XL") == penalty("Q8_0")
+
+
+def test_rates_follow_the_order_of_the_formats():
+    from whichllm.data.quantization import QUANT_BYTES_PER_WEIGHT as rate
+
+    assert rate["Q8_K_XL"] > rate["Q8_0"] > rate["Q6_K"] > rate["Q5_K_M"]
+    assert rate["Q5_K_M"] > rate["Q4_K_M"] > rate["Q3_K_M"] > rate["Q2_K"]
+    assert rate["IQ4_XS"] > rate["IQ3_M"] > rate["IQ2_M"] > rate["IQ1_M"]

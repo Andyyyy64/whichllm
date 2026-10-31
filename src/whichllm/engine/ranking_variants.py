@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import re
 
-from whichllm.constants import QUANT_BYTES_PER_WEIGHT, QUANT_PREFERENCE_ORDER
+from whichllm.constants import (
+    DEFAULT_BYTES_PER_WEIGHT,
+    QUANT_BYTES_PER_WEIGHT,
+    QUANT_PREFERENCE_ORDER,
+)
 from whichllm.engine.quantization import effective_quant_type
 from whichllm.engine.ranking_sources import _OFFICIAL_ORGS
 from whichllm.models.artifacts import resolve_ranked_gguf_artifact
@@ -55,7 +59,7 @@ def _synthesize_variants_for_official_repo(
     for quant in _SYNTHETIC_QUANTS:
         if quant_filter_upper and quant != quant_filter_upper:
             continue
-        bpw = QUANT_BYTES_PER_WEIGHT.get(quant, 0.5625)
+        bpw = QUANT_BYTES_PER_WEIGHT.get(quant, DEFAULT_BYTES_PER_WEIGHT)
         variant = GGUFVariant(
             filename=f"{model.name}.{quant}.gguf",
             quant_type=quant,
