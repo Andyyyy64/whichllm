@@ -1,0 +1,380 @@
+gpu,vendor,compute_capability,bandwidth_gbps,file_gib,tok_per_sec,runs,backend,source
+FirePro S9300 X2,amd,,512.0,3.56,51.82,12,vulkan,llama.cpp#10879
+FirePro W8000,amd,,176.0,3.56,25.32,1,vulkan,llama.cpp#10879
+Radeon 550,amd,,56.0,3.56,10.2,1,vulkan,llama.cpp#10879
+Radeon AI PRO R9700,amd,,644.6,3.56,98.34,8,rocm,llama.cpp#15021
+Radeon AI PRO R9700,amd,,644.6,3.56,132.74,4,vulkan,llama.cpp#10879
+Radeon Instinct MI100,amd,,1230.0,3.56,110.48,6,rocm,llama.cpp#15021
+Radeon Instinct MI210,amd,,1640.0,3.56,127.34,8,rocm,llama.cpp#15021
+Radeon Instinct MI25,amd,,436.2,3.56,63.94,1,rocm,llama.cpp#15021
+Radeon Instinct MI25,amd,,436.2,3.56,59.31,2,vulkan,llama.cpp#10879
+Radeon Instinct MI25,amd,,436.2,46.51,9.47,2,vulkan,llama.cpp#10879
+Radeon Instinct MI50,amd,,1020.0,3.56,102.38,2,rocm,llama.cpp#15021
+Radeon Instinct MI60,amd,,1020.0,3.56,91.46,1,rocm,llama.cpp#15021
+Radeon PRO V620,amd,,512.0,3.56,83.07,8,rocm,llama.cpp#15021
+Radeon PRO V620,amd,,512.0,3.56,73.09,16,vulkan,llama.cpp#10879
+Radeon PRO V620,amd,,512.0,25.82,11.75,4,vulkan,llama.cpp#10879
+Radeon PRO W7900,amd,,864.0,3.56,124.31,8,rocm,llama.cpp#15021
+Radeon Pro V340 8 GB,amd,,483.8,3.56,13.04,16,vulkan,llama.cpp#10879
+Radeon Pro VII,amd,,1020.0,3.56,87.45,1,rocm,llama.cpp#15021
+Radeon Pro VII,amd,,1020.0,3.56,78.35,4,vulkan,llama.cpp#10879
+Radeon Pro VII,amd,,1020.0,46.51,4.75,1,vulkan,llama.cpp#10879
+Radeon Pro W5500,amd,,224.0,3.56,40.02,4,vulkan,llama.cpp#10879
+Radeon Pro W5700,amd,,448.0,3.56,71.3,13,vulkan,llama.cpp#10879
+Radeon Pro WX 4100,amd,,96.0,3.56,16.3,2,vulkan,llama.cpp#10879
+Radeon R9 FURY,amd,,512.0,3.56,31.14,2,vulkan,llama.cpp#10879
+Radeon RX 470,amd,,211.2,3.56,38.21,19,vulkan,llama.cpp#10879
+Radeon RX 480,amd,,256.0,3.56,40.15,26,vulkan,llama.cpp#10879
+Radeon RX 570,amd,,224.0,3.56,38.81,4,vulkan,llama.cpp#10879
+Radeon RX 5700 XT,amd,,448.0,3.56,64.78,2,rocm,llama.cpp#15021
+Radeon RX 5700 XT,amd,,448.0,3.56,70.73,14,vulkan,llama.cpp#10879
+Radeon RX 580,amd,,256.0,3.56,27.51,5,vulkan,llama.cpp#10879
+Radeon RX 580 2048SP,amd,,224.0,3.56,18.92,9,vulkan,llama.cpp#10879
+Radeon RX 6500 XT,amd,,143.9,3.56,27.81,1,vulkan,llama.cpp#10879
+Radeon RX 6600,amd,,224.0,3.56,50.57,22,vulkan,llama.cpp#10879
+Radeon RX 6600 XT,amd,,256.0,3.56,50.93,2,vulkan,llama.cpp#10879
+Radeon RX 6600M,amd,,224.0,3.56,48.21,1,vulkan,llama.cpp#10879
+Radeon RX 6650 XT,amd,,280.3,3.56,59.2,2,vulkan,llama.cpp#10879
+Radeon RX 6700 XT,amd,,384.0,3.56,82.87,2,vulkan,llama.cpp#10879
+Radeon RX 6750 XT,amd,,432.0,3.56,82.14,2,vulkan,llama.cpp#10879
+Radeon RX 6800,amd,,512.0,3.56,86.03,5,rocm,llama.cpp#15021
+Radeon RX 6800,amd,,512.0,3.56,103.98,4,vulkan,llama.cpp#10879
+Radeon RX 6800 XT,amd,,512.0,3.56,83.92,1,rocm,llama.cpp#15021
+Radeon RX 6800 XT,amd,,512.0,3.56,95.56,5,vulkan,llama.cpp#10879
+Radeon RX 6800M,amd,,384.0,3.56,48.89,8,vulkan,llama.cpp#10879
+Radeon RX 6900 XT,amd,,512.0,3.56,86.77,8,rocm,llama.cpp#15021
+Radeon RX 6900 XT,amd,,512.0,3.56,98.89,7,vulkan,llama.cpp#10879
+Radeon RX 6950 XT,amd,,576.0,3.56,84.08,8,vulkan,llama.cpp#10879
+Radeon RX 7600,amd,,288.0,3.56,56.0,2,rocm,llama.cpp#15021
+Radeon RX 7600,amd,,288.0,3.56,58.02,8,vulkan,llama.cpp#10879
+Radeon RX 7600 XT,amd,,288.0,3.56,48.58,6,rocm,llama.cpp#15021
+Radeon RX 7600 XT,amd,,288.0,3.56,52.69,18,vulkan,llama.cpp#10879
+Radeon RX 7600M XT,amd,,288.0,3.56,39.19,2,vulkan,llama.cpp#10879
+Radeon RX 7600S,amd,,256.0,3.56,47.32,2,rocm,llama.cpp#15021
+Radeon RX 7800 XT,amd,,624.1,3.56,116.16,28,vulkan,llama.cpp#10879
+Radeon RX 7900 GRE,amd,,576.0,3.56,99.95,10,rocm,llama.cpp#15021
+Radeon RX 7900 GRE,amd,,576.0,3.56,110.91,6,vulkan,llama.cpp#10879
+Radeon RX 7900 XT,amd,,800.0,3.56,121.1,8,rocm,llama.cpp#15021
+Radeon RX 7900 XT,amd,,800.0,3.56,117.61,12,vulkan,llama.cpp#10879
+Radeon RX 7900 XTX,amd,,960.0,3.56,142.17,35,rocm,llama.cpp#15021
+Radeon RX 7900 XTX,amd,,960.0,3.56,145.78,213,vulkan,llama.cpp#10879
+Radeon RX 7900 XTX,amd,,960.0,16.04,33.99,2,vulkan,llama.cpp#10879
+Radeon RX 7900 XTX,amd,,960.0,30.38,23.43,3,rocm,llama.cpp#15021
+Radeon RX 7900 XTX,amd,,960.0,30.38,22.73,4,vulkan,llama.cpp#10879
+Radeon RX 9060 XT 16 GB,amd,,322.3,3.56,66.5,2,rocm,llama.cpp#15021
+Radeon RX 9060 XT 8 GB,amd,,322.3,3.56,67.42,8,rocm,llama.cpp#15021
+Radeon RX 9060 XT 8 GB,amd,,322.3,3.56,54.9,24,vulkan,llama.cpp#10879
+Radeon RX 9070,amd,,644.6,3.56,114.8,8,rocm,llama.cpp#15021
+Radeon RX 9070,amd,,644.6,3.56,119.61,2,vulkan,llama.cpp#10879
+Radeon RX 9070 XT,amd,,644.6,3.56,101.44,40,rocm,llama.cpp#15021
+Radeon RX 9070 XT,amd,,644.6,3.56,128.09,44,vulkan,llama.cpp#10879
+Radeon RX 9070 XT,amd,,644.6,7.95,58.16,3,vulkan,llama.cpp#10879
+Radeon RX Vega 56,amd,,409.6,3.56,47.62,4,rocm,llama.cpp#15021
+Radeon RX Vega 56,amd,,409.6,3.56,51.44,24,vulkan,llama.cpp#10879
+Radeon RX Vega 64,amd,,483.8,3.56,45.46,2,rocm,llama.cpp#15021
+Radeon VII,amd,,1020.0,3.56,105.97,12,vulkan,llama.cpp#10879
+Tesla V100 SXM2 16 GB,amd,7.0,1130.0,3.56,145.74,2,rocm,llama.cpp#15021
+Tesla V100 SXM2 32 GB,amd,7.0,898.0,3.56,49.7,1,rocm,llama.cpp#15021
+Apple M1 7c,apple,,68.0,3.56,14.19,1,metal,llama.cpp#4167
+Apple M1 7c,apple,,68.2,4.58,10.2,1,metal,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+Apple M1 7c,apple,,68.0,6.67,7.92,1,metal,llama.cpp#4167
+Apple M1 8c,apple,,68.0,3.56,14.15,1,metal,llama.cpp#4167
+Apple M1 8c,apple,,68.0,6.67,7.91,1,metal,llama.cpp#4167
+Apple M1 Max 24c,apple,,400.0,3.56,54.61,1,metal,llama.cpp#4167
+Apple M1 Max 24c,apple,,400.0,6.67,37.81,1,metal,llama.cpp#4167
+Apple M1 Max 24c,apple,,400.0,12.55,22.55,1,metal,llama.cpp#4167
+Apple M1 Max 32c,apple,,400.0,3.56,61.19,1,metal,llama.cpp#4167
+Apple M1 Max 32c,apple,,400.0,4.58,35.73,1,metal,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+Apple M1 Max 32c,apple,,400.0,6.67,40.2,1,metal,llama.cpp#4167
+Apple M1 Max 32c,apple,,400.0,12.55,23.03,1,metal,llama.cpp#4167
+Apple M1 Max 32c,apple,,400.0,14.96,18.75,1,metal,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+Apple M1 Max 32c,apple,,400.0,39.59,4.34,1,metal,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+Apple M1 Pro 14c,apple,,200.0,3.56,35.52,1,metal,llama.cpp#4167
+Apple M1 Pro 14c,apple,,200.0,6.67,21.95,1,metal,llama.cpp#4167
+Apple M1 Pro 14c,apple,,200.0,12.55,12.75,1,metal,llama.cpp#4167
+Apple M1 Pro 16c,apple,,200.0,3.56,36.41,1,metal,llama.cpp#4167
+Apple M1 Pro 16c,apple,,200.0,6.67,22.34,1,metal,llama.cpp#4167
+Apple M1 Pro 16c,apple,,200.0,12.55,12.75,1,metal,llama.cpp#4167
+Apple M1 Ultra 48c,apple,,800.0,3.56,74.93,1,metal,llama.cpp#4167
+Apple M1 Ultra 48c,apple,,800.0,6.67,55.69,1,metal,llama.cpp#4167
+Apple M1 Ultra 48c,apple,,800.0,12.55,33.92,1,metal,llama.cpp#4167
+Apple M1 Ultra 64c,apple,,800.0,3.56,83.73,1,metal,llama.cpp#4167
+Apple M1 Ultra 64c,apple,,800.0,6.67,59.87,1,metal,llama.cpp#4167
+Apple M1 Ultra 64c,apple,,800.0,12.55,37.01,1,metal,llama.cpp#4167
+Apple M2 10c,apple,,100.0,3.56,21.91,1,metal,llama.cpp#4167
+Apple M2 10c,apple,,100.0,6.67,12.21,1,metal,llama.cpp#4167
+Apple M2 10c,apple,,100.0,12.55,6.72,1,metal,llama.cpp#4167
+Apple M2 8c,apple,,100.0,3.56,21.7,1,metal,llama.cpp#4167
+Apple M2 8c,apple,,100.0,6.67,12.18,1,metal,llama.cpp#4167
+Apple M2 Max 30c,apple,,400.0,3.56,60.99,1,metal,llama.cpp#4167
+Apple M2 Max 30c,apple,,400.0,6.67,39.97,1,metal,llama.cpp#4167
+Apple M2 Max 30c,apple,,400.0,12.55,24.16,1,metal,llama.cpp#4167
+Apple M2 Max 38c,apple,,400.0,3.56,65.95,1,metal,llama.cpp#4167
+Apple M2 Max 38c,apple,,400.0,6.67,41.83,1,metal,llama.cpp#4167
+Apple M2 Max 38c,apple,,400.0,12.55,24.65,1,metal,llama.cpp#4167
+Apple M2 Pro 16c,apple,,200.0,3.56,37.87,1,metal,llama.cpp#4167
+Apple M2 Pro 16c,apple,,200.0,6.67,22.7,1,metal,llama.cpp#4167
+Apple M2 Pro 16c,apple,,200.0,12.55,12.47,1,metal,llama.cpp#4167
+Apple M2 Pro 19c,apple,,200.0,3.56,38.86,1,metal,llama.cpp#4167
+Apple M2 Pro 19c,apple,,200.0,6.67,23.01,1,metal,llama.cpp#4167
+Apple M2 Pro 19c,apple,,200.0,12.55,13.06,1,metal,llama.cpp#4167
+Apple M2 Ultra 60c,apple,,800.0,3.56,88.64,1,metal,llama.cpp#4167
+Apple M2 Ultra 60c,apple,,800.0,6.67,62.14,1,metal,llama.cpp#4167
+Apple M2 Ultra 60c,apple,,800.0,12.55,39.86,1,metal,llama.cpp#4167
+Apple M2 Ultra 76c,apple,,800.0,3.56,94.27,1,metal,llama.cpp#4167
+Apple M2 Ultra 76c,apple,,800.0,4.58,78.81,1,metal,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+Apple M2 Ultra 76c,apple,,800.0,6.67,66.64,1,metal,llama.cpp#4167
+Apple M2 Ultra 76c,apple,,800.0,12.55,41.02,1,metal,llama.cpp#4167
+Apple M2 Ultra 76c,apple,,800.0,14.96,36.9,1,metal,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+Apple M2 Ultra 76c,apple,,800.0,39.59,12.48,1,metal,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+Apple M2 Ultra 76c,apple,,800.0,131.42,4.76,1,metal,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+Apple M3 10c,apple,,100.0,3.56,21.34,1,metal,llama.cpp#4167
+Apple M3 10c,apple,,100.0,6.67,12.27,1,metal,llama.cpp#4167
+Apple M3 Max 30c,apple,,300.0,3.56,56.58,1,metal,llama.cpp#4167
+Apple M3 Max 30c,apple,,300.0,6.67,34.3,1,metal,llama.cpp#4167
+Apple M3 Max 30c,apple,,300.0,12.55,19.54,1,metal,llama.cpp#4167
+Apple M3 Max 40c,apple,,400.0,3.56,66.31,1,metal,llama.cpp#4167
+Apple M3 Max 40c,apple,,400.0,4.58,48.97,1,metal,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+Apple M3 Max 40c,apple,,400.0,6.67,42.75,1,metal,llama.cpp#4167
+Apple M3 Max 40c,apple,,400.0,12.55,25.09,1,metal,llama.cpp#4167
+Apple M3 Max 40c,apple,,400.0,14.96,22.04,1,metal,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+Apple M3 Max 40c,apple,,400.0,39.59,7.65,1,metal,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+Apple M3 Pro 14c,apple,,150.0,3.56,30.65,1,metal,llama.cpp#4167
+Apple M3 Pro 14c,apple,,150.0,6.67,17.44,1,metal,llama.cpp#4167
+Apple M3 Pro 18c,apple,,150.0,3.56,30.74,1,metal,llama.cpp#4167
+Apple M3 Pro 18c,apple,,150.0,6.67,17.53,1,metal,llama.cpp#4167
+Apple M3 Pro 18c,apple,,150.0,12.55,9.89,1,metal,llama.cpp#4167
+Apple M3 Ultra 60c,apple,,800.0,3.56,88.4,1,metal,llama.cpp#4167
+Apple M3 Ultra 60c,apple,,800.0,6.67,63.55,1,metal,llama.cpp#4167
+Apple M3 Ultra 60c,apple,,800.0,12.55,42.24,1,metal,llama.cpp#4167
+Apple M3 Ultra 80c,apple,,800.0,3.56,92.14,1,metal,llama.cpp#4167
+Apple M3 Ultra 80c,apple,,800.0,6.67,63.93,1,metal,llama.cpp#4167
+Apple M3 Ultra 80c,apple,,800.0,12.55,39.78,1,metal,llama.cpp#4167
+Apple M4 10c,apple,,120.0,3.56,24.11,1,metal,llama.cpp#4167
+Apple M4 10c,apple,,120.0,6.67,13.54,1,metal,llama.cpp#4167
+Apple M4 10c,apple,,120.0,12.55,7.43,1,metal,llama.cpp#4167
+Apple M4 Max 32c,apple,,410.0,3.56,69.95,1,metal,llama.cpp#4167
+Apple M4 Max 32c,apple,,410.0,6.67,43.87,1,metal,llama.cpp#4167
+Apple M4 Max 32c,apple,,410.0,12.55,24.29,1,metal,llama.cpp#4167
+Apple M4 Max 40c,apple,,546.0,3.56,83.06,1,metal,llama.cpp#4167
+Apple M4 Max 40c,apple,,546.0,6.67,54.05,1,metal,llama.cpp#4167
+Apple M4 Max 40c,apple,,546.0,12.55,31.64,1,metal,llama.cpp#4167
+Apple M4 Pro 16c,apple,,273.0,3.56,49.64,1,metal,llama.cpp#4167
+Apple M4 Pro 16c,apple,,273.0,6.67,30.54,1,metal,llama.cpp#4167
+Apple M4 Pro 16c,apple,,273.0,12.55,17.19,1,metal,llama.cpp#4167
+Apple M4 Pro 20c,apple,,273.0,3.56,50.74,1,metal,llama.cpp#4167
+Apple M4 Pro 20c,apple,,273.0,6.67,30.69,1,metal,llama.cpp#4167
+Apple M4 Pro 20c,apple,,273.0,12.55,17.18,1,metal,llama.cpp#4167
+Apple M5 10c,apple,,154.0,3.56,31.88,1,metal,llama.cpp#4167
+Apple M5 10c,apple,,154.0,6.67,18.42,1,metal,llama.cpp#4167
+Apple M5 Max 40c,apple,,614.0,3.56,119.92,1,metal,llama.cpp#4167
+Apple M5 Max 40c,apple,,614.0,6.67,72.42,1,metal,llama.cpp#4167
+Apple M5 Max 40c,apple,,614.0,12.55,37.11,1,metal,llama.cpp#4167
+Apple M5 Pro 16c,apple,,307.0,3.56,67.59,1,metal,llama.cpp#4167
+Apple M5 Pro 16c,apple,,307.0,6.67,38.94,1,metal,llama.cpp#4167
+Apple M5 Pro 16c,apple,,307.0,12.55,21.39,1,metal,llama.cpp#4167
+Apple M5 Pro 20c,apple,,307.0,3.56,66.33,1,metal,llama.cpp#4167
+Apple M5 Pro 20c,apple,,307.0,6.67,38.92,1,metal,llama.cpp#4167
+Apple M5 Pro 20c,apple,,307.0,12.55,21.55,1,metal,llama.cpp#4167
+Apple M5 Ultra 80c,apple,,1228.0,3.56,179.1,1,metal,llama.cpp#4167
+Apple M5 Ultra 80c,apple,,1228.0,6.67,119.01,1,metal,llama.cpp#4167
+Apple M5 Ultra 80c,apple,,1228.0,12.55,73.6,1,metal,llama.cpp#4167
+Apple M6 8c,apple,,170.0,3.56,35.74,1,metal,llama.cpp#4167
+Apple M6 8c,apple,,170.0,6.67,21.01,1,metal,llama.cpp#4167
+Apple M6 8c,apple,,170.0,12.55,11.59,1,metal,llama.cpp#4167
+RTX 4000 Ada Generation,apple,8.9,360.0,3.56,71.6,2,metal,llama.cpp#4167
+RTX 4000 Ada Generation,apple,8.9,360.0,6.67,46.59,2,metal,llama.cpp#4167
+RTX 4000 Ada Generation,apple,8.9,360.0,12.55,29.68,2,metal,llama.cpp#4167
+Arc A380,intel,,186.0,3.56,17.57,6,sycl,llama.cpp#23313
+Arc A750,intel,,512.0,3.56,39.06,10,vulkan,llama.cpp#10879
+Arc A770,intel,,512.0,3.56,48.74,22,vulkan,llama.cpp#10879
+Arc A770,intel,,512.0,7.95,31.04,3,vulkan,llama.cpp#10879
+Arc A770M,intel,,512.0,3.56,46.69,2,vulkan,llama.cpp#10879
+Arc B570,intel,,380.0,3.56,43.04,6,vulkan,llama.cpp#10879
+Arc B580,intel,,456.0,3.56,71.07,2,vulkan,llama.cpp#10879
+Arc B580,intel,,456.0,6.86,36.3,4,sycl,llama.cpp#23313
+Arc Pro B50,intel,,224.0,3.56,40.98,4,vulkan,llama.cpp#10879
+Intel Arc Pro B70,intel,,608.0,12.56,34.72,6,sycl,llama.cpp#23313
+Intel Arc Pro B70,intel,,608.0,13.5,32.33,2,sycl,llama.cpp#23313
+Intel Arc Pro B70,intel,,608.0,15.61,30.06,4,sycl,llama.cpp#23313
+Intel Arc Pro B70,intel,,608.0,16.34,20.53,2,sycl,llama.cpp#23313
+Intel Arc Pro B70,intel,,608.0,18.01,26.85,2,sycl,llama.cpp#23313
+Intel Arc Pro B70,intel,,608.0,19.43,22.74,4,sycl,llama.cpp#23313
+Intel Arc Pro B70,intel,,608.0,21.49,19.75,2,sycl,llama.cpp#23313
+Intel Arc Pro B70,intel,,608.0,23.33,18.87,2,sycl,llama.cpp#23313
+A100 PCIe 80 GB,nvidia,8.0,1940.0,3.56,186.24,14,cuda,llama.cpp#15013
+A100 PCIe 80 GB,nvidia,8.0,1940.0,3.56,145.03,4,vulkan,llama.cpp#10879
+A100 PCIe 80 GB,nvidia,8.0,1940.0,4.58,140.62,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+A100 PCIe 80 GB,nvidia,8.0,1940.0,14.96,54.84,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+A100 PCIe 80 GB,nvidia,8.0,1940.0,39.59,22.31,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+A100 SXM4 40 GB,nvidia,8.0,1560.0,3.56,165.67,4,vulkan,llama.cpp#10879
+A100 SXM4 80 GB,nvidia,8.0,2040.0,3.56,192.47,22,cuda,llama.cpp#15013
+A100 SXM4 80 GB,nvidia,8.0,2040.0,4.58,135.04,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+A100 SXM4 80 GB,nvidia,8.0,2040.0,14.96,53.49,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+A100 SXM4 80 GB,nvidia,8.0,2040.0,39.59,24.61,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+A10G,nvidia,8.6,600.2,3.56,109.9,2,cuda,llama.cpp#15013
+A40 PCIe,nvidia,8.6,695.8,3.56,123.12,12,cuda,llama.cpp#15013
+B200,nvidia,10.0,4100.0,3.56,306.76,2,cuda,llama.cpp#15013
+CMP 170HX 8 GB,nvidia,8.0,1490.0,3.56,99.34,20,vulkan,llama.cpp#10879
+DGX Spark,nvidia,,273.0,3.56,56.98,2,cuda,llama.cpp#15013
+GB10,nvidia,12.1,273.2,2.91,63.04,1,cuda,llama.cpp#15013
+GB10,nvidia,12.1,273.2,3.56,58.14,10,cuda,llama.cpp#15013
+GB10,nvidia,12.1,273.2,3.56,51.7,22,vulkan,llama.cpp#10879
+GeForce GTX 1050,nvidia,6.1,112.1,3.56,15.86,2,cuda,llama.cpp#15013
+GeForce GTX 1050 Ti,nvidia,6.1,112.1,3.56,19.66,2,cuda,llama.cpp#15013
+GeForce GTX 1050 Ti,nvidia,6.1,112.1,3.56,20.52,2,vulkan,llama.cpp#10879
+GeForce GTX 1060 6 GB,nvidia,6.1,192.2,3.56,27.93,6,cuda,llama.cpp#15013
+GeForce GTX 1060 6 GB,nvidia,6.1,192.2,3.56,32.0,2,vulkan,llama.cpp#10879
+GeForce GTX 1070,nvidia,6.1,256.3,3.56,41.8,10,cuda,llama.cpp#15013
+GeForce GTX 1070,nvidia,6.1,256.3,3.56,41.22,2,vulkan,llama.cpp#10879
+GeForce GTX 1070 Ti,nvidia,6.1,256.3,3.56,37.84,8,cuda,llama.cpp#15013
+GeForce GTX 1070 Ti,nvidia,6.1,256.3,3.56,43.14,6,vulkan,llama.cpp#10879
+GeForce GTX 1080,nvidia,6.1,320.3,3.56,46.62,2,cuda,llama.cpp#15013
+GeForce GTX 1080 Ti,nvidia,6.1,484.4,3.56,61.94,4,cuda,llama.cpp#15013
+GeForce GTX 1080 Ti,nvidia,6.1,484.4,3.56,64.81,2,vulkan,llama.cpp#10879
+GeForce GTX 1650,nvidia,7.5,128.1,3.56,10.07,2,vulkan,llama.cpp#10879
+GeForce GTX 1660,nvidia,7.5,192.1,3.56,41.39,4,cuda,llama.cpp#15013
+GeForce GTX 970,nvidia,5.2,224.4,2.75,14.63,2,cuda,llama.cpp#15013
+GeForce GTX 980,nvidia,5.2,224.4,3.56,34.03,2,vulkan,llama.cpp#10879
+GeForce GTX 980M,nvidia,5.2,160.4,2.63,29.5,4,vulkan,llama.cpp#10879
+GeForce GTX 980M,nvidia,5.2,160.4,3.56,24.36,8,vulkan,llama.cpp#10879
+GeForce RTX 2060 SUPER,nvidia,7.5,448.0,3.56,60.59,4,cuda,llama.cpp#15013
+GeForce RTX 2070 SUPER,nvidia,7.5,448.0,3.56,87.88,4,cuda,llama.cpp#15013
+GeForce RTX 2070 SUPER,nvidia,7.5,448.0,3.56,64.64,1,vulkan,llama.cpp#10879
+GeForce RTX 2080 Ti,nvidia,7.5,616.0,3.56,108.34,4,cuda,llama.cpp#15013
+GeForce RTX 2080 Ti,nvidia,7.5,616.0,3.56,99.28,2,vulkan,llama.cpp#10879
+GeForce RTX 3050 4 GB,nvidia,8.6,192.0,3.56,36.95,10,cuda,llama.cpp#15013
+GeForce RTX 3060 12 GB,nvidia,8.6,360.0,3.56,74.37,12,cuda,llama.cpp#15013
+GeForce RTX 3060 12 GB,nvidia,8.6,360.0,3.56,68.34,11,vulkan,llama.cpp#10879
+GeForce RTX 3060 Mobile,nvidia,8.6,336.0,3.56,72.13,2,cuda,llama.cpp#15013
+GeForce RTX 3060 Mobile,nvidia,8.6,336.0,3.56,34.61,2,vulkan,llama.cpp#10879
+GeForce RTX 3060 Ti,nvidia,8.6,448.0,3.56,93.51,6,cuda,llama.cpp#15013
+GeForce RTX 3060 Ti,nvidia,8.6,448.0,3.56,88.54,4,vulkan,llama.cpp#10879
+GeForce RTX 3070,nvidia,8.6,448.0,3.56,81.66,2,vulkan,llama.cpp#10879
+GeForce RTX 3070,nvidia,8.6,448.0,4.58,72.79,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+GeForce RTX 3070 Mobile,nvidia,8.6,448.0,3.56,59.62,4,cuda,llama.cpp#15013
+GeForce RTX 3080,nvidia,8.6,760.3,3.56,139.95,5,cuda,llama.cpp#15013
+GeForce RTX 3080,nvidia,8.6,760.3,3.56,96.58,6,vulkan,llama.cpp#10879
+GeForce RTX 3080,nvidia,8.6,760.3,4.58,109.57,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+GeForce RTX 3080 Mobile,nvidia,8.6,448.0,3.56,90.61,12,cuda,llama.cpp#15013
+GeForce RTX 3080 Ti,nvidia,8.6,912.4,4.58,110.6,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+GeForce RTX 3090,nvidia,8.6,936.2,3.56,164.64,12,cuda,llama.cpp#15013
+GeForce RTX 3090,nvidia,8.6,936.2,3.56,147.56,24,vulkan,llama.cpp#10879
+GeForce RTX 3090,nvidia,8.6,936.2,4.58,115.42,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+GeForce RTX 3090,nvidia,8.6,936.2,14.96,47.4,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+GeForce RTX 3090,nvidia,8.6,936.2,18.46,38.98,42,cuda,llama.cpp#15013
+GeForce RTX 3090 Ti,nvidia,8.6,1010.0,3.56,171.72,4,cuda,llama.cpp#15013
+GeForce RTX 4060 Mobile,nvidia,8.9,256.0,3.56,53.8,6,vulkan,llama.cpp#10879
+GeForce RTX 4060 Ti 8 GB,nvidia,8.9,288.0,3.56,63.95,4,cuda,llama.cpp#15013
+GeForce RTX 4070,nvidia,8.9,504.2,3.56,92.29,3,vulkan,llama.cpp#10879
+GeForce RTX 4070 SUPER,nvidia,8.9,504.2,3.56,110.37,4,vulkan,llama.cpp#10879
+GeForce RTX 4070 Ti,nvidia,8.9,504.2,4.58,83.5,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+GeForce RTX 4070 Ti SUPER,nvidia,8.9,672.3,3.56,132.56,4,cuda,llama.cpp#15013
+GeForce RTX 4080,nvidia,8.9,716.8,3.56,142.98,4,cuda,llama.cpp#15013
+GeForce RTX 4080,nvidia,8.9,716.8,4.58,108.15,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+GeForce RTX 4080,nvidia,8.9,716.8,14.96,40.58,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+GeForce RTX 4080 SUPER,nvidia,8.9,736.3,3.56,147.91,4,cuda,llama.cpp#15013
+GeForce RTX 4080 SUPER,nvidia,8.9,736.3,3.56,148.66,2,vulkan,llama.cpp#10879
+GeForce RTX 4090,nvidia,8.9,1010.0,3.56,167.21,24,cuda,llama.cpp#15013
+GeForce RTX 4090,nvidia,8.9,1010.0,3.56,179.62,5,vulkan,llama.cpp#10879
+GeForce RTX 4090,nvidia,8.9,1010.0,4.58,130.58,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+GeForce RTX 4090,nvidia,8.9,1010.0,14.96,54.84,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+GeForce RTX 4090 D,nvidia,8.9,1010.0,3.56,187.92,14,cuda,llama.cpp#15013
+GeForce RTX 5060,nvidia,12.0,448.0,3.56,98.66,2,cuda,llama.cpp#15013
+GeForce RTX 5060 Ti 16 GB,nvidia,12.0,448.0,3.56,92.2,2,cuda,llama.cpp#15013
+GeForce RTX 5060 Ti 8 GB,nvidia,12.0,448.0,3.56,93.68,4,cuda,llama.cpp#15013
+GeForce RTX 5060 Ti 8 GB,nvidia,12.0,448.0,3.56,83.26,31,vulkan,llama.cpp#10879
+GeForce RTX 5060 Ti 8 GB,nvidia,12.0,448.0,25.82,12.05,8,vulkan,llama.cpp#10879
+GeForce RTX 5070,nvidia,12.0,672.0,3.56,127.88,2,cuda,llama.cpp#15013
+GeForce RTX 5070 Ti,nvidia,12.0,896.0,3.56,176.74,12,cuda,llama.cpp#15013
+GeForce RTX 5070 Ti,nvidia,12.0,896.0,3.56,135.63,7,vulkan,llama.cpp#10879
+GeForce RTX 5080,nvidia,12.0,960.0,3.56,182.51,20,cuda,llama.cpp#15013
+GeForce RTX 5080,nvidia,12.0,960.0,3.56,187.94,12,vulkan,llama.cpp#10879
+GeForce RTX 5090,nvidia,12.0,1790.0,3.56,292.49,22,cuda,llama.cpp#15013
+GeForce RTX 5090,nvidia,12.0,1790.0,3.56,268.65,2,vulkan,llama.cpp#10879
+GeForce RTX 5090 Mobile,nvidia,12.0,896.0,3.56,157.17,8,cuda,llama.cpp#15013
+H100 PCIe 80 GB,nvidia,9.0,2040.0,3.56,214.49,14,cuda,llama.cpp#15013
+H100 PCIe 80 GB,nvidia,9.0,2040.0,4.58,145.55,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+H100 PCIe 80 GB,nvidia,9.0,2040.0,14.96,68.03,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+H100 PCIe 80 GB,nvidia,9.0,2040.0,39.59,25.03,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+H200 NVL,nvidia,9.0,4890.0,3.56,312.72,10,cuda,llama.cpp#15013
+Jetson AGX Orin 32 GB,nvidia,8.7,204.8,3.56,33.91,14,cuda,llama.cpp#15013
+Jetson AGX Orin 64 GB,nvidia,8.7,204.8,3.56,34.73,2,cuda,llama.cpp#15013
+L40,nvidia,8.9,864.0,3.56,152.88,4,cuda,llama.cpp#15013
+L40S,nvidia,8.9,864.0,4.58,115.55,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+L40S,nvidia,8.9,864.0,14.96,43.69,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+L40S,nvidia,8.9,864.0,39.59,15.46,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+P102-100,nvidia,6.1,440.3,3.56,47.92,4,cuda,llama.cpp#15013
+P102-100,nvidia,6.1,440.3,3.56,67.12,8,vulkan,llama.cpp#10879
+P106-100,nvidia,6.1,192.2,3.56,30.4,6,cuda,llama.cpp#15013
+P106-100,nvidia,6.1,192.2,3.56,30.28,4,vulkan,llama.cpp#10879
+Quadro P1000,nvidia,6.1,96.1,3.56,13.82,4,cuda,llama.cpp#15013
+Quadro P2000,nvidia,6.1,140.2,3.56,23.63,8,cuda,llama.cpp#15013
+Quadro P2000,nvidia,6.1,140.2,3.56,23.41,4,vulkan,llama.cpp#10879
+Quadro P5000,nvidia,6.1,288.5,3.56,35.41,2,cuda,llama.cpp#15013
+Quadro RTX 4000,nvidia,7.5,416.0,3.56,66.62,4,cuda,llama.cpp#15013
+Quadro RTX 5000,nvidia,7.5,448.0,3.56,76.25,2,cuda,llama.cpp#15013
+Quadro RTX 6000,nvidia,7.5,672.0,3.56,103.57,4,cuda,llama.cpp#15013
+Quadro RTX 8000,nvidia,7.5,672.0,3.56,103.16,4,cuda,llama.cpp#15013
+RTX 2000 Embedded Ada Generation,nvidia,8.9,256.0,3.56,50.64,6,cuda,llama.cpp#15013
+RTX 4000 Ada Generation,nvidia,8.9,360.0,4.58,59.15,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+RTX 4000 Ada Generation,nvidia,8.9,360.0,14.96,20.92,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+RTX 4000 SFF Ada Generation,nvidia,8.9,280.0,3.56,61.6,2,cuda,llama.cpp#15013
+RTX 4500 Ada Generation,nvidia,8.9,432.0,3.56,93.41,2,cuda,llama.cpp#15013
+RTX 5000 Ada Generation,nvidia,8.9,576.0,4.58,91.39,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+RTX 5000 Ada Generation,nvidia,8.9,576.0,14.96,32.84,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+RTX 6000 Ada Generation,nvidia,8.9,960.0,3.56,177.77,4,cuda,llama.cpp#15013
+RTX 6000 Ada Generation,nvidia,8.9,960.0,4.58,133.44,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+RTX 6000 Ada Generation,nvidia,8.9,960.0,14.96,52.32,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+RTX 6000 Ada Generation,nvidia,8.9,960.0,39.59,18.52,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+RTX A2000 12 GB,nvidia,8.6,288.0,3.56,48.45,4,vulkan,llama.cpp#10879
+RTX A4000,nvidia,8.6,448.0,3.56,83.06,12,cuda,llama.cpp#15013
+RTX A4000,nvidia,8.6,448.0,3.56,77.09,8,vulkan,llama.cpp#10879
+RTX A4500,nvidia,8.6,640.0,3.56,96.16,14,cuda,llama.cpp#15013
+RTX A5000,nvidia,8.6,768.0,3.56,129.62,12,cuda,llama.cpp#15013
+RTX A5000,nvidia,8.6,768.0,3.56,137.85,4,vulkan,llama.cpp#10879
+RTX A5500 Mobile,nvidia,8.6,512.0,3.56,74.67,2,cuda,llama.cpp#15013
+RTX A6000,nvidia,8.6,768.0,3.56,138.3,12,cuda,llama.cpp#15013
+RTX A6000,nvidia,8.6,768.0,4.58,105.39,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+RTX A6000,nvidia,8.6,768.0,14.96,40.71,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+RTX A6000,nvidia,8.6,768.0,39.59,14.71,1,cuda,XiongjieDai/GPU-Benchmarks-on-LLM-Inference
+RTX PRO 4000 Blackwell,nvidia,12.0,672.0,3.56,128.38,14,cuda,llama.cpp#15013
+RTX PRO 4500 Blackwell,nvidia,12.0,896.0,3.56,168.89,11,cuda,llama.cpp#15013
+RTX PRO 4500 Blackwell,nvidia,12.0,896.0,6.79,87.19,2,cuda,llama.cpp#15013
+RTX PRO 4500 Blackwell,nvidia,12.0,896.0,8.38,80.84,2,cuda,llama.cpp#15013
+RTX PRO 4500 Blackwell,nvidia,12.0,896.0,15.4,42.28,2,cuda,llama.cpp#15013
+RTX PRO 4500 Blackwell,nvidia,12.0,896.0,18.4,37.16,2,cuda,llama.cpp#15013
+RTX PRO 5000 Blackwell,nvidia,12.0,1340.0,3.56,213.31,10,cuda,llama.cpp#15013
+RTX PRO 6000 Blackwell,nvidia,12.0,1790.0,3.56,269.54,24,cuda,llama.cpp#15013
+RTX PRO 6000 Blackwell Max-Q,nvidia,12.0,1790.0,3.56,270.63,6,cuda,llama.cpp#15013
+Radeon RX 480,nvidia,,256.0,3.56,45.23,4,cuda,llama.cpp#15013
+TITAN RTX,nvidia,7.5,672.0,3.56,125.91,2,cuda,llama.cpp#15013
+TITAN V,nvidia,7.0,651.3,3.56,110.48,4,cuda,llama.cpp#15013
+TITAN V,nvidia,7.0,651.3,3.56,107.13,2,vulkan,llama.cpp#10879
+TITAN Xp,nvidia,6.1,547.6,3.56,74.96,4,cuda,llama.cpp#15013
+Tesla K40c,nvidia,3.5,288.4,3.56,16.97,2,cuda,llama.cpp#15013
+Tesla K40m,nvidia,3.5,288.4,3.56,18.64,12,cuda,llama.cpp#15013
+Tesla K40m,nvidia,3.5,288.4,3.56,9.61,4,vulkan,llama.cpp#10879
+Tesla K80,nvidia,3.7,240.6,3.56,14.04,4,cuda,llama.cpp#15013
+Tesla K80,nvidia,3.7,240.6,3.56,7.88,8,vulkan,llama.cpp#10879
+Tesla M40,nvidia,5.2,288.4,3.56,39.01,2,cuda,llama.cpp#15013
+Tesla M40 24 GB,nvidia,5.2,288.4,3.56,37.97,10,cuda,llama.cpp#15013
+Tesla M40 24 GB,nvidia,5.2,288.4,3.56,40.52,2,vulkan,llama.cpp#10879
+Tesla M40 24 GB,nvidia,5.2,288.4,18.4,7.05,2,cuda,llama.cpp#15013
+Tesla P100 PCIe 16 GB,nvidia,6.0,732.2,3.56,50.64,2,cuda,llama.cpp#15013
+Tesla P100 SXM2,nvidia,6.0,732.2,3.56,60.17,2,cuda,llama.cpp#15013
+Tesla P4,nvidia,6.1,192.3,3.56,33.2,2,cuda,llama.cpp#15013
+Tesla P4,nvidia,6.1,192.3,3.56,28.2,4,vulkan,llama.cpp#10879
+Tesla P40,nvidia,6.1,347.1,3.56,54.23,2,cuda,llama.cpp#15013
+Tesla P40,nvidia,6.1,347.1,3.56,66.4,4,vulkan,llama.cpp#10879
+Tesla T10 16 GB,nvidia,7.5,403.2,3.56,75.53,2,vulkan,llama.cpp#10879
+Tesla T4,nvidia,7.5,320.0,3.56,45.2,2,cuda,llama.cpp#15013
+Tesla T4,nvidia,7.5,320.0,3.56,34.01,2,vulkan,llama.cpp#10879
+Tesla V100 PCIe 32 GB,nvidia,7.0,897.0,3.56,131.92,2,cuda,llama.cpp#15013
+Tesla V100 SXM2 16 GB,nvidia,7.0,1130.0,3.56,140.12,22,cuda,llama.cpp#15013
+Tesla V100 SXM2 16 GB,nvidia,7.0,1130.0,3.56,135.86,2,vulkan,llama.cpp#10879
+Tesla V100 SXM2 32 GB,nvidia,7.0,898.0,3.56,133.2,12,cuda,llama.cpp#15013
+Tesla V100 SXM2 32 GB,nvidia,7.0,898.0,6.79,68.14,2,cuda,llama.cpp#15013
+Tesla V100 SXM2 32 GB,nvidia,7.0,898.0,8.38,65.95,2,cuda,llama.cpp#15013
+Tesla V100 SXM2 32 GB,nvidia,7.0,898.0,18.4,31.27,2,cuda,llama.cpp#15013
+Tesla V100 SXM2 32 GB,nvidia,7.0,898.0,38.53,17.47,2,cuda,llama.cpp#15013

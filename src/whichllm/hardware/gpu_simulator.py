@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from dbgpu import GPUSpecification
 
-from whichllm.hardware.apple import default_gpu_working_set_bytes
+from whichllm.hardware.apple import apple_bandwidth, default_gpu_working_set_bytes
 from whichllm.constants import (
     AMD_SHARED_MEMORY_APU_MARKERS,
     CURATED_GPU_SPECS,
@@ -343,7 +343,7 @@ def create_synthetic_gpu(name: str, vram_override_gb: float | None = None) -> GP
             name=f"{canonical} (simulated)",
             vendor=vendor,
             vram_bytes=default_gpu_working_set_bytes(unified),
-            memory_bandwidth_gbps=bandwidth,
+            memory_bandwidth_gbps=apple_bandwidth(canonical, unified) or bandwidth,
             shared_memory=True,
             vram_overridden=vram_override_gb is not None,
             unified_memory_bytes=unified,

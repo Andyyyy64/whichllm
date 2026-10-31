@@ -76,12 +76,12 @@ def _ranked(model_id: str, params_b: float, size_gb: float, active_b=None) -> Mo
 
 
 def test_a_fast_model_outranks_a_slightly_stronger_slow_one():
-    # The M4 16GB case: a dense 27B at ~4 tok/s against a MoE at ~25 tok/s.
+    # A dense 27B at ~3 tok/s against a MoE at ~13 tok/s.
     dense = _ranked("Qwen/Qwen3.8-27B", 27, 14.5)
     moe = _ranked("google/gemma-4-26B-A4B-it", 26, 14.5, active_b=4)
     results = rank_models(
         [dense, moe],
-        _hw(16, 120.0),
+        _hw(16, 60.0),
         benchmark_scores={dense.id: 77.8, moe.id: 54.6},
         task_profile="any",
     )

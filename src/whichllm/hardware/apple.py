@@ -8,7 +8,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from whichllm.constants import GPU_BANDWIDTH
+from whichllm.constants import APPLE_CUT_DOWN_BANDWIDTH, GPU_BANDWIDTH
 from whichllm.hardware.types import GPUInfo
 
 logger = logging.getLogger(__name__)
@@ -17,11 +17,13 @@ _MiB = 1024**2
 _GiB = 1024**3
 
 
-def _lookup_bandwidth(chip_name: str) -> float | None:
+def apple_bandwidth(chip_name: str, unified_bytes: int = 0) -> float | None:
+    """Memory bandwidth of a chip. The memory size picks out cut-down Max chips."""
     chip_upper = chip_name.upper()
     for key in sorted(GPU_BANDWIDTH, key=len, reverse=True):
         if key.upper() in chip_upper:
-            return GPU_BANDWIDTH[key]
+            memory_gb = round(unified_bytes / _GiB)
+            return APPLE_CUT_DOWN_BANDWIDTH.get((key, memory_gb), GPU_BANDWIDTH[key])
     return None
 
 
@@ -104,7 +106,7 @@ def detect_apple_gpu() -> list[GPUInfo]:
                 name=chip_name,
                 vendor="apple",
                 vram_bytes=gpu_memory,
-                memory_bandwidth_gbps=_lookup_bandwidth(chip_name),
+                memory_bandwidth_gbps=apple_bandwidth(chip_name, unified_memory),
                 shared_memory=True,
                 unified_memory_bytes=unified_memory,
             )
@@ -167,7 +169,7 @@ def detect_apple_gpu_linux(
                 name=chip_name,
                 vendor="apple",
                 vram_bytes=unified_memory,
-                memory_bandwidth_gbps=_lookup_bandwidth(chip_name),
+                memory_bandwidth_gbps=apple_bandwidth(chip_name),
                 shared_memory=True,
             )
         ]

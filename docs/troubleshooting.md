@@ -286,8 +286,8 @@ Speed is an estimate based on:
 - model weight size
 - MoE active parameters
 - GPU memory bandwidth
-- quantization efficiency
-- backend factor
+- a factor for the vendor and GPU design
+- quantization efficiency, for MoE and non-GGUF models
 - partial-offload penalty
 
 Real performance depends on the inference runtime, driver, prompt length,

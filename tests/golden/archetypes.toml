@@ -379,14 +379,14 @@ kind = "row_within"
 archetypes = ["rtx5080-16gb-win"]
 quant = "Q3_K_M"
 patterns = ['^Qwen/Qwen3\.8-27B$']
-min_tok_per_sec = 30.0
+min_tok_per_sec = 36.0
 max_tok_per_sec = 66.0
 min_required_gb = 12.0
 max_required_gb = 15.0
 rationale = """Measured on an RTX 5080: 55.4 tok/s on the GPU, 12.8 GiB of
-VRAM. The speed bound is wide because dense models still estimate low. The
-estimate is 14.2 GiB with the real file, since it keeps 500 MB of overhead and a
-wider activation margin than this run needed."""
+VRAM. The speed bound allows 35% under the run and 20% over it. The estimate is
+14.2 GiB with the real file, since it keeps 500 MB of overhead and a wider
+activation margin than this run needed."""
 
 [[constraint]]
 id = "measured-qwen35-2b-cpu"
@@ -463,8 +463,8 @@ top = 3
 profiles = ["general", "coding", "vision", "math", "any"]
 rationale = """`whichllm run` launches the first row it can resolve to a real
 file, so the top rows must resolve for `run` to agree with the table. The frozen
-catalog has no GGUF upload for Qwen3.5-122B-A10B or granite-4.0-h-tiny."""
-xfail = { "strix-halo-128gb-linux/general" = "no Qwen3.5-122B-A10B GGUF in the catalog", "cpu-16gb-win/general" = "no granite-4.0-h-tiny GGUF in the catalog" }
+catalog has no GGUF upload for granite-4.0-h-tiny."""
+xfail = { "cpu-16gb-win/general" = "no granite-4.0-h-tiny GGUF in the catalog" }
 
 [[constraint]]
 id = "memory-buys-quality"
@@ -545,10 +545,8 @@ id = "qwen38-top3-24gb"
 kind = "any_in_top"
 top = 3
 min_gpu_memory_gb = 24
-archetypes = ["rtx*", "rx*", "2x-*", "m*max-*", "dgx-*"]
 rationale = """Qwen3.8-27B is the newest dense 27B and fits 24 GB+, at 128K too.
-It must be in the top 3 there. Strix Halo's 256 GB/s holds it to 7.4 tok/s, so
-the speed bar outranks this constraint on that machine."""
+It must be in the top 3 there."""
 patterns = ['^Qwen/Qwen3\.8-27B$']
 
 [[constraint]]

@@ -48,9 +48,9 @@ $ whichllm
 
  #  Model                         Quant   Fit       Speed     Score
  1  Qwen/Qwen3.6-35B-A3B          Q6_K    GPU+RAM   16 tok/s   68.8
- 2  unsloth/gemma-4-12b-it-GGUF   IQ4_XS  Full GPU  22 tok/s   66.2
+ 2  unsloth/gemma-4-12b-it-GGUF   IQ4_XS  Full GPU  37 tok/s   68.1
  3  google/gemma-4-26B-A4B-it     Q4_K_M  GPU+RAM   11 tok/s   64.5
- 4  Qwen/Qwen3.5-9B               Q5_K_M  Full GPU  22 tok/s   62.3
+ 4  Qwen/Qwen3.5-9B               Q5_K_M  Full GPU  36 tok/s   64.2
  5  zai-org/GLM-4.7-Flash         Q5_K_M  GPU+RAM   15 tok/s   62.3
 
   #1 Qwen3.6-35B-A3B also stands in for older generations of its line:
@@ -94,7 +94,7 @@ model does not fit in VRAM, a mixture-of-experts model first moves experts
 to RAM; any other model spills whole layers.
 
 Speed is bound by memory bandwidth: the GPU reads its share of the weights
-at VRAM speed and the CPU reads the rest at RAM speed. The CPU side is
+at VRAM speed and the CPU reads the rest at RAM speed. Both sides are
 calibrated against llama.cpp runs. Every placement is held to 8 tok/s:
 below that, a model's quality is scaled down, so a stronger model that would
 answer at 3 tok/s does not outrank one that answers at 25.
@@ -119,8 +119,10 @@ A wrong recommendation is a bug, so the rankings have regression tests:
   launch the top rows, the newest dense 27B makes the top 3 on 24 GB+, a big
   MoE with experts in RAM makes the top 5 on a 16 GB card with 64 GB of RAM,
   and coding picks are not limited to models named "coder".
-- Speed and memory estimates stay within set bounds of runs measured on an
-  RTX 5080 and its CPU, so the estimator cannot drift without a test failing.
+- Speed and memory estimates stay within set bounds of real runs: an RTX 5080
+  and its CPU, plus 379 published llama.cpp results on 194 GPUs in
+  [`tests/data/speed_runs.csv`](tests/data/speed_runs.csv). The estimator cannot
+  drift without a test failing.
 - The top picks for every archetype are committed in
   [`top_picks.md`](tests/golden/top_picks.md), so any ranking change shows up
   as a diff in review.

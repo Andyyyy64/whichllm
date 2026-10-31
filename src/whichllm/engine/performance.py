@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from whichllm.engine.moe import active_expert_fraction, routed_expert_fraction
 from whichllm.engine.placement import Placement
 from whichllm.engine.quantization import estimate_weight_bytes
@@ -12,11 +14,50 @@ from whichllm.models.gguf import quant_table_key
 from whichllm.models.types import GGUFVariant, ModelInfo
 
 
-# Per-quant efficiency factors applied to the theoretical bandwidth-bound
-# tok/s. These reflect empirical llama.cpp / vLLM measurements: 4-bit GGUFs
-# achieve the highest fraction of memory-bandwidth-limited theoretical
-# throughput because the dequantization kernel is fast and weight reads
-# dominate; 8-bit and FP16 drop because more compute is required per byte.
+# Dense GGUF decode time per token: the whole file at this fraction of memory
+# bandwidth, plus a fixed overhead. Fitted to 379 llama.cpp results on 194 GPUs,
+# from 2 to 131 GiB (tests/data/speed_runs.csv). With each GPU held out of the
+# fit, the median error is 9% and 90% of runs land within a third, against 33%
+# and 50% for the quant-efficiency table below. The quant makes no measurable
+# difference, because weight reads dominate.
+_GGUF_READ_EFFICIENCY = 0.96
+_GGUF_TOKEN_SECONDS = 0.0024
+# The same runs per vendor, with CUDA as the reference. The estimate does not
+# know the backend, and Vulkan and ROCm land within a few percent on Radeon.
+_GGUF_BACKEND_FACTOR: dict[str, float] = {
+    "nvidia": 1.00,
+    "amd": 0.90,
+    "apple": 0.90,
+    "intel": 0.80,
+}
+# Designs whose compute, not memory, limits decode, measured the same way. These
+# replace the vendor factor for NVIDIA and Jetson and multiply it elsewhere. The
+# Jetson value comes from one Orin NX, which ran a 5 GB file at 11.14 tok/s.
+_GGUF_PRE_AMPERE_FACTOR = 0.75
+_GGUF_PRE_PASCAL_FACTOR = 0.55
+_GGUF_JETSON_FACTOR = 0.60
+_GGUF_GCN_FACTOR = 0.65
+_GGUF_ALCHEMIST_FACTOR = 0.50
+_GGUF_APPLE_ULTRA_FACTOR = 0.80
+_PRE_AMPERE_CAPABILITY = (8, 0)
+_PRE_PASCAL_CAPABILITY = (6, 0)
+_JETSON_NAME_RE = re.compile(r"jetson|\borin\b|tegra|nvgpu", re.IGNORECASE)
+_AMD_GCN_NAME_RE = re.compile(
+    r"RX [45]\d\d\b|R[579] \d|R9 (FURY|Nano)|\bVega\b|Pro VII|Radeon VII|Pro V340"
+    r"|Pro WX \d|FirePro|Radeon Pro \d{3}X?\b|HD \d",
+    re.IGNORECASE,
+)
+_INTEL_ALCHEMIST_NAME_RE = re.compile(r"Arc (Pro )?A\d", re.IGNORECASE)
+# HBM cards never reach their nominal bandwidth in decode. The A100 and H100 are
+# listed near 2,000 GB/s, and both read at about 1,100.
+_GGUF_HBM_BANDWIDTH_GBPS = 1100.0
+_HBM_NAME_RE = re.compile(
+    r"\b(A100|H100|H200|B100|B200|GH200|P100|V100|GP100|TITAN V|Instinct|CMP)\b",
+    re.IGNORECASE,
+)
+
+# Per-quant efficiency factors for MoE and non-GGUF decode, which the runs
+# above do not cover. MoE speed is calibrated separately on Qwen3.6-35B-A3B.
 _QUANT_EFFICIENCY: dict[str, float] = {
     "F32": 0.30,
     "F16": 0.40,
@@ -64,10 +105,10 @@ _QUANT_EFFICIENCY: dict[str, float] = {
 
 _DEFAULT_QUANT_EFFICIENCY = 0.45
 
-# Vendor / backend multiplier applied on top of quant efficiency. CUDA on
-# modern data-center GPUs is the reference (1.0); Apple's Metal kernel is
-# behind on dequantization; ROCm trails further; older CUDA generations
-# also drop.
+# Vendor / backend multiplier applied on top of quant efficiency for MoE and
+# non-GGUF decode. CUDA on modern data-center GPUs is the reference (1.0);
+# Apple's Metal kernel is behind on dequantization; ROCm trails further; older
+# CUDA generations also drop.
 _BACKEND_FACTOR: dict[str, float] = {
     "nvidia": 1.00,
     "amd": 0.78,
@@ -127,6 +168,35 @@ def _quant_efficiency(model: ModelInfo, variant: GGUFVariant | None) -> float:
         return _DEFAULT_QUANT_EFFICIENCY
     key = quant_table_key(quant, _QUANT_EFFICIENCY)
     return _QUANT_EFFICIENCY.get(key, _DEFAULT_QUANT_EFFICIENCY)
+
+
+def _is_dense_gguf(model: ModelInfo, variant: GGUFVariant | None) -> bool:
+    return variant is not None and not model.is_moe
+
+
+def _gguf_backend_factor(gpu: GPUInfo) -> float:
+    if _JETSON_NAME_RE.search(gpu.name):
+        return _GGUF_JETSON_FACTOR
+    capability = gpu.compute_capability
+    if gpu.vendor == "nvidia" and capability:
+        if capability < _PRE_PASCAL_CAPABILITY:
+            return _GGUF_PRE_PASCAL_FACTOR
+        if capability < _PRE_AMPERE_CAPABILITY:
+            return _GGUF_PRE_AMPERE_FACTOR
+    factor = _GGUF_BACKEND_FACTOR.get(gpu.vendor, 0.7)
+    if gpu.vendor == "amd" and _AMD_GCN_NAME_RE.search(gpu.name):
+        return factor * _GGUF_GCN_FACTOR
+    if gpu.vendor == "intel" and _INTEL_ALCHEMIST_NAME_RE.search(gpu.name):
+        return factor * _GGUF_ALCHEMIST_FACTOR
+    if gpu.vendor == "apple" and "ultra" in gpu.name.lower():
+        return factor * _GGUF_APPLE_ULTRA_FACTOR
+    return factor
+
+
+def _gguf_read_bandwidth(gpu: GPUInfo, bandwidth: float) -> float:
+    if _HBM_NAME_RE.search(gpu.name):
+        return min(bandwidth, _GGUF_HBM_BANDWIDTH_GBPS * 1e9)
+    return bandwidth
 
 
 def _active_ratio(model: ModelInfo) -> float:
@@ -200,7 +270,7 @@ def _split_tok_per_sec(
         gpu_read = placement.gpu_weight_bytes * ratio
         cpu_read = placement.cpu_weight_bytes * ratio
         cpu_efficiency = _CPU_DECODE_EFFICIENCY
-        sync = 0.0
+        sync = _GGUF_TOKEN_SECONDS if _is_dense_gguf(model, variant) else 0.0
     if model.is_moe:
         gpu_read = max(gpu_read, placement.gpu_weight_bytes * _moe_read_floor(gpu))
 
@@ -333,12 +403,8 @@ def estimate_tok_per_sec(
     """Estimate tokens per second for inference.
 
     Model: throughput is bounded by the time it takes to read all weights
-    needed per token, multiplied by quant- and backend-specific efficiency
-    factors. The default 0.5 efficiency factor used earlier mixed two
-    distinct losses (compute kernel quality and offload overhead) into one
-    constant — this version separates them so a Q4_K_M model on CUDA scores
-    differently from the same model running on Metal or with partial
-    offload.
+    needed per token at the backend's share of memory bandwidth, plus a fixed
+    per-token overhead for dense GGUF models.
 
     With a ``placement`` on a discrete GPU, the part of the weights kept in
     system RAM is read at ``ram_bandwidth_gbps`` by the CPU. CPU-only runs
@@ -363,10 +429,12 @@ def estimate_tok_per_sec(
     if bandwidth == 0:
         return 0.0
 
-    theoretical = bandwidth / effective_read
-
-    # Real-world efficiency depends on quant kernel and backend.
-    efficiency = _quant_efficiency(model, variant) * _backend_factor(gpu)
+    dense_gguf = _is_dense_gguf(model, variant)
+    if dense_gguf:
+        bandwidth = _gguf_read_bandwidth(gpu, bandwidth)
+        efficiency = _GGUF_READ_EFFICIENCY * _gguf_backend_factor(gpu)
+    else:
+        efficiency = _quant_efficiency(model, variant) * _backend_factor(gpu)
 
     unified_memory = gpu.vendor == "apple" or gpu.shared_memory
     if (
@@ -404,4 +472,7 @@ def estimate_tok_per_sec(
         else:
             efficiency *= 0.45
 
-    return theoretical * efficiency
+    seconds = effective_read / (bandwidth * efficiency)
+    if dense_gguf:
+        seconds += _GGUF_TOKEN_SECONDS
+    return 1.0 / seconds
