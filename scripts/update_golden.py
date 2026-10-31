@@ -6,9 +6,9 @@
     uv run --locked python scripts/update_golden.py snapshot  # offline
     uv run --locked python scripts/update_golden.py report    # offline
 
-``capture`` fetches the live model catalog, merged benchmark scores and every
-family's config.json shape, freezes them into ``tests/golden/catalog.json.gz``,
-then rewrites the snapshot. ``shapes`` only refreshes the shapes of the
+``capture`` freezes the published index into ``tests/golden/catalog.json.gz``,
+so the set ranks what users get, real file sizes included, then rewrites the
+snapshot. ``shapes`` only refreshes the shapes of the
 existing frozen catalog, and ``benchmarks`` only its merged benchmark
 scores (after a benchmark source changes). ``snapshot`` rewrites ``tests/golden/top_picks.md`` from the current code and
 frozen catalog. ``report`` prints the top picks and every constraint result
@@ -34,12 +34,9 @@ sys.path.insert(0, str(REPO_ROOT))
 from tests.golden import harness  # noqa: E402
 from whichllm.models import shape_fetch  # noqa: E402
 from whichllm.models.benchmark import fetch_benchmark_data  # noqa: E402
-from whichllm.models.fetcher import (  # noqa: E402
-    dicts_to_models,
-    fetch_models,
-    models_to_dicts,
-)
+from whichllm.models.fetcher import dicts_to_models, models_to_dicts  # noqa: E402
 from whichllm.models.grouper import group_models  # noqa: E402
+from whichllm.models.index_client import load_index  # noqa: E402
 
 
 def _source_version() -> str:
@@ -60,12 +57,6 @@ def _git_commit() -> str:
         ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
-
-
-async def _fetch() -> tuple[list, dict[str, float], dict[str, dict[str, float]]]:
-    models = await fetch_models(include_vision=True)
-    data = await fetch_benchmark_data(m.id for m in models)
-    return models, data.general, data.tasks
 
 
 def _add_shapes(model_dicts: list[dict]) -> int:
@@ -95,29 +86,37 @@ def _write_catalog(payload: dict) -> None:
 
 
 def capture() -> None:
-    models, scores, tasks = asyncio.run(_fetch())
-    model_dicts = models_to_dicts(models)
-    shaped = _add_shapes(model_dicts)
+    catalog = load_index(refresh=True)
+    if catalog is None or catalog.offline:
+        raise SystemExit("capture needs the published index; it was not reachable")
+    model_dicts = models_to_dicts(catalog.models)
+    gguf_repos = [m for m in catalog.models if m.gguf_variants]
+    real_sizes = sum(
+        1 for m in gguf_repos if not any(v.is_estimated for v in m.gguf_variants)
+    )
     payload = {
         "meta": {
             "captured_at": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            "index_built_at": catalog.built_at,
             "whichllm_version": _source_version(),
             "git_commit": _git_commit(),
-            "model_count": len(models),
-            "benchmark_count": len(scores),
+            "model_count": len(catalog.models),
+            "benchmark_count": len(catalog.benchmark_scores),
             "include_vision": True,
-            "shape_count": shaped,
+            "shape_count": sum(1 for m in catalog.models if m.shape),
+            "gguf_repos": len(gguf_repos),
+            "gguf_real_sizes": real_sizes,
         },
         "models": model_dicts,
-        "benchmark_scores": dict(sorted(scores.items())),
-        "task_scores": _sorted_tasks(tasks),
+        "benchmark_scores": dict(sorted(catalog.benchmark_scores.items())),
+        "task_scores": _sorted_tasks(catalog.task_scores),
     }
     _write_catalog(payload)
     size_kb = harness.CATALOG_PATH.stat().st_size / 1024
     print(
-        f"Captured {len(models)} models ({shaped} with shapes) and {len(scores)} "
-        f"benchmark ids ({size_kb:.0f} KiB) to "
-        f"{harness.CATALOG_PATH.relative_to(REPO_ROOT)}"
+        f"Captured the index of {catalog.built_at}: {len(catalog.models)} models, "
+        f"real sizes for {real_sizes} of {len(gguf_repos)} GGUF repos "
+        f"({size_kb:.0f} KiB) to {harness.CATALOG_PATH.relative_to(REPO_ROOT)}"
     )
 
 
