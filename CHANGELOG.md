@@ -176,6 +176,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - `--gpu "RTX 5090 Laptop"` works, and so does the name a driver reports.
   `Laptop` was unknown, `GeForce RTX 5090 Laptop GPU` silently simulated the
   desktop card at twice the bandwidth, and `RTX 5090 Max-Q` became an RTX A5000.
+- Speed estimates for dense GGUF models on a GPU are fitted to 379 published
+  llama.cpp results on 194 GPUs, from 2 to 131 GiB. They ran about 30% low. With
+  each GPU held out of the fit, the median error is 9% and 90% of runs land
+  within a third, against 33% and 50% before. Decode time is the file read at
+  96% of memory bandwidth plus 2.4 ms per token, with a factor per vendor, lower
+  factors for older designs and Apple's Ultra chips, and a 1,100 GB/s ceiling on
+  HBM cards. The quant makes no measurable difference. MoE and CPU estimates
+  keep their own calibration.
+- The 36 GB M4 Max and M5 Max and the 36 and 96 GB M3 Max use the bandwidth of
+  their cut-down memory bus. They were listed a third too high.
 - Recipes for unsloth's dynamic quants and Bartowski's XL files work. A label
   like `UD-Q4_K_XL` lost its suffix, and the Hub answers 400 to
   `llama-server -hf repo:Q4_K`.

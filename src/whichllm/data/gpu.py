@@ -203,6 +203,15 @@ GPU_BANDWIDTH: dict[str, float] = {
     "M5": 153.0,
 }
 
+# Max chips with a quarter of the memory bus disabled, by unified memory in GB.
+# Each size below comes only with the 30- or 32-core GPU, so it identifies them.
+APPLE_CUT_DOWN_BANDWIDTH: dict[tuple[str, int], float] = {
+    ("M3 Max", 36): 300.0,
+    ("M3 Max", 96): 300.0,
+    ("M4 Max", 36): 410.0,
+    ("M5 Max", 36): 460.0,
+}
+
 CURATED_GPU_SPECS: dict[str, CuratedGPUSpec] = {
     "Arc Pro B70": CuratedGPUSpec(
         name="Intel Arc Pro B70",

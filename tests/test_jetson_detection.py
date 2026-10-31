@@ -376,7 +376,7 @@ def test_orin_nx_estimate_matches_measured_throughput():
     Qwen3-8B Q4_K_M on the Orin NX 16GB measured 11.14 tok/s (llama-bench
     tg128, n=3), reproduced to the same 2 d.p. in a second session four days
     apart. The table stores the data-sheet peak, as every other entry here
-    does; _QUANT_EFFICIENCY carries the achieved-versus-peak loss.
+    does; the speed model carries the achieved-versus-peak loss.
     """
     model = ModelInfo(
         id="Qwen/Qwen3-8B",
