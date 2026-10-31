@@ -10,7 +10,8 @@ def _extract_size_hint_from_id(model_id: str | None) -> int | None:
     if not model_id:
         return None
     lower = model_id.lower()
-    matches = re.findall(r"(\d+(?:\.\d+)?)b(?:-a\d+(?:\.\d+)?b)?", lower)
+    # "8bit" and "2.9bpw" are not sizes.
+    matches = re.findall(r"(\d+(?:\.\d+)?)b(?![a-z])(?:-a\d+(?:\.\d+)?b)?", lower)
     if not matches:
         return None
     try:

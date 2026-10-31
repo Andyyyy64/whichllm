@@ -308,6 +308,20 @@ rule meant for fixtures must not hide it from the list."""
 patterns = ['(?i)ling-3\.0-tiny']
 
 [[constraint]]
+id = "no-fragment-of-a-base"
+kind = "never_in_top"
+top = 50
+rationale = """A derivative that claims under a tenth of its base cannot be that
+model: no quant shrinks one tenfold. These four are a head, broken counts and a
+bit width read as a size. They listed at up to 14,000 tok/s on an 8 GB Mac."""
+patterns = [
+    '^kaushikvira/DeepSeek-V4\.1-Flash-1017-GSQ-agentic-strata$',
+    '^AtomicChat/Qwen3\.8-Flash-Next-Uncensored-GGUF$',
+    '^AtomicChat/DeepSeek-V4\.1-Flash-1017-Uncensored-GGUF$',
+    '^BlackwellBoy/',
+]
+
+[[constraint]]
 id = "qwen25-not-top1"
 kind = "never_in_top"
 top = 1

@@ -14,6 +14,7 @@ from whichllm.engine.ranking_filters import (
     _matches_profile,
     _newer_generation,
     _non_gguf_format_note,
+    _understates_its_base,
     _passes_evidence_filter,
 )
 from whichllm.engine.ranking_score import _compute_quality_score, _family_selection_key
@@ -170,6 +171,7 @@ def rank_models(
     # Pretrain-only checkpoints are not chat models; never recommend them.
     base_checkpoints = find_base_checkpoints(models)
     coding_profile = task_profile.lower() == "coding"
+    params_by_repo = {m.id.casefold(): m.parameter_count for m in models}
 
     # Build benchmark indices once (case-insensitive, model line, repo name)
     general_indices = _score_indices(benchmark_scores)
@@ -183,7 +185,7 @@ def rank_models(
     for model in sorted_models:
         if _is_excluded_model(model.id) or model.id in base_checkpoints:
             continue
-        if _is_auxiliary_model(model):
+        if _is_auxiliary_model(model) or _understates_its_base(model, params_by_repo):
             continue
         if not _matches_profile(model, task_profile):
             continue

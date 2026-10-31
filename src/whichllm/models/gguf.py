@@ -17,6 +17,10 @@ _AUXILIARY_GGUF_RE = re.compile(
 # No quant of a whole model is this small (IQ1_S is about 1.6 bits per
 # weight), so a real file below it holds something else.
 _MIN_BITS_PER_WEIGHT = 1.0
+# Mixed-precision files run small for their label (unsloth's gpt-oss F16 holds
+# 0.28x of it), but a file under this share is a LoRA or a head, whatever it is
+# called: "MTP" alone marks whole models far more often than heads.
+_MIN_SHARE_OF_QUANT = 0.2
 
 # Filename quant tokens that name the same format under a different spelling
 # than the canonical key used by QUANT_BYTES_PER_WEIGHT / QUANT_QUALITY_PENALTY.
@@ -77,6 +81,17 @@ def _split_part(filename: str) -> int:
     return int(match.group(1)) if match else 0
 
 
+def holds_the_whole_model(size_bytes: int, quant: str, param_count: int) -> bool:
+    """False for a file too small to be the model at the quant on its label."""
+    if size_bytes <= 0 or param_count <= 0:
+        return True
+    if size_bytes * 8 / param_count < _MIN_BITS_PER_WEIGHT:
+        return False
+    key = quant_table_key(quant, QUANT_BYTES_PER_WEIGHT)
+    expected = param_count * QUANT_BYTES_PER_WEIGHT.get(key, DEFAULT_BYTES_PER_WEIGHT)
+    return size_bytes >= expected * _MIN_SHARE_OF_QUANT
+
+
 def _extract_gguf_variants(data: dict, param_count: int) -> list[GGUFVariant]:
     """Extract GGUF variants from HF sibling metadata.
 
@@ -115,10 +130,8 @@ def _extract_gguf_variants(data: dict, param_count: int) -> list[GGUFVariant]:
         candidates = [
             entry
             for entry in stems.values()
-            # A draft or MTP head published next to the weights.
-            if entry[1]
-            or param_count <= 0
-            or entry[0] * 8 / param_count >= _MIN_BITS_PER_WEIGHT
+            # A draft, LoRA or MTP head published next to the weights.
+            if entry[1] or holds_the_whole_model(entry[0], quant, param_count)
         ]
         if not candidates:
             continue
