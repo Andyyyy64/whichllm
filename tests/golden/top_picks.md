@@ -141,6 +141,14 @@ Catalog captured 2026-10-31 with whichllm 0.5.23 (840fc78): 1441 models, 4729 be
 4. google/gemma-4-26B-A4B-it [Q8_0, full_gpu, 120.0 tok/s, score 77.5]
 5. zai-org/GLM-4.7-Flash [Q6_K, full_gpu, 94.3 tok/s, score 72.1]
 
+## rtx5090-laptop-24gb-win / general
+
+1. Qwen/Qwen3.8-27B [Q5_K_M, full_gpu, 22.3 tok/s, score 88.2]
+2. google/gemma-4-26B-A4B-it [Q6_K, full_gpu, 110.5 tok/s, score 76.3]
+3. Qwen/Qwen3.6-35B-A3B [Q4_K_M, full_gpu, 127.2 tok/s, score 76.1]
+4. google/gemma-4-31B-it [Q5_K_M, full_gpu, 21.5 tok/s, score 75.8]
+5. zai-org/GLM-4.7-Flash [Q5_K_M, full_gpu, 56.6 tok/s, score 71.4]
+
 ## 2x-rtx3090-48gb-linux / general
 
 1. Qwen/Qwen3.8-27B [Q6_K, full_gpu, 18.6 tok/s, score 88.4]

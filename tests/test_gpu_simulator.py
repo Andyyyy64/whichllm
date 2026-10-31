@@ -147,6 +147,48 @@ class TestAppleSiliconAliases:
         assert gpu.shared_memory is True
 
 
+class TestLaptopNames:
+    @pytest.mark.parametrize(
+        ("name", "expected", "vram_gb", "bandwidth"),
+        [
+            ("RTX 5090 Laptop", "GeForce RTX 5090 Mobile", 24, 896),
+            ("rtx 5090 laptop", "GeForce RTX 5090 Mobile", 24, 896),
+            ("RTX 5090 Laptop GPU", "GeForce RTX 5090 Mobile", 24, 896),
+            ("NVIDIA GeForce RTX 5090 Laptop GPU", "GeForce RTX 5090 Mobile", 24, 896),
+            ("RTX 5090 Mobile", "GeForce RTX 5090 Mobile", 24, 896),
+            ("RTX 5090 Max-Q", "GeForce RTX 5090 Mobile", 24, 896),
+            ("RTX 4060 Max-Q", "GeForce RTX 4060 Max-Q", 8, 256),
+            ("RTX 3060 Laptop", "GeForce RTX 3060 Mobile", 6, 336),
+            ("RTX A3000 Laptop GPU", "RTX A3000 Mobile", 6, 264),
+            (
+                "RTX 2000 Ada Generation Laptop GPU",
+                "RTX 2000 Mobile Ada Generation",
+                8,
+                256,
+            ),
+        ],
+    )
+    def test_laptop_name_is_the_laptop_card(self, name, expected, vram_gb, bandwidth):
+        gpu = create_synthetic_gpu(name)
+
+        assert gpu.name == f"{expected} (simulated)"
+        assert gpu.vram_bytes == vram_gb * _GiB
+        assert gpu.memory_bandwidth_gbps == pytest.approx(bandwidth)
+
+    def test_laptop_name_without_a_card_never_becomes_the_desktop_one(self):
+        with pytest.raises(ValueError, match="Unknown GPU"):
+            create_synthetic_gpu("RTX 4070 Ti Laptop")
+
+        gpu = create_synthetic_gpu("RTX 4070 Ti Laptop", vram_override_gb=12)
+        assert gpu.memory_bandwidth_gbps is None
+
+    def test_desktop_names_are_unchanged(self):
+        assert create_synthetic_gpu("RTX 5090").vram_bytes == 32 * _GiB
+        assert create_synthetic_gpu("NVIDIA GeForce RTX 4090").vram_bytes == 24 * _GiB
+        # Sold only as a laptop card, so the plain name still finds it.
+        assert create_synthetic_gpu("RTX 4050").vram_bytes == 6 * _GiB
+
+
 class TestVRAMOverride:
     def test_override_known_gpu(self):
         gpu = create_synthetic_gpu("RTX 4060 Ti", vram_override_gb=16)

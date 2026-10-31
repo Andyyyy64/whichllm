@@ -22,6 +22,12 @@ from whichllm.constants import (
     CuratedGPUSpec,
     _GiB,
 )
+from whichllm.hardware.gpu_db import (
+    _MOBILE_MARKER_RE,
+    _dbgpu_index,
+    _normalize_detected_name,
+    _static_bandwidth,
+)
 from whichllm.hardware.nvidia import _is_unified_memory_nvidia_gpu
 from whichllm.hardware.types import GPUInfo
 
@@ -36,6 +42,8 @@ _MANUFACTURER_TO_VENDOR: dict[str, str] = {
 }
 
 _MANUFACTURER_PREFIXES = ["GeForce ", "Radeon ", "Arc ", "NVIDIA ", "AMD "]
+_MAX_Q_RE = re.compile(r"\bmax-?q\b", re.IGNORECASE)
+_MODEL_NUMBER_RE = re.compile(r"\d{3,}")
 _COMMON_GPU_ALIASES: dict[str, list[str]] = {
     "a10080gb": [
         "NVIDIA A100 PCIe 80 GB",
@@ -113,14 +121,6 @@ def _is_amd_shared_memory_apu(name: str) -> bool:
     return any(marker in name_upper for marker in AMD_SHARED_MEMORY_APU_MARKERS)
 
 
-def _lookup_static_bandwidth(name: str) -> float | None:
-    name_upper = name.upper()
-    for key in sorted(GPU_BANDWIDTH, key=len, reverse=True):
-        if key.upper() in name_upper:
-            return GPU_BANDWIDTH[key]
-    return None
-
-
 def _lookup_curated_spec(name: str) -> CuratedGPUSpec | None:
     name_upper = name.upper()
     for key in sorted(CURATED_GPU_SPECS, key=len, reverse=True):
@@ -137,6 +137,31 @@ def _normalize_gpu_name(name: str) -> str:
     name = re.sub(r"(\d)([A-Za-z])", r"\1 \2", name)
     # Collapse multiple spaces
     return re.sub(r"\s+", " ", name).strip()
+
+
+def _laptop_spellings(name: str) -> list[str]:
+    """dbgpu's spellings of a laptop GPU name.
+
+    Drivers write "Laptop GPU" and people write "Laptop" where dbgpu writes
+    "Mobile". A Max-Q card without its own entry is the Mobile chip.
+    """
+    mobile = _normalize_detected_name(name)
+    return list(dict.fromkeys([mobile, _MAX_Q_RE.sub("Mobile", mobile)]))
+
+
+def _same_card(query: str, candidate: str) -> bool:
+    """A fuzzy hit may spell a name differently, but not change the card.
+
+    token_set_ratio ignores extra words, so "RTX 5090 Laptop GPU" scores 100
+    against the desktop card, and "RTX 5090 Max-Q" scores high against
+    "RTX A5000 Max-Q".
+    """
+    numbers = set(_MODEL_NUMBER_RE.findall(query))
+    if not numbers <= set(_MODEL_NUMBER_RE.findall(candidate)):
+        return False
+    return not _MOBILE_MARKER_RE.search(query) or bool(
+        _MOBILE_MARKER_RE.search(candidate)
+    )
 
 
 def _substring_search(db, name: str, vram_gb: float | None = None):
@@ -178,11 +203,15 @@ def _lookup_dbgpu(name: str, vram_gb: float | None = None) -> GPUSpecification |
     from dbgpu import GPUDatabase
 
     db = GPUDatabase.default()
+    _, index = _dbgpu_index()
 
     # Normalize input: "GTX1080" → "GTX 1080"
     normalized = _normalize_gpu_name(name)
     compact = re.sub(r"\s+", "", normalized.lower())
-    names_to_try = [name] if normalized == name else [name, normalized]
+    if _MOBILE_MARKER_RE.search(name):
+        names_to_try = _laptop_spellings(name)
+    else:
+        names_to_try = [name] if normalized == name else [name, normalized]
     alias_hits = _COMMON_GPU_ALIASES.get(compact)
     if alias_hits:
         names_to_try.extend(alias_hits)
@@ -190,11 +219,14 @@ def _lookup_dbgpu(name: str, vram_gb: float | None = None) -> GPUSpecification |
         names_to_try.insert(0, _DEFAULT_VARIANTS[compact])
 
     for n in names_to_try:
-        # 1) Exact key lookup
+        # 1) Exact key lookup, also across spelling and word order
         try:
             return db[n]
         except KeyError:
             pass
+        canonical = (index or {}).get(_normalize_detected_name(n).lower())
+        if canonical is not None:
+            return db[canonical]
 
         # 2) Try with common manufacturer prefixes
         for prefix in _MANUFACTURER_PREFIXES:
@@ -215,8 +247,9 @@ def _lookup_dbgpu(name: str, vram_gb: float | None = None) -> GPUSpecification |
         results = process.extract(
             normalized, db.names, limit=3, scorer=fuzz.token_set_ratio
         )
-        if results and results[0][1] >= 90:
-            return db[results[0][0]]
+        for match, score in results:
+            if score >= 90 and _same_card(name, match):
+                return db[match]
         # Store top suggestions for error messages
         if results:
             _last_suggestions[:] = [(n, s) for n, s in results if s >= 70]
@@ -340,7 +373,7 @@ def create_synthetic_gpu(name: str, vram_override_gb: float | None = None) -> GP
     if bandwidth is None and curated is not None:
         bandwidth = curated.memory_bandwidth_gbps
     if bandwidth is None:
-        bandwidth = _lookup_static_bandwidth(name)
+        bandwidth = _static_bandwidth(name)
 
     # Compute capability (CUDA version in dbgpu = compute capability)
     compute_cap: tuple[int, int] | None = None
