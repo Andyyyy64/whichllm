@@ -13,11 +13,15 @@ import csv
 import math
 import re
 import statistics
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
-from whichllm.engine.performance import estimate_tok_per_sec
+from whichllm.engine.performance import (
+    estimate_speed_uncertainty,
+    estimate_tok_per_sec,
+)
 from whichllm.hardware.apple import apple_bandwidth
 from whichllm.hardware.gpu_simulator import create_synthetic_gpu
 from whichllm.hardware.types import GPUInfo
@@ -66,7 +70,7 @@ RUNS = [
 ]
 
 
-def _estimate_on(gpu: GPUInfo, params_b, file_gib, quant) -> float:
+def _model(params_b, file_gib, quant) -> tuple[ModelInfo, GGUFVariant]:
     variant = GGUFVariant(f"model-{quant}.gguf", quant, int(file_gib * _GiB))
     model = ModelInfo(
         id="org/Model-GGUF",
@@ -75,13 +79,13 @@ def _estimate_on(gpu: GPUInfo, params_b, file_gib, quant) -> float:
         parameter_count=int(params_b * 1e9),
         gguf_variants=[variant],
     )
-    return estimate_tok_per_sec(model, variant, gpu, "full_gpu")
+    return model, variant
 
 
 def _estimate(gpu_name, memory_gb, params_b, file_gib, quant) -> float:
-    return _estimate_on(
-        create_synthetic_gpu(gpu_name, memory_gb), params_b, file_gib, quant
-    )
+    model, variant = _model(params_b, file_gib, quant)
+    gpu = create_synthetic_gpu(gpu_name, memory_gb)
+    return estimate_tok_per_sec(model, variant, gpu, "full_gpu")
 
 
 def _table() -> list[dict]:
@@ -100,8 +104,15 @@ def _table() -> list[dict]:
                 else None
             ),
         )
-        estimate = _estimate_on(gpu, 7.0, float(row["file_gib"]), "Q4_K_M")
-        row["log_ratio"] = math.log(estimate / float(row["tok_per_sec"]))
+        model, variant = _model(7.0, float(row["file_gib"]), "Q4_K_M")
+        estimate = estimate_tok_per_sec(model, variant, gpu, "full_gpu")
+        measured = float(row["tok_per_sec"])
+        confidence, speed_range, _ = estimate_speed_uncertainty(
+            model, variant, gpu, "full_gpu", estimate
+        )
+        row["log_ratio"] = math.log(estimate / measured)
+        row["confidence"] = confidence
+        row["in_range"] = speed_range[0] <= measured <= speed_range[1]
     return rows
 
 
@@ -185,6 +196,85 @@ def test_no_older_or_unusual_design_is_biased(table, pattern):
 
     assert len(ratios) >= 4
     assert 0.8 <= math.exp(statistics.median(ratios)) <= 1.25
+
+
+@pytest.mark.parametrize(("level", "points"), [("high", 250), ("low", 90)])
+def test_each_speed_range_holds_the_published_runs(table, level, points):
+    rows = [row for row in table if row["confidence"] == level]
+
+    assert len(rows) >= points
+    assert sum(row["in_range"] for row in rows) / len(rows) >= 0.9
+
+
+@pytest.mark.parametrize(
+    ("gpu", "memory_gb", "expected"),
+    [
+        ("RTX 4090", None, "high"),
+        ("GTX 1080", None, "high"),
+        ("RX 7900 XTX", None, "high"),
+        ("M1", 16, "high"),
+        ("M2 Ultra", 192, "high"),
+        ("Ryzen AI MAX+ 395", 128, "medium"),
+        ("DGX Spark", 128, "medium"),
+        ("Jetson Orin NX", 16, "medium"),
+        ("RTX 4060 Laptop GPU", None, "low"),
+        ("RX 7600M XT", None, "low"),
+        ("GTX 970", None, "low"),
+        ("A100 PCIe 80 GB", None, "low"),
+        ("RX 580", None, "low"),
+        ("Arc B580", None, "low"),
+    ],
+)
+def test_speed_confidence_follows_the_published_runs(gpu, memory_gb, expected):
+    model, variant = _model(7.0, 3.56, "Q4_K_M")
+    simulated = create_synthetic_gpu(gpu, memory_gb)
+
+    confidence, _, _ = estimate_speed_uncertainty(
+        model, variant, simulated, "full_gpu", 50.0
+    )
+
+    assert confidence == expected
+
+
+def test_only_a_dense_gguf_with_a_real_file_size_on_the_gpu_reaches_high():
+    model, variant = _model(7.0, 3.56, "Q4_K_M")
+    gpu = create_synthetic_gpu("RTX 4090")
+    estimated = replace(variant, is_estimated=True)
+    # An official repo's quant takes the real size of the upload it resolves to.
+    resolved = replace(variant, filename="Model.Q4_K_M.gguf")
+    moe = replace(model, is_moe=True, parameter_count_active=int(1e9))
+
+    def confidence(*args) -> str:
+        return estimate_speed_uncertainty(*args, 50.0)[0]
+
+    assert confidence(model, variant, gpu, "full_gpu") == "high"
+    assert confidence(model, resolved, gpu, "full_gpu") == "high"
+    assert confidence(model, estimated, gpu, "full_gpu") == "medium"
+    assert confidence(moe, variant, gpu, "full_gpu") == "medium"
+    assert confidence(model, None, gpu, "full_gpu") == "medium"
+    assert confidence(model, variant, gpu, "partial_offload") == "low"
+    assert confidence(model, variant, None, "cpu_only") == "low"
+
+
+def test_multi_gpu_confidence_depends_on_the_cards_and_the_model():
+    model, variant = _model(7.0, 3.56, "Q4_K_M")
+    gpu = create_synthetic_gpu("RTX 4090")
+    moe = replace(model, is_moe=True, parameter_count_active=int(1e9))
+
+    def confidence(checked, identical: bool) -> str:
+        return estimate_speed_uncertainty(
+            checked,
+            variant,
+            gpu,
+            "full_gpu",
+            50.0,
+            uses_multi_gpu=True,
+            identical_gpus=identical,
+        )[0]
+
+    assert confidence(model, True) == "medium"
+    assert confidence(model, False) == "low"
+    assert confidence(moe, True) == "low"
 
 
 @pytest.mark.parametrize(

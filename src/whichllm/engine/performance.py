@@ -8,6 +8,7 @@ from whichllm.engine.moe import active_expert_fraction, routed_expert_fraction
 from whichllm.engine.placement import Placement
 from whichllm.engine.quantization import estimate_weight_bytes
 from whichllm.engine.quantization import effective_quant_type
+from whichllm.hardware.gpu_db import _MOBILE_MARKER_RE
 from whichllm.hardware.ram_bandwidth import DEFAULT_RAM_BANDWIDTH_GBPS
 from whichllm.hardware.types import GPUInfo
 from whichllm.models.gguf import quant_table_key
@@ -47,6 +48,8 @@ _AMD_GCN_NAME_RE = re.compile(
     r"|Pro WX \d|FirePro|Radeon Pro \d{3}X?\b|HD \d",
     re.IGNORECASE,
 )
+_AMD_RDNA_NAME_RE = re.compile(r"\b(RX|PRO W|PRO R) ?\d{4}\b", re.IGNORECASE)
+_AMD_MOBILE_NAME_RE = re.compile(r"\bRX \d{4}[MS]\b", re.IGNORECASE)
 _INTEL_ALCHEMIST_NAME_RE = re.compile(r"Arc (Pro )?A\d", re.IGNORECASE)
 # HBM cards never reach their nominal bandwidth in decode. The A100 and H100 are
 # listed near 2,000 GB/s, and both read at about 1,100.
@@ -54,6 +57,11 @@ _GGUF_HBM_BANDWIDTH_GBPS = 1100.0
 _HBM_NAME_RE = re.compile(
     r"\b(A100|H100|H200|B100|B200|GH200|P100|V100|GP100|TITAN V|Instinct|CMP)\b",
     re.IGNORECASE,
+)
+
+_PUBLISHED_RUNS_NOTE = (
+    "Published llama.cpp runs on GPUs of this kind land close to this estimate, "
+    "with every layer on the GPU."
 )
 
 # Per-quant efficiency factors for MoE and non-GGUF decode, which the runs
@@ -143,8 +151,10 @@ _CPU_EXPERT_EFFICIENCY = 0.43
 _CPU_EFFICIENCY_MAX = 0.6
 _SPLIT_SYNC_SECONDS = 0.003
 
+# Each range holds at least 90% of the published runs at its confidence level
+# (tests/test_speed_calibration.py).
 _SPEED_CONFIDENCE_RANGE_FACTORS: dict[str, tuple[float, float]] = {
-    "high": (0.85, 1.20),
+    "high": (0.75, 1.30),
     "medium": (0.60, 1.60),
     "low": (0.35, 2.00),
 }
@@ -283,6 +293,33 @@ def _split_tok_per_sec(
     return 1.0 / seconds if seconds > 0 else 0.0
 
 
+def _dense_gguf_confidence(gpu: GPUInfo) -> tuple[str, str | None]:
+    """How well published runs back a dense GGUF estimate on this GPU."""
+    if _JETSON_NAME_RE.search(gpu.name) or (
+        gpu.shared_memory and gpu.vendor != "apple"
+    ):
+        return "medium", None
+    if _MOBILE_MARKER_RE.search(gpu.name) or _AMD_MOBILE_NAME_RE.search(gpu.name):
+        return "low", "Laptop GPUs vary with their power limit, and few runs exist."
+    if _HBM_NAME_RE.search(gpu.name):
+        return "low", "HBM GPUs read well below their listed bandwidth, and it varies."
+    if gpu.vendor == "apple":
+        return "high", _PUBLISHED_RUNS_NOTE
+    if gpu.vendor == "intel":
+        return "low", "Intel speed varies with driver and backend, and few runs exist."
+    if gpu.vendor == "amd":
+        if _AMD_RDNA_NAME_RE.search(gpu.name):
+            return "high", _PUBLISHED_RUNS_NOTE
+        if _AMD_GCN_NAME_RE.search(gpu.name):
+            return "low", "GCN Radeon cards vary too much between runs to narrow this."
+    capability = gpu.compute_capability
+    if gpu.vendor == "nvidia" and capability:
+        if capability >= _PRE_PASCAL_CAPABILITY:
+            return "high", _PUBLISHED_RUNS_NOTE
+        return "low", "NVIDIA cards before Pascal vary too much to narrow this."
+    return "medium", None
+
+
 def _lower_speed_confidence(current: str, candidate: str) -> str:
     if _SPEED_CONFIDENCE_ORDER[candidate] < _SPEED_CONFIDENCE_ORDER[current]:
         return candidate
@@ -307,6 +344,8 @@ def estimate_speed_uncertainty(
     *,
     placement: Placement | None = None,
     ram_bandwidth_source: str = "default",
+    uses_multi_gpu: bool = False,
+    identical_gpus: bool = False,
 ) -> tuple[str, tuple[float, float] | None, list[str]]:
     """Return confidence metadata for the speed point estimate.
 
@@ -376,12 +415,37 @@ def estimate_speed_uncertainty(
                 notes.append(
                     "AMD shared-memory APU estimates are calibrated by bandwidth, but ROCm/Vulkan kernels can differ."
                 )
+        elif (
+            fit_type == "full_gpu"
+            and gpu.memory_bandwidth_gbps
+            and _is_dense_gguf(model, variant)
+        ):
+            confidence, note = _dense_gguf_confidence(gpu)
+            if note:
+                notes.append(note)
 
-    if _looks_synthetic_gguf(model, variant):
+    if variant is not None and variant.is_estimated:
         confidence = _lower_speed_confidence(confidence, "medium")
-        notes.append(
-            "This is a synthetic GGUF estimate for an official repo, not a measured GGUF file."
-        )
+        if _looks_synthetic_gguf(model, variant):
+            notes.append(
+                "This is a synthetic GGUF estimate for an official repo, not a measured GGUF file."
+            )
+        else:
+            notes.append("The size of this GGUF file is estimated.")
+
+    if uses_multi_gpu:
+        if identical_gpus and _is_dense_gguf(model, variant):
+            confidence = _lower_speed_confidence(confidence, "medium")
+            notes.append(
+                "Published layer splits across identical cards stay close to this estimate."
+            )
+        else:
+            confidence = "low"
+            notes.append(
+                "Multi-GPU speed depends on layer/tensor split mode, "
+                "PCIe/NVLink bandwidth, and backend support; this estimate "
+                "does not assume ideal scaling."
+            )
 
     low_factor, high_factor = _SPEED_CONFIDENCE_RANGE_FACTORS[confidence]
     speed_range = (

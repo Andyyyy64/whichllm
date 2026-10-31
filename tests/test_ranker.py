@@ -896,7 +896,7 @@ def test_fit_filter_full_gpu_returns_empty_when_no_full_gpu_candidate():
     assert results == []
 
 
-def test_multi_gpu_speed_confidence_is_low():
+def test_identical_multi_gpu_speed_is_medium_confidence():
     from whichllm.engine.performance import estimate_tok_per_sec
 
     model = ModelInfo(
@@ -949,7 +949,7 @@ def test_multi_gpu_speed_confidence_is_low():
     assert results
     assert results[0].fit_type == "full_gpu"
     assert results[0].uses_multi_gpu is True
-    assert results[0].speed_confidence == "low"
+    assert results[0].speed_confidence == "medium"
     single_gpu_speed = estimate_tok_per_sec(
         model,
         model.gguf_variants[0],
@@ -959,6 +959,59 @@ def test_multi_gpu_speed_confidence_is_low():
     # Two identical cards split the layers evenly: about the speed of one card
     # reading everything, less the 5% hand-off allowance.
     assert results[0].estimated_tok_per_sec == pytest.approx(single_gpu_speed * 0.95)
+    assert any("identical cards" in note for note in results[0].speed_notes)
+
+
+def test_mixed_multi_gpu_speed_confidence_is_low():
+    model = ModelInfo(
+        id="org/Test-34B-GGUF",
+        family_id="org/Test-34B-GGUF",
+        name="Test-34B-GGUF",
+        parameter_count=34_000_000_000,
+        downloads=1000,
+        likes=100,
+        gguf_variants=[
+            GGUFVariant(
+                filename="test-34b-Q4_K_M.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=23 * 1024**3,
+            )
+        ],
+    )
+    hw = HardwareInfo(
+        gpus=[
+            GPUInfo(
+                name="NVIDIA GeForce RTX 4090",
+                vendor="nvidia",
+                vram_bytes=24 * 1024**3,
+                compute_capability=(8, 9),
+                memory_bandwidth_gbps=1008.0,
+            ),
+            GPUInfo(
+                name="NVIDIA GeForce RTX 3090",
+                vendor="nvidia",
+                vram_bytes=24 * 1024**3,
+                compute_capability=(8, 6),
+                memory_bandwidth_gbps=936.0,
+            ),
+        ],
+        cpu_name="Test CPU",
+        cpu_cores=16,
+        has_avx2=True,
+        ram_bytes=128 * 1024**3,
+        disk_free_bytes=500 * 1024**3,
+        os="linux",
+    )
+
+    results = rank_models(
+        [model],
+        hw,
+        top_n=1,
+        benchmark_scores={"org/Test-34B-GGUF": 70.0},
+    )
+
+    assert results[0].uses_multi_gpu is True
+    assert results[0].speed_confidence == "low"
     assert any("Multi-GPU speed depends" in note for note in results[0].speed_notes)
 
 

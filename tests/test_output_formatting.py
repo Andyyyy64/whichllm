@@ -32,6 +32,23 @@ def test_format_speed_colors_by_runtime_speed_not_confidence():
     )
 
 
+def test_display_ranking_keeps_the_speed_marker_on_fast_rows():
+    from io import StringIO
+    from rich.console import Console
+    import whichllm.output._console as console_mod
+    from whichllm.output.ranking import display_ranking
+
+    buf = StringIO()
+    orig_console = console_mod.console
+    console_mod.console = Console(file=buf, force_terminal=False, width=120)
+    try:
+        display_ranking([_result(1234.5, "low")], has_gpu=True, show_status=True)
+    finally:
+        console_mod.console = orig_console
+
+    assert "1234.5 tok/s ?" in buf.getvalue()
+
+
 def test_display_ranking_includes_weights_column():
     from io import StringIO
     from rich.console import Console
