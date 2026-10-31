@@ -22,19 +22,7 @@ def _placement_rows(
     """Serialize a per-device layer split for JSON consumers."""
     if not devices:
         return None
-    return [
-        {
-            "name": device.name,
-            "available_bytes": device.available_bytes,
-            "budget_bytes": device.budget_bytes,
-            "weight_bytes": device.weight_bytes,
-            "kv_bytes": device.kv_bytes,
-            "nonsplittable_bytes": device.nonsplittable_bytes,
-            "required_bytes": device.required_bytes,
-            "fits": device.fits,
-        }
-        for device in devices
-    ]
+    return [asdict(device) for device in devices]
 
 
 def _placement_json(result: CompatibilityResult) -> dict | None:

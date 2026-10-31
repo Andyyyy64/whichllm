@@ -37,11 +37,6 @@ class DevicePlacement:
     required_bytes: int
     fits: bool
 
-    @property
-    def overflow_bytes(self) -> int:
-        """Bytes this device is asked to hold beyond its own budget."""
-        return max(0, self.required_bytes - self.budget_bytes)
-
 
 @dataclass(frozen=True)
 class PlacementPlan:
@@ -49,17 +44,19 @@ class PlacementPlan:
 
     ``pooled_bytes`` is the budget the pooled fit check uses: the usable
     capacity of every device after its own runtime buffer, times the
-    utilization factor. ``fits`` says whether every device can hold its own
-    share. ``reserve_fits`` says whether the runtime-only part fits on the
-    largest device at all — when it does not, no layer split can carry it and
-    only a single card (``single_device_bytes``) can host the GPU part.
+    utilization factor. ``reserve_fits`` says whether the runtime-only part fits
+    on the largest device at all — when it does not, no layer split can carry it
+    and only a single card can host the GPU part.
+
+    Shares are proportional to each device's remaining capacity, so a device
+    cannot overflow once the reserve fits: the only way a split fails is the
+    runtime-only part.
     """
 
     devices: tuple[DevicePlacement, ...]
     excluded: tuple[str, ...]
     pooled_bytes: int
     single_device_bytes: int
-    fits: bool
     reserve_fits: bool
 
 
@@ -99,7 +96,6 @@ def plan_device_split(
             excluded=tuple(excluded),
             pooled_bytes=pooled_bytes,
             single_device_bytes=single_device_bytes,
-            fits=False,
             reserve_fits=False,
         )
 
@@ -143,6 +139,5 @@ def plan_device_split(
         excluded=tuple(excluded),
         pooled_bytes=pooled_bytes,
         single_device_bytes=single_device_bytes,
-        fits=reserve_fits and all(placement.fits for placement in placements),
         reserve_fits=reserve_fits,
     )

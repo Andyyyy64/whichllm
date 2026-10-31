@@ -7,7 +7,11 @@ from dataclasses import dataclass, replace
 from whichllm.constants import _GiB
 from whichllm.constants import MIN_COMPUTE_CAPABILITY_OLLAMA
 from whichllm.constants import VULKAN_ONLY_GPUS
-from whichllm.engine.multi_gpu import PlacementPlan, plan_device_split
+from whichllm.engine.multi_gpu import (
+    PER_DEVICE_RUNTIME_BUFFER_BYTES,
+    PlacementPlan,
+    plan_device_split,
+)
 from whichllm.engine.placement import (
     Placement,
     cpu_placement,
@@ -91,6 +95,26 @@ def _is_homogeneous_gpu_set(gpus: list[GPUInfo], available: list[int]) -> bool:
     )
 
 
+def _usable_devices(
+    gpus: list[GPUInfo], available: list[int]
+) -> tuple[list[GPUInfo], list[int], list[str]]:
+    """Devices that can pay their own runtime buffer, and the ones that cannot.
+
+    A card below the buffer holds nothing in a split, so it must not weigh on
+    the homogeneity check, the speed factor or the pool it stays out of.
+    """
+    usable_gpus: list[GPUInfo] = []
+    usable_available: list[int] = []
+    excluded: list[str] = []
+    for gpu, gpu_available in zip(gpus, available, strict=False):
+        if gpu_available - PER_DEVICE_RUNTIME_BUFFER_BYTES <= 0:
+            excluded.append(gpu.name)
+            continue
+        usable_gpus.append(gpu)
+        usable_available.append(gpu_available)
+    return usable_gpus, usable_available, excluded
+
+
 @dataclass(frozen=True)
 class _MultiGpuFit:
     """What the fit check uses when more than one dedicated GPU is pooled."""
@@ -123,6 +147,22 @@ class _MultiGpuFit:
         )
 
 
+def _single_device_fit(
+    gpus: list[GPUInfo], available: list[int], utilization: float
+) -> _MultiGpuFit:
+    """One card carries the GPU part: a plain single-GPU fit, no buffer taken."""
+    budget = max(available, default=0)
+    return _MultiGpuFit(
+        fit_vram_available=budget,
+        uses_multi_gpu=False,
+        effective_vram=None,
+        plan=None,
+        gpus=list(gpus),
+        available=list(available),
+        utilization=utilization,
+    )
+
+
 def _multi_gpu_fit_budget(
     gpus: list[GPUInfo],
     available: list[int],
@@ -135,86 +175,57 @@ def _multi_gpu_fit_budget(
     """Pooled budget for the placement choice, plus the per-device plan."""
     raw_total = sum(available)
     if len(gpus) <= 1:
-        return _MultiGpuFit(
-            fit_vram_available=raw_total,
-            uses_multi_gpu=False,
-            effective_vram=None,
-            plan=None,
-            gpus=gpus,
-            available=available,
-            utilization=1.0,
-        )
+        return _single_device_fit(gpus, available, 1.0)
 
     if any(gpu.shared_memory or gpu.vendor == "apple" for gpu in gpus):
         warnings.append(
             "Multiple shared-memory GPUs are not pooled; using the largest "
             "reported memory pool for fit checks"
         )
-        return _MultiGpuFit(
-            fit_vram_available=max(available),
-            uses_multi_gpu=False,
-            effective_vram=None,
-            plan=None,
-            gpus=gpus,
-            available=available,
-            utilization=1.0,
+        return _single_device_fit(gpus, [max(available)], 1.0)
+
+    usable_gpus, usable_available, excluded = _usable_devices(gpus, available)
+    if excluded:
+        warnings.append(
+            "Devices without room for their own runtime buffer stay out of the "
+            f"multi-GPU pool: {', '.join(excluded)}"
+        )
+    if len(usable_gpus) < 2:
+        # Nothing left to split across: the fit is the remaining card's own, at
+        # its full available memory, exactly as a single-GPU run would be.
+        warnings.append(
+            "Multi-GPU fit skipped: fewer than two devices have room left after "
+            "their own runtime buffer"
+        )
+        return _single_device_fit(
+            usable_gpus or gpus, usable_available or [max(available)], 1.0
         )
 
-    homogeneous = _is_homogeneous_gpu_set(gpus, available)
+    homogeneous = _is_homogeneous_gpu_set(usable_gpus, usable_available)
     utilization = (
         _MULTI_GPU_HOMOGENEOUS_UTILIZATION
         if homogeneous
         else _MULTI_GPU_HETEROGENEOUS_UTILIZATION
     )
     plan = plan_device_split(
-        gpus,
-        available,
+        usable_gpus,
+        usable_available,
         gpu_weight_bytes=weights_bytes,
         kv_bytes=kv_bytes,
         nonsplittable_bytes=nonsplittable_bytes,
         utilization=utilization,
     )
-    if plan.excluded:
-        warnings.append(
-            "Devices without room for their own runtime buffer stay out of the "
-            f"multi-GPU pool: {', '.join(plan.excluded)}"
-        )
-    if not plan.devices:
-        # The remaining card is a single-device fit; keep its usable capacity
-        # instead of dropping the pool to zero.
-        warnings.append(
-            "Multi-GPU fit skipped: fewer than two devices have room left after "
-            "their own runtime buffer"
-        )
-        return _MultiGpuFit(
-            fit_vram_available=plan.single_device_bytes,
-            uses_multi_gpu=False,
-            effective_vram=None,
-            plan=plan,
-            gpus=gpus,
-            available=available,
-            utilization=utilization,
-        )
-
     if not plan.reserve_fits:
         # Activation buffers and framework overhead cannot be divided by a layer
         # split, and no single device can host them: only one card can carry the
-        # GPU part of a partial offload.
+        # GPU part of a partial offload, at its full available memory.
         warnings.append(
             "Multi-GPU placement rejected: the runtime-only part of the estimate "
             f"({nonsplittable_bytes / _GiB:.2f} GB of activation buffers and "
             "framework overhead) fits no single device, so no layer split can "
             "carry it"
         )
-        return _MultiGpuFit(
-            fit_vram_available=plan.single_device_bytes,
-            uses_multi_gpu=False,
-            effective_vram=None,
-            plan=plan,
-            gpus=gpus,
-            available=available,
-            utilization=utilization,
-        )
+        return _single_device_fit(usable_gpus, usable_available, utilization)
 
     warnings.append(
         "Multi-GPU fit uses a conservative layer-split budget: "
@@ -231,8 +242,8 @@ def _multi_gpu_fit_budget(
         uses_multi_gpu=True,
         effective_vram=plan.pooled_bytes,
         plan=plan,
-        gpus=gpus,
-        available=available,
+        gpus=usable_gpus,
+        available=usable_available,
         utilization=utilization,
     )
 
@@ -253,13 +264,6 @@ def _attach_device_split(
     )
     if plan is None:
         return placement
-    if not plan.fits and placement.kind != "gpu":
-        overflowing = [device.name for device in plan.devices if not device.fits]
-        if overflowing:
-            warnings.append(
-                f"GPU share of the offload overflows {', '.join(overflowing)}: "
-                "the real split can be slower than this estimate"
-            )
     return replace(placement, devices=plan.devices)
 
 
@@ -346,7 +350,7 @@ def check_compatibility(
         )
         if multi_gpu.uses_multi_gpu:
             multi_gpu_speed_factor = _multi_gpu_speed_factor(
-                candidate_gpus, gpu_available_values
+                multi_gpu.gpus, multi_gpu.available
             )
     fit_vram_available = multi_gpu.fit_vram_available
     uses_multi_gpu = multi_gpu.uses_multi_gpu
@@ -400,13 +404,7 @@ def check_compatibility(
         best_gpu and (best_gpu.shared_memory or best_gpu.vendor == "apple")
     )
     placement: Placement | None = None
-    # A full-GPU placement has to fit the per-device budgets, not only the
-    # pooled one: a split that overflows one device fails even when the pool
-    # would have covered the estimate.
-    full_split_fits = (
-        not uses_multi_gpu or multi_gpu.plan is None or multi_gpu.plan.fits
-    )
-    if fit_vram_available >= vram_required and full_split_fits:
+    if fit_vram_available >= vram_required:
         fit_type = "full_gpu"
         can_run = True
         offload_ratio = 0.0

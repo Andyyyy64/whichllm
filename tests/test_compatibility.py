@@ -5,6 +5,7 @@ from whichllm.engine.compatibility import check_compatibility
 from whichllm.engine.multi_gpu import PER_DEVICE_RUNTIME_BUFFER_BYTES
 from whichllm.hardware.memory import estimate_usable_ram
 from whichllm.hardware.types import GPUInfo, HardwareInfo
+from whichllm.models.shape import ModelShape
 from whichllm.models.types import GGUFVariant, ModelInfo
 
 
@@ -714,6 +715,159 @@ def test_combined_fit_is_rejected_when_one_device_cannot_hold_the_runtime_part()
     assert any("placement rejected" in w for w in result.warnings)
     assert any("fits no single device" in w for w in result.warnings)
     assert not any("fits no device" in w for w in result.warnings)
+
+
+def test_excluded_card_does_not_make_a_homogeneous_set_heterogeneous():
+    """Two identical cards keep the 0.95 budget; the card left out weighs nothing."""
+    hw = HardwareInfo(
+        gpus=[
+            GPUInfo(
+                name="NVIDIA GeForce RTX 3090",
+                vendor="nvidia",
+                vram_bytes=24 * _GiB,
+                compute_capability=(8, 6),
+                memory_bandwidth_gbps=936.0,
+            ),
+            GPUInfo(
+                name="NVIDIA GeForce RTX 3090",
+                vendor="nvidia",
+                vram_bytes=24 * _GiB,
+                compute_capability=(8, 6),
+                memory_bandwidth_gbps=936.0,
+            ),
+            GPUInfo(
+                name="NVIDIA GeForce GT 710",
+                vendor="nvidia",
+                vram_bytes=256 * 1024**2,
+                compute_capability=(3, 5),
+                memory_bandwidth_gbps=14.4,
+            ),
+        ],
+        cpu_name="Test CPU",
+        cpu_cores=16,
+        ram_bytes=128 * _GiB,
+        disk_free_bytes=500 * _GiB,
+        os="linux",
+    )
+
+    # 42.78 GiB fits the 0.95 budget of the two 3090s and not the 0.90 one the
+    # excluded card used to force.
+    result = check_compatibility(_make_model(), _make_variant(42 * _GiB), hw)
+
+    assert result.fit_type == "full_gpu"
+    assert result.uses_multi_gpu is True
+    budgets = 48 * _GiB - 2 * PER_DEVICE_RUNTIME_BUFFER_BYTES
+    assert result.multi_gpu_effective_vram_bytes == int(budgets * 0.95)
+    assert [device.name for device in result.placement.devices] == [
+        "NVIDIA GeForce RTX 3090",
+        "NVIDIA GeForce RTX 3090",
+    ]
+    # The card that holds nothing does not slow the split either.
+    assert result.multi_gpu_speed_factor == 0.95
+    assert any(
+        "GT 710" in w and "stay out of the multi-GPU pool" in w for w in result.warnings
+    )
+
+
+def test_moe_expert_offload_splits_across_two_gpus():
+    model = ModelInfo(
+        id="openai/gpt-oss-120b",
+        family_id="gpt-oss-120b",
+        name="gpt-oss-120b",
+        parameter_count=116_829_156_672,
+        parameter_count_active=5_100_000_000,
+        is_moe=True,
+        gguf_variants=[
+            GGUFVariant(
+                filename="gpt-oss-120b-MXFP4.gguf",
+                quant_type="MXFP4",
+                file_size_bytes=63_387_346_464,
+            )
+        ],
+        shape=ModelShape(
+            model_type="gpt_oss",
+            num_layers=36,
+            full_kv_bytes_per_token=18 * 2048,
+            sliding_kv_bytes_per_token=18 * 2048,
+            sliding_window=128,
+            honors_sliding_window=True,
+            hidden_size=2880,
+            intermediate_size=2880,
+            num_experts=128,
+            experts_per_token=4,
+        ),
+    )
+    hw = HardwareInfo(
+        gpus=[
+            GPUInfo(
+                name="NVIDIA GeForce RTX 4090",
+                vendor="nvidia",
+                vram_bytes=16 * _GiB,
+                compute_capability=(8, 9),
+                memory_bandwidth_gbps=1008.0,
+            ),
+            GPUInfo(
+                name="NVIDIA GeForce RTX 4090",
+                vendor="nvidia",
+                vram_bytes=16 * _GiB,
+                compute_capability=(8, 9),
+                memory_bandwidth_gbps=1008.0,
+            ),
+        ],
+        cpu_name="Test CPU",
+        cpu_cores=16,
+        ram_bytes=64 * _GiB,
+        disk_free_bytes=500 * _GiB,
+        os="linux",
+    )
+
+    result = check_compatibility(model, model.gguf_variants[0], hw)
+
+    assert result.fit_type == "partial_offload"
+    assert result.uses_multi_gpu is True
+    assert result.placement.kind == "expert_offload"
+    devices = result.placement.devices
+    assert len(devices) == 2
+    assert all(device.fits for device in devices)
+    # The split covers the weights the experts leave on the GPUs.
+    assert abs(
+        sum(device.weight_bytes for device in devices)
+        - result.placement.gpu_weight_bytes
+    ) <= len(devices)
+    assert sum(device.nonsplittable_bytes for device in devices) > 0
+
+
+def test_small_card_beside_a_large_one_keeps_full_gpu():
+    hw = HardwareInfo(
+        gpus=[
+            GPUInfo(
+                name="NVIDIA GeForce RTX 5060 Ti",
+                vendor="nvidia",
+                vram_bytes=256 * 1024**2,
+                compute_capability=(10, 0),
+                memory_bandwidth_gbps=448.0,
+            ),
+            GPUInfo(
+                name="NVIDIA GeForce RTX 5070 Ti",
+                vendor="nvidia",
+                vram_bytes=16 * _GiB,
+                compute_capability=(12, 0),
+                memory_bandwidth_gbps=896.0,
+            ),
+        ],
+        cpu_name="Test CPU",
+        cpu_cores=16,
+        ram_bytes=64 * _GiB,
+        disk_free_bytes=200 * _GiB,
+        os="linux",
+    )
+
+    result = check_compatibility(_make_model(), _make_variant(int(9.0 * _GiB)), hw)
+
+    assert result.can_run is True
+    assert result.fit_type == "full_gpu"
+    assert result.uses_multi_gpu is False
+    assert result.placement.devices == ()
 
 
 def test_single_gpu_reports_no_device_split():

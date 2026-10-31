@@ -41,7 +41,6 @@ def test_each_device_pays_its_own_runtime_buffer():
     # The runtime-only part is reserved once, on the largest device.
     assert plan.devices[0].nonsplittable_bytes == 0
     assert plan.devices[1].nonsplittable_bytes == 1 * _GiB
-    assert plan.fits is True
     assert plan.reserve_fits is True
 
 
@@ -87,7 +86,7 @@ def test_device_below_its_runtime_buffer_leaves_one_card():
     # remaining card keeps its usable capacity.
     assert plan.devices == ()
     assert plan.excluded == ("Tiny",)
-    assert plan.fits is False
+    assert plan.reserve_fits is False
     assert plan.single_device_bytes == 16 * _GiB - PER_DEVICE_RUNTIME_BUFFER_BYTES
 
 
@@ -103,12 +102,10 @@ def test_runtime_part_that_fits_no_device_rejects_the_split():
         utilization=0.95,
     )
 
-    assert plan.fits is False
     assert plan.reserve_fits is False
     # The device that was asked to host the runtime-only part cannot hold it.
     reserved = [device for device in plan.devices if device.nonsplittable_bytes]
     assert reserved and not reserved[0].fits
-    assert reserved[0].overflow_bytes > 0
     # A single card can still host the GPU part of a partial offload.
     assert plan.single_device_bytes == _GiB - PER_DEVICE_RUNTIME_BUFFER_BYTES
 

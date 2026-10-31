@@ -304,9 +304,18 @@ the plan can use, and weights and KV cache are assigned in proportion to it.
 The runtime-only part of the estimate — activation buffers and framework
 overhead — cannot be split by a layer split, so it is reserved on the device
 with the most capacity. A utilization factor is applied last: homogeneous sets
-receive a less severe reduction than heterogeneous sets. A device that cannot
-pay its own runtime buffer stays out of the pool, and the remaining card keeps
-its usable capacity.
+receive a less severe reduction than heterogeneous sets.
+
+A device that cannot pay its own runtime buffer stays out of the pool before any
+of that is decided: two identical cards beside a card with 256 MiB free keep the
+homogeneous 0.95 budget, the speed estimate ignores the card that holds nothing,
+and one remaining card is treated as a plain single-GPU fit at its full
+available memory. Because the shares are proportional to what each device has
+left, the only way a split fails is the runtime-only part: when that fits no
+single device, the placement is rejected even though the pooled budget would
+have covered the estimate, and the pooled budget then only carries the partial
+offload. The plan also describes the GPU-resident part of an expert or layer
+offload, which is what the devices hold once the rest is in system RAM.
 
 If a dedicated GPU is present, low-aperture shared-memory integrated GPUs are
 not added to the fit pool. This avoids treating unrelated system RAM and
@@ -314,13 +323,6 @@ dedicated VRAM as one full-GPU target.
 
 A model that fits on the largest card alone is treated as a single-GPU run:
 no split budget, no split overhead and no multi-GPU speed discount.
-
-When a model does need the split, the per-device plan is checked before a
-full-GPU fit is reported: a placement whose runtime-only part fits no single
-device is rejected even when the pooled budget would have covered the estimate,
-and the pooled budget then only carries the partial offload. The split plan
-also describes the GPU-resident part of an expert or layer offload, which is
-what the devices hold once the rest is in system RAM.
 
 When a model does need the split, the speed estimate follows how llama.cpp
 splits layers: in proportion to each card's free memory, with each token
