@@ -8,6 +8,7 @@ from whichllm.engine.quantization import estimate_weight_bytes
 from whichllm.engine.quantization import effective_quant_type
 from whichllm.hardware.ram_bandwidth import DEFAULT_RAM_BANDWIDTH_GBPS
 from whichllm.hardware.types import GPUInfo
+from whichllm.models.gguf import quant_table_key
 from whichllm.models.types import GGUFVariant, ModelInfo
 
 
@@ -20,19 +21,25 @@ _QUANT_EFFICIENCY: dict[str, float] = {
     "F32": 0.30,
     "F16": 0.40,
     "BF16": 0.40,
+    "Q8_K": 0.45,
     "Q8_0": 0.45,
     "Q6_K": 0.50,
+    "Q5_K": 0.52,
     "Q5_K_M": 0.52,
     "Q5_K_S": 0.52,
     "Q5_0": 0.50,
+    "Q5_1": 0.50,
+    "Q4_K": 0.55,
     "Q4_K_M": 0.55,
     "Q4_K_S": 0.55,
     "Q4_0": 0.53,
+    "Q4_1": 0.53,
     # 4-bit microscaling floats decode through native FP4 tensor-core paths
     # (e.g. Blackwell) where weight reads dominate, so they land in the same
     # high-efficiency band as the best 4-bit GGUF kernels.
     "NVFP4": 0.56,
     "MXFP4": 0.55,
+    "Q3_K": 0.50,
     "Q3_K_M": 0.50,
     "Q3_K_S": 0.48,
     "Q3_K_L": 0.50,
@@ -45,6 +52,7 @@ _QUANT_EFFICIENCY: dict[str, float] = {
     "IQ3_XXS": 0.42,
     "IQ2_S": 0.40,
     "IQ2_M": 0.40,
+    "IQ2_XS": 0.40,
     "IQ2_XXS": 0.38,
     "IQ1_M": 0.35,
     "IQ1_S": 0.35,
@@ -117,7 +125,8 @@ def _quant_efficiency(model: ModelInfo, variant: GGUFVariant | None) -> float:
     quant = effective_quant_type(model, variant)
     if not quant:
         return _DEFAULT_QUANT_EFFICIENCY
-    return _QUANT_EFFICIENCY.get(quant.upper(), _DEFAULT_QUANT_EFFICIENCY)
+    key = quant_table_key(quant, _QUANT_EFFICIENCY)
+    return _QUANT_EFFICIENCY.get(key, _DEFAULT_QUANT_EFFICIENCY)
 
 
 def _active_ratio(model: ModelInfo) -> float:

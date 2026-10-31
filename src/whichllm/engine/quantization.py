@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from whichllm.constants import QUANT_QUALITY_PENALTY
+from whichllm.models.gguf import quant_table_key
 from whichllm.models.types import GGUFVariant, ModelInfo
 
 # GGUFでないリポジトリ名から量子化方式を推定する
@@ -84,6 +85,7 @@ def estimate_weight_bytes(model: ModelInfo, variant: GGUFVariant | None) -> int:
 def quant_quality_penalty(model: ModelInfo, variant: GGUFVariant | None) -> float:
     """Return quality penalty fraction for a quantization format."""
     quant_type = effective_quant_type(model, variant).upper()
-    if quant_type in QUANT_QUALITY_PENALTY:
-        return QUANT_QUALITY_PENALTY[quant_type]
+    key = quant_table_key(quant_type, QUANT_QUALITY_PENALTY)
+    if key in QUANT_QUALITY_PENALTY:
+        return QUANT_QUALITY_PENALTY[key]
     return _NON_GGUF_QUALITY_PENALTY.get(quant_type, 0.05)

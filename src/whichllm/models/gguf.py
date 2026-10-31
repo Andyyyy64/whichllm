@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 
-from whichllm.constants import QUANT_BYTES_PER_WEIGHT
+from whichllm.constants import DEFAULT_BYTES_PER_WEIGHT, QUANT_BYTES_PER_WEIGHT
 from whichllm.models.types import GGUFVariant
 
 _GGUF_SPLIT_RE = re.compile(r"-(\d{5})-of-(\d{5})\.gguf$", re.IGNORECASE)
@@ -25,14 +26,29 @@ _QUANT_ALIASES = {
 }
 
 
+def quant_table_key(quant_type: str, table: Mapping[str, float]) -> str:
+    """The key a quant label rates under in ``table``.
+
+    Uploaders add suffixes to a format (Q6_K_L, UD-Q4_K_XL, IQ1_M_XL,
+    IQ4_XS_FLAT). Rated as an unknown label, a 1-bit file would lose as little
+    quality as a 4-bit one, so the suffixes come off until the format matches.
+    """
+    label = quant_type.upper()
+    key = label
+    while key not in table and "_" in key:
+        key = key.rsplit("_", 1)[0]
+    return key if key in table else label
+
+
 def _extract_quant_type(filename: str) -> str:
     """Extract quantization type from a GGUF filename.
 
-    The returned key is canonicalized to match QUANT_BYTES_PER_WEIGHT, so
-    callers can look it up directly. Returns "unknown" when nothing matches.
+    The label keeps what recipes need: the Hub resolves ``repo:Q4_K_XL`` but
+    answers 400 to ``repo:Q4_K``, so a suffix stays on the label and tables
+    read it through ``quant_table_key``. Returns "unknown" when nothing matches.
     """
     patterns = [
-        r"[.-](Q\d+_K_[SMLA])",
+        r"[.-](Q\d+_K_(?:XL|[SMLAP])(?![A-Z0-9]))",
         r"[.-](Q\d+_\d+)",
         r"[.-](Q\d+_K)",
         r"[.-](TQ\d+_\d+)",
@@ -51,8 +67,8 @@ def _extract_quant_type(filename: str) -> str:
 
 def _estimate_gguf_size(param_count: int, quant_type: str) -> int:
     """Estimate GGUF file size from parameter count and quantization type."""
-    bpw = QUANT_BYTES_PER_WEIGHT.get(quant_type.upper(), 0.5625)  # default Q4_K_M
-    return int(param_count * bpw)
+    key = quant_table_key(quant_type, QUANT_BYTES_PER_WEIGHT)
+    return int(param_count * QUANT_BYTES_PER_WEIGHT.get(key, DEFAULT_BYTES_PER_WEIGHT))
 
 
 def _split_part(filename: str) -> int:

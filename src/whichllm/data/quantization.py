@@ -1,47 +1,66 @@
 """Quantization tiers: bytes-per-weight, quality penalty, and preference order."""
 
-# Bytes per weight for each quantization type
+# Bytes per parameter for each quantization type: the median of the real GGUF
+# files in the index (2026-10-30, 5,000 files). A file holds more than its
+# format's nominal bits, because llama.cpp keeps the embeddings and the output
+# layer at a higher precision, so Q4_K_M runs at 0.62 and not the 0.5625 of
+# 4.5 bits. Only labels with a few real files are listed; the others rate as
+# their format through ``quant_table_key``. Real sizes win when a repo has them.
 QUANT_BYTES_PER_WEIGHT: dict[str, float] = {
     "F32": 4.0,
     "F16": 2.0,
     "BF16": 2.0,
+    "Q8_K_XL": 1.18,
+    "Q8_K": 1.0625,
     "Q8_0": 1.0625,
-    "Q6_K": 0.8125,
-    "Q5_K_M": 0.6875,
-    "Q5_K_S": 0.6875,
-    "Q5_0": 0.625,
-    "Q4_K_M": 0.5625,
-    "Q4_K_S": 0.5625,
-    "Q4_0": 0.5,
-    "Q3_K_M": 0.4375,
-    "Q3_K_S": 0.4375,
-    "Q3_K_L": 0.4375,
-    "Q2_K": 0.3125,
-    "IQ4_XS": 0.5,
-    "IQ3_XXS": 0.375,
-    "IQ2_XXS": 0.25,
-    # 4-bit microscaling float formats (OCP MXFP4 / NVIDIA NVFP4).
-    # MXFP4: E2M1 element + one E8M0 (8-bit) scale per block of 32 weights
-    #   -> (4*32 + 8) / 32 = 4.25 bits/weight = 0.53125 bytes.
-    # NVFP4: E2M1 element + one E4M3 (8-bit) scale per block of 16 weights
-    #   (plus a negligible per-tensor FP32 scale) -> (4*16 + 8) / 16 = 4.5 bits
-    #   = 0.5625 bytes, the same footprint as Q4_K_M.
-    "MXFP4": 0.53125,
-    "NVFP4": 0.5625,
-    # Sub-2-bit / ternary tiers (extremely lossy)
-    "Q1_0": 0.28,
-    "Q2_0": 0.28,
-    "TQ1_0": 0.21,
-    "TQ2_0": 0.28,
-    "IQ1_S": 0.21,
-    "IQ1_M": 0.22,
-    "IQ2_S": 0.275,
-    "IQ2_M": 0.30,
-    "IQ3_S": 0.40,
-    "IQ3_M": 0.42,
-    "IQ3_XS": 0.41,
-    "IQ4_NL": 0.5,
+    "Q6_K_L": 0.86,
+    "Q6_K": 0.82,
+    "Q5_1": 0.76,
+    "Q5_K_L": 0.75,
+    "Q5_K_XL": 0.75,
+    "Q5_K": 0.72,
+    "Q5_K_M": 0.72,
+    "Q5_K_S": 0.70,
+    "Q5_0": 0.70,
+    "Q4_K_L": 0.67,
+    "Q4_1": 0.64,
+    "Q4_K_XL": 0.63,
+    "Q4_K": 0.62,
+    "Q4_K_M": 0.62,
+    "Q4_K_S": 0.59,
+    "Q4_0": 0.59,
+    "Q3_K_XL": 0.55,
+    "Q3_K_L": 0.54,
+    "Q3_K": 0.50,
+    "Q3_K_M": 0.50,
+    "Q3_K_S": 0.46,
+    "Q2_K_L": 0.44,
+    "Q2_K": 0.40,
+    "IQ4_NL": 0.59,
+    "IQ4_XS": 0.56,
+    "IQ3_M": 0.49,
+    "IQ3_S": 0.45,
+    "IQ3_XS": 0.45,
+    "IQ3_XXS": 0.42,
+    # 4-bit microscaling float formats (OCP MXFP4 / NVIDIA NVFP4), nominally
+    # 4.25 bits (a scale per 32 weights) and 4.5 bits (a scale per 16 weights).
+    "MXFP4": 0.58,
+    "NVFP4": 0.58,
+    # Sub-3-bit and ternary tiers (extremely lossy)
+    "IQ2_M": 0.38,
+    "IQ2_S": 0.35,
+    "IQ2_XS": 0.33,
+    "IQ2_XXS": 0.32,
+    "IQ1_M": 0.29,
+    "IQ1_S": 0.28,
+    "Q2_0": 0.38,
+    "Q1_0": 0.15,
+    "TQ3_0": 0.61,
+    "TQ2_0": 0.52,
+    "TQ1_0": 0.27,
 }
+# What a label with no entry and no known format is sized at.
+DEFAULT_BYTES_PER_WEIGHT = QUANT_BYTES_PER_WEIGHT["Q4_K_M"]
 
 # Quality penalty for each quantization type (fraction of quality lost)
 # Sub-2-bit and ternary quants lose 30-60% of model quality - whichllm
@@ -50,23 +69,30 @@ QUANT_QUALITY_PENALTY: dict[str, float] = {
     "F32": 0.0,
     "F16": 0.0,
     "BF16": 0.0,
+    "Q8_K": 0.01,
     "Q8_0": 0.01,
     "Q6_K": 0.02,
+    "Q5_K": 0.03,
     "Q5_K_M": 0.03,
     "Q5_K_S": 0.035,
     "Q5_0": 0.035,
+    "Q5_1": 0.035,
+    "Q4_K": 0.05,
     "Q4_K_M": 0.05,
     "Q4_K_S": 0.055,
     "Q4_0": 0.06,
+    "Q4_1": 0.055,
     # NVFP4's finer per-16 E4M3 scale recovers more accuracy than MXFP4's
     # coarser per-32 E8M0 (power-of-two) scale, so NVFP4 sits on par with the
     # mature 4-bit quantizers (Q4_K_M / AWQ at 0.05) while MXFP4 is slightly
     # lossier.
     "NVFP4": 0.05,
     "MXFP4": 0.06,
+    "Q3_K": 0.08,
     "Q3_K_M": 0.08,
     "Q3_K_S": 0.12,
     "Q3_K_L": 0.075,
+    "Q3_K_XL": 0.075,
     "Q2_K": 0.25,
     "IQ4_XS": 0.05,
     "IQ4_NL": 0.055,
@@ -76,11 +102,13 @@ QUANT_QUALITY_PENALTY: dict[str, float] = {
     "IQ3_XXS": 0.18,
     "IQ2_M": 0.30,
     "IQ2_S": 0.32,
+    "IQ2_XS": 0.35,
     "IQ2_XXS": 0.40,
     "IQ1_M": 0.50,
     "IQ1_S": 0.55,
     "Q2_0": 0.45,
     "Q1_0": 0.55,
+    "TQ3_0": 0.25,
     "TQ2_0": 0.45,
     "TQ1_0": 0.55,
 }
@@ -99,10 +127,19 @@ QUANT_PREFERENCE_ORDER = [
     "Q3_K_M",
     "Q3_K_L",
     "Q8_0",
+    "Q4_K_XL",
+    "Q5_K_XL",
+    "Q3_K_XL",
+    "Q8_K_XL",
+    "Q6_K_L",
+    "Q5_K_L",
+    "Q4_K_L",
     "IQ4_XS",
     "IQ4_NL",
     "Q4_0",
+    "Q4_1",
     "Q5_0",
+    "Q5_1",
     "Q3_K_S",
     "F16",
     "BF16",
@@ -110,9 +147,11 @@ QUANT_PREFERENCE_ORDER = [
     "IQ3_S",
     "IQ3_XS",
     "Q2_K",
+    "Q2_K_L",
     "IQ3_XXS",
     "IQ2_M",
     "IQ2_S",
+    "IQ2_XS",
     "IQ2_XXS",
     "IQ1_M",
     "IQ1_S",
