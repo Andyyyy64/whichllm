@@ -134,12 +134,11 @@ _MOE_MIN_READ_RATIO_AT_REFERENCE = 0.05
 _MOE_MAX_READ_RATIO_FLOOR = 0.25
 
 # Fraction of theoretical RAM bandwidth that llama.cpp's CPU decode turns
-# into weight reads at the Q4_K_M reference quant; other quants scale by
-# their GPU efficiency ratio, since dequantization costs the CPU the same
-# way. Whole layers on the CPU (CPU-only runs, layer offload) also run
-# attention and the output head there, so they get less of the bandwidth
-# than expert FFNs alone. A split run also pays a fixed GPU/CPU sync per
-# token.
+# into weight reads for a MoE at the Q4_K_M reference quant; other quants
+# scale by their GPU efficiency ratio. Whole layers on the CPU (CPU-only
+# runs, layer offload) also run attention and the output head there, so
+# they get less of the bandwidth than expert FFNs alone. A split run also
+# pays a fixed GPU/CPU sync per token.
 #
 # Calibrated with llama.cpp b11977 on an RTX 5080 with dual-channel
 # DDR5-5600 (Core Ultra 9 285K, 89.6 GB/s theoretical), Qwen3.6-35B-A3B
@@ -150,6 +149,18 @@ _CPU_DECODE_EFFICIENCY = 0.30
 _CPU_EXPERT_EFFICIENCY = 0.43
 _CPU_EFFICIENCY_MAX = 0.6
 _SPLIT_SYNC_SECONDS = 0.003
+
+# A dense GGUF on the CPU reads faster than the MoE run above: dual-channel DDR5
+# reads about 55 GB/s, whatever the core count from 6 to 16 and the file size.
+# Past two channels the cores and the fabric set the limit, so the rate bends
+# toward a ceiling. Fitted to 255 LocalScore results on 138 CPUs
+# (tests/data/cpu_speed_runs.csv). The CPU share of a layer split reads at the
+# same rate: times add up across a published -ngl sweep. The quant makes no
+# difference here either: llama.cpp's README had 7B at 8 threads reading 3.5 GB
+# in 43 ms at Q4_0, 6.7 GB in 67 ms at Q8_0 and 13 GB in 122 ms at F16.
+_CPU_DENSE_READ_EFFICIENCY = 0.75
+_CPU_DENSE_READ_CEILING_GBPS = 250.0
+_SERVER_CPU_NAME_RE = re.compile(r"xeon|epyc|threadripper", re.IGNORECASE)
 
 # Each range holds at least 90% of the published runs at its confidence level
 # (tests/test_speed_calibration.py).
@@ -245,11 +256,15 @@ def _cpu_decode_bytes_per_sec(
     ram_bandwidth_gbps: float | None,
     efficiency: float = _CPU_DECODE_EFFICIENCY,
 ) -> float:
+    bandwidth = ram_bandwidth_gbps or DEFAULT_RAM_BANDWIDTH_GBPS
+    if _is_dense_gguf(model, variant):
+        memory_gbps = bandwidth * _CPU_DENSE_READ_EFFICIENCY
+        return 1e9 / (1.0 / memory_gbps + 1.0 / _CPU_DENSE_READ_CEILING_GBPS)
     efficiency = min(
         efficiency * _quant_efficiency(model, variant) / _QUANT_EFFICIENCY["Q4_K_M"],
         _CPU_EFFICIENCY_MAX,
     )
-    return (ram_bandwidth_gbps or DEFAULT_RAM_BANDWIDTH_GBPS) * 1e9 * efficiency
+    return bandwidth * 1e9 * efficiency
 
 
 def _split_tok_per_sec(
@@ -346,6 +361,7 @@ def estimate_speed_uncertainty(
     ram_bandwidth_source: str = "default",
     uses_multi_gpu: bool = False,
     identical_gpus: bool = False,
+    cpu_name: str = "",
 ) -> tuple[str, tuple[float, float] | None, list[str]]:
     """Return confidence metadata for the speed point estimate.
 
@@ -374,6 +390,11 @@ def estimate_speed_uncertainty(
             + ("" if ram_known else ", which is estimated here")
             + "."
         )
+        if _SERVER_CPU_NAME_RE.search(cpu_name):
+            confidence = "low"
+            notes.append(
+                "Server CPUs vary with their NUMA layout and populated memory channels."
+            )
     else:
         if not gpu.memory_bandwidth_gbps:
             confidence = "low"

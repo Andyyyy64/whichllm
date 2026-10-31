@@ -34,21 +34,29 @@ from whichllm.models.types import ModelInfo
 # no coding benchmark results of its own.
 _CODING_SPECIALIST_BONUS = 2.0
 _TASK_EVIDENCE_SOURCES = frozenset({"direct", "variant", "base_model"})
+# How far an older generation must outscore a newer one to keep its own row.
+_GENERATION_TIE_POINTS = 2.0
 
 
 def _hide_older_generations(
     results: list[CompatibilityResult],
 ) -> list[CompatibilityResult]:
-    """Drop a model when a newer generation of its line ranks above it.
+    """Drop a model when a newer generation of its line is about as good.
 
     Qwen3.8-27B, Qwen3.6-27B and Qwen3.5-27B filling the top three says less
     than three different models would. The newer row lists what it replaced,
-    and an older generation that outranks the newer one stays.
+    and an older generation stays only when it clearly outranks the newer one.
     """
     kept: list[CompatibilityResult] = []
     for result in results:
+        floor = result.quality_score - _GENERATION_TIE_POINTS
         newer = next(
-            (k for k in kept if _newer_generation(k.model, result.model)), None
+            (
+                r
+                for r in results
+                if r.quality_score >= floor and _newer_generation(r.model, result.model)
+            ),
+            None,
         )
         if newer is None:
             kept.append(result)
@@ -277,6 +285,7 @@ def rank_models(
                 ram_bandwidth_source=hardware.ram_bandwidth_source,
                 uses_multi_gpu=compat.uses_multi_gpu,
                 identical_gpus=compat.multi_gpu_identical,
+                cpu_name=hardware.cpu_name,
             )
             compat.quality_score = _compute_quality_score(
                 model,

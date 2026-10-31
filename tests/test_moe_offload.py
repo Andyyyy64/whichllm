@@ -332,7 +332,8 @@ def test_cpu_only_speed_scales_with_ram_bandwidth():
     fast = estimate_tok_per_sec(
         model, variant, None, "cpu_only", ram_bandwidth_gbps=100
     )
-    assert fast == pytest.approx(2 * slow)
+    # Past two channels the cores start to limit decode, so it bends below 2x.
+    assert 1.7 * slow < fast < 2 * slow
 
 
 # --- Scoring -----------------------------------------------------------------

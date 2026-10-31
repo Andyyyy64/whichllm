@@ -22,6 +22,7 @@ from whichllm.engine.performance import (
     estimate_speed_uncertainty,
     estimate_tok_per_sec,
 )
+from whichllm.engine.placement import Placement
 from whichllm.hardware.apple import apple_bandwidth
 from whichllm.hardware.gpu_simulator import create_synthetic_gpu
 from whichllm.hardware.types import GPUInfo
@@ -36,6 +37,21 @@ _STRIX = "https://github.com/visorcraft/strix-halo-llm-perf/blob/main/BENCHMARKS
 _LOCAL = "whichllm RTX 5080, llama-server b11977"
 _ORIN = "tests/test_jetson_detection.py"
 _TABLE = Path(__file__).parent / "data" / "speed_runs.csv"
+_CPU_TABLE = Path(__file__).parent / "data" / "cpu_speed_runs.csv"
+_SERVER_CPU = re.compile(r"Xeon|EPYC|Threadripper")
+
+# GPU layers of 48, tok/s: Qwen2.5-Coder-14B Q4_K_M, 8.57 GiB, on an RTX 5060 Ti
+# with an i7-8700 and dual-channel DDR4-2400. An -ngl sweep from
+# https://inventivehq.com/blog/vram-offload-cliff-gpu-layers-benchmark
+LAYER_SWEEP = [
+    (0, 2.89),
+    (8, 3.58),
+    (16, 4.24),
+    (24, 5.61),
+    (32, 7.26),
+    (40, 12.5),
+    (48, 43.18),
+]
 
 # gpu, memory GB, parameters in billions, file GiB, quant, tok/s, source
 RUNS = [
@@ -121,6 +137,36 @@ def table() -> list[dict]:
     return _table()
 
 
+@pytest.fixture(scope="module")
+def cpu_table() -> list[dict]:
+    with _CPU_TABLE.open(encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    for row in rows:
+        model, variant = _model(7.0, float(row["file_gib"]), "Q4_K_M")
+        estimate = estimate_tok_per_sec(
+            model,
+            variant,
+            None,
+            "cpu_only",
+            ram_bandwidth_gbps=float(row["bandwidth_gbps"]),
+        )
+        row["ratio"] = float(row["tok_per_sec"]) / estimate
+    return rows
+
+
+def _desktop(cpu_table: list[dict]) -> list[dict]:
+    return [
+        row
+        for row in cpu_table
+        if not _SERVER_CPU.search(row["cpu"])
+        and row["platform"] not in ("Apple", "Strix Halo")
+    ]
+
+
+def _inside(ratios: list[float], low: float, high: float) -> float:
+    return sum(low <= ratio <= high for ratio in ratios) / len(ratios)
+
+
 @pytest.mark.parametrize(
     ("gpu", "memory_gb", "params_b", "file_gib", "quant", "measured", "source"),
     RUNS,
@@ -196,6 +242,105 @@ def test_no_older_or_unusual_design_is_biased(table, pattern):
 
     assert len(ratios) >= 4
     assert 0.8 <= math.exp(statistics.median(ratios)) <= 1.25
+
+
+def test_cpu_runs_stay_close_on_desktops(cpu_table):
+    ratios = [row["ratio"] for row in _desktop(cpu_table)]
+
+    assert len(ratios) >= 150
+    assert statistics.median(abs(ratio - 1) for ratio in ratios) <= 0.13
+    assert _inside(ratios, 0.6, 1.6) >= 0.95
+
+
+@pytest.mark.parametrize(
+    ("low", "high"),
+    [(0, 30), (30, 60), (90, 110)],
+    ids=["ddr3", "ddr4", "ddr5"],
+)
+def test_no_memory_generation_is_biased_on_the_cpu(cpu_table, low, high):
+    ratios = [
+        row["ratio"]
+        for row in _desktop(cpu_table)
+        if low <= float(row["bandwidth_gbps"]) < high
+    ]
+
+    assert len(ratios) >= 10
+    assert 0.9 <= statistics.median(ratios) <= 1.1
+
+
+def test_server_cpus_need_the_low_confidence_range(cpu_table):
+    ratios = [row["ratio"] for row in cpu_table if _SERVER_CPU.search(row["cpu"])]
+
+    assert len(ratios) >= 60
+    assert _inside(ratios, 0.6, 1.6) < 0.75
+    assert _inside(ratios, 0.35, 2.0) >= 0.9
+
+
+def test_cpu_runs_measured_on_llama_cpp():
+    model, variant = _model(2.0, 1.257, "Q4_K_M")
+    local = estimate_tok_per_sec(
+        model, variant, None, "cpu_only", ram_bandwidth_gbps=89.6
+    )
+    model, variant = _model(14.8, 8.57, "Q4_K_M")
+    sweep = estimate_tok_per_sec(
+        model, variant, None, "cpu_only", ram_bandwidth_gbps=38.4
+    )
+
+    assert local == pytest.approx(34.7, rel=0.2)
+    assert sweep == pytest.approx(2.89, rel=0.2)
+
+
+@pytest.mark.parametrize(("gpu_layers", "measured"), LAYER_SWEEP)
+def test_a_layer_split_follows_the_published_sweep(gpu_layers, measured):
+    model, variant = _model(14.8, 8.57, "Q4_K_M")
+    weights = variant.file_size_bytes
+    on_gpu = weights * gpu_layers // 48
+    estimate = estimate_tok_per_sec(
+        model,
+        variant,
+        create_synthetic_gpu("RTX 5060 Ti", 16),
+        "partial_offload",
+        placement=Placement("layer_offload", on_gpu, weights - on_gpu),
+        ram_bandwidth_gbps=38.4,
+    )
+
+    assert measured * 0.75 <= estimate <= measured * 1.25
+
+
+def test_the_quant_does_not_change_the_cpu_read_rate():
+    q4_model, q4 = _model(7.0, 4.0, "Q4_K_M")
+    f16_model, f16 = _model(7.0, 4.0, "F16")
+
+    assert estimate_tok_per_sec(
+        q4_model, q4, None, "cpu_only", ram_bandwidth_gbps=96
+    ) == pytest.approx(
+        estimate_tok_per_sec(f16_model, f16, None, "cpu_only", ram_bandwidth_gbps=96)
+    )
+
+
+@pytest.mark.parametrize(
+    ("cpu_name", "expected"),
+    [
+        ("AMD Ryzen 9 9950X 16-Core Processor", "medium"),
+        ("Intel Xeon CPU E5-2697 v4", "low"),
+        ("AMD EPYC 9654 96-Core Processor", "low"),
+        ("AMD Ryzen Threadripper PRO 7975WX", "low"),
+    ],
+)
+def test_server_cpus_are_low_confidence(cpu_name, expected):
+    model, variant = _model(7.0, 3.56, "Q4_K_M")
+
+    confidence, _, _ = estimate_speed_uncertainty(
+        model,
+        variant,
+        None,
+        "cpu_only",
+        10.0,
+        ram_bandwidth_source="detected",
+        cpu_name=cpu_name,
+    )
+
+    assert confidence == expected
 
 
 @pytest.mark.parametrize(("level", "points"), [("high", 250), ("low", 90)])

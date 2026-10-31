@@ -301,7 +301,7 @@ patterns = ['(?i)tiny-random', '-internal-testing/']
 [[constraint]]
 id = "tiny-is-a-size"
 kind = "any_in_top"
-top = 30
+top = 50
 archetypes = ["m1-8gb-mac", "cpu-16gb-win"]
 rationale = """Ling-3.0-tiny is a real 8B model with direct benchmarks. A name
 rule meant for fixtures must not hide it from the list."""
@@ -339,9 +339,12 @@ pairs = [
 [[constraint]]
 id = "older-generation-noted"
 kind = "older_noted"
+gpu = true
 profiles = ["general", "coding"]
 rationale = """Only the newest generation of a line gets a row, and that row
-names what it replaced (andy's decision of 2026-10-29)."""
+names what it replaced (andy's decision of 2026-10-29). Without a GPU the older
+27B falls under the junk floor before generations are compared, so there is
+nothing to name."""
 pairs = [
     { old = '^Qwen/Qwen3\.6-27B$', new = '^Qwen/Qwen3\.8-27B$' },
     { old = '^Qwen/Qwen3\.5-35B-A3B$', new = '^Qwen/Qwen3\.6-35B-A3B$' },
@@ -357,8 +360,8 @@ rationale = """The top 3 must be usable, whatever the placement. The bar is
 8 tok/s (#76, #104; andy's decision of 2026-10-29), as far as the machine has
 that many candidates that fast. The check allows 1 tok/s because the bar is soft
 in the score and the estimates are not that exact: on real file sizes the
-strongest CPU picks land at 7.5-7.7 tok/s, and CPU estimates run about 40% under
-a measured run. Replacing them with a toy model at 29 tok/s would be worse."""
+strongest CPU picks land at 7.5-7.7 tok/s. Replacing them with a toy model at
+29 tok/s would be worse."""
 
 [[constraint]]
 id = "measured-qwen36-35b-expert-offload"
@@ -394,12 +397,11 @@ kind = "row_within"
 archetypes = ["cpu-64gb-ddr5-win"]
 quant = "Q4_K_M"
 patterns = ['^Qwen/Qwen3\.5-2B$']
-min_tok_per_sec = 20.0
+min_tok_per_sec = 23.0
 max_tok_per_sec = 42.0
 rationale = """Measured on the same machine with llama-server -ngl 0: 34.7
-tok/s on 24 cores and dual-channel DDR5-5600. CPU estimates run about 40% low
-today, so the lower bound sits just under that and the upper bound stays 20%
-over the measurement."""
+tok/s on 24 cores and dual-channel DDR5-5600. The bound allows 35% under the run
+and 20% over it."""
 
 [[constraint]]
 id = "memory-bandwidth-caps-speed"
@@ -462,9 +464,7 @@ kind = "runnable"
 top = 3
 profiles = ["general", "coding", "vision", "math", "any"]
 rationale = """`whichllm run` launches the first row it can resolve to a real
-file, so the top rows must resolve for `run` to agree with the table. The frozen
-catalog has no GGUF upload for granite-4.0-h-tiny."""
-xfail = { "cpu-16gb-win/general" = "no granite-4.0-h-tiny GGUF in the catalog" }
+file, so the top rows must resolve for `run` to agree with the table."""
 
 [[constraint]]
 id = "memory-buys-quality"

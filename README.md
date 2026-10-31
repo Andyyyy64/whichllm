@@ -120,9 +120,9 @@ A wrong recommendation is a bug, so the rankings have regression tests:
   MoE with experts in RAM makes the top 5 on a 16 GB card with 64 GB of RAM,
   and coding picks are not limited to models named "coder".
 - Speed and memory estimates stay within set bounds of real runs: an RTX 5080
-  and its CPU, plus 379 published llama.cpp results on 194 GPUs in
-  [`tests/data/speed_runs.csv`](tests/data/speed_runs.csv). The estimator cannot
-  drift without a test failing.
+  and its CPU, plus 379 published llama.cpp results on 194 GPUs and 255 LocalScore
+  results on 138 CPUs in [`tests/data/`](tests/data/). The estimator cannot drift
+  without a test failing.
 - The top picks for every archetype are committed in
   [`top_picks.md`](tests/golden/top_picks.md), so any ranking change shows up
   as a diff in review.

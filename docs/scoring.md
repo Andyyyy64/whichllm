@@ -139,25 +139,26 @@ the same size (total parameters within 25%, dense or MoE alike, and the same
 specialization), the older one is left out of the list and named under the
 table instead (`older_generations` in JSON). Qwen3.8-27B, Qwen3.6-27B and
 Qwen3.5-27B filling the top three said less than three different models
-would. An older generation that ranks above the newer one stays.
+would. An older generation stays only when it outscores the newer one by more
+than 2 points.
 
 The reported speed is a point estimate, not a live benchmark. On a discrete
 GPU with a partial fit it adds the GPU's reads at VRAM bandwidth to the CPU's
 reads at system RAM bandwidth; with experts in RAM the CPU reads only the
-active experts. CPU-only speed follows RAM bandwidth too. The CPU constants
-come from llama.cpp runs (see `engine/performance.py`). Ranking also exposes
-speed confidence:
+active experts. CPU-only speed follows RAM bandwidth too, up to a ceiling past
+two memory channels. The CPU constants come from llama.cpp and LocalScore runs
+(see `engine/performance.py`). Ranking also exposes speed confidence:
 
 | Confidence | Range factor | Typical cases |
 | --- | ---: | --- |
 | `high` | `0.75x`-`1.30x` | A dense GGUF with a known file size, all on an NVIDIA GPU from Pascal on, a desktop RDNA Radeon or Apple Silicon |
 | `medium` | `0.60x`-`1.60x` | Other GPUs, MoE, non-GGUF, Jetson and shared-memory APUs, CPU-only and expert offload with a known RAM bandwidth, synthetic GGUFs and estimated file sizes, a dense GGUF split across identical cards |
-| `low` | `0.35x`-`2.00x` | A dense GGUF on Intel, GCN Radeon, NVIDIA before Pascal, HBM or laptop GPUs; layer offload, unknown GPU or RAM bandwidth, Apple Silicon MoE, any other multi-GPU split |
+| `low` | `0.35x`-`2.00x` | A dense GGUF on Intel, GCN Radeon, NVIDIA before Pascal, HBM or laptop GPUs; layer offload, unknown GPU or RAM bandwidth, Apple Silicon MoE, any other multi-GPU split, Xeon, EPYC and Threadripper without a GPU |
 
-The ranges come from the published runs in `tests/data/speed_runs.csv`: at least
-90% of the runs at each level fall inside them, and a test keeps it that way.
-They describe llama.cpp with every layer on the GPU. Ollama, LM Studio and other
-runtimes can land elsewhere.
+The ranges come from the published runs in `tests/data/speed_runs.csv` and
+`tests/data/cpu_speed_runs.csv`: at least 90% of the runs at each level fall
+inside them, and a test keeps it that way. The GPU ranges describe llama.cpp with
+every layer on the GPU. Ollama, LM Studio and other runtimes can land elsewhere.
 
 Speed cells are colored by absolute usability: red is under `4 tok/s`, yellow
 is `4-8 tok/s`, green is `8-30 tok/s`, and bright green is `30+ tok/s`. `~`

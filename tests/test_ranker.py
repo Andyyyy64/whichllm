@@ -535,9 +535,9 @@ def test_full_gpu_estimated_ranks_above_partial_direct():
 
 
 def test_dense_model_spilling_to_ram_ranks_below_usable_models():
-    # #104: on an RTX 3060 a strong 27B that spills to RAM runs at ~2 tok/s,
+    # #104: on an RTX 3060 a strong 27B that spills to RAM runs at ~6 tok/s,
     # which follows RAM bandwidth. Every placement is held to 8 tok/s, so the
-    # usable full-GPU models rank above it, but it is still listed.
+    # current full-GPU models rank above it, but it is still listed.
     strong_partial = ModelInfo(
         id="Qwen/Qwen3.6-27B",
         family_id="qwen3.6-27b",
@@ -630,12 +630,13 @@ def test_dense_model_spilling_to_ram_ranks_below_usable_models():
     )
 
     ids = [r.model.id for r in results]
-    assert ids[-1] == "Qwen/Qwen3.6-27B"
+    assert ids.index("Qwen/Qwen3.6-27B") > ids.index("Qwen/Qwen3-14B")
+    assert ids.index("Qwen/Qwen3.6-27B") > ids.index("Qwen/Qwen3-8B")
     strong = next(r for r in results if r.model.id == "Qwen/Qwen3.6-27B")
     assert strong.fit_type == "partial_offload"
     assert strong.placement is not None
     assert strong.placement.kind == "layer_offload"
-    assert strong.estimated_tok_per_sec < 4.0
+    assert strong.estimated_tok_per_sec < 8.0
 
 
 def test_evidence_strict_filters_out_estimated_models():

@@ -192,6 +192,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   0.75x to 1.30x. On Intel, GCN Radeon, NVIDIA before Pascal, HBM and laptop GPUs
   it is `low`. A dense GGUF split across identical cards moves from `low` to
   `medium`. At least 90% of the runs at each level fall inside its range.
+- CPU speed estimates for dense GGUF models are fitted to 255 LocalScore results
+  on 138 CPUs. They ran at about half the real speed. On desktop CPUs the median
+  error is now 12%, with 97% of runs inside the `medium` range. The CPU share of
+  a layer split uses the same rate, which a published `-ngl` sweep backs. Without
+  a GPU, Xeon, EPYC and Threadripper are `low` confidence. MoE estimates on the
+  CPU keep their own calibration.
+- An older generation keeps its own row only when it outscores the newer one by
+  more than 2 points. A model that won by a fraction of a point stayed listed.
 - Recipes for unsloth's dynamic quants and Bartowski's XL files work. A label
   like `UD-Q4_K_XL` lost its suffix, and the Hub answers 400 to
   `llama-server -hf repo:Q4_K`.
