@@ -91,6 +91,13 @@ ram_bandwidth_gbps = 89.6
 profiles = ["general", "coding"]
 
 [[archetype]]
+id = "rtx5090-laptop-24gb-win"
+gpus = ["RTX 5090 Laptop"]
+ram_gb = 64
+os = "windows"
+note = "Half the desktop card's bandwidth, the #74 report."
+
+[[archetype]]
 id = "2x-rtx3090-48gb-linux"
 gpus = ["RTX 3090", "RTX 3090"]
 ram_gb = 128

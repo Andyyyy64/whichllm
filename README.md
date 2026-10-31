@@ -107,7 +107,7 @@ The details are in [Scoring](docs/scoring.md) and
 A wrong recommendation is a bug, so the rankings have regression tests:
 [`tests/golden/`](tests/golden/).
 
-- 28 hardware archetypes, from a 4 GB GTX 1650 to a 128 GB M4 Max and a DGX
+- 29 hardware archetypes, from a 4 GB GTX 1650 to a 128 GB M4 Max and a DGX
   Spark, with AMD, Intel and mixed GPU sets, CPU-only boxes and
   32K/128K-context setups, ranked against a frozen copy of the index: 1,441
   models, most GGUF repos with their real file sizes.

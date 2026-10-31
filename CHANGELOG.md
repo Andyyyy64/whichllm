@@ -147,6 +147,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- `--gpu "RTX 5090 Laptop"` works, and so does the name a driver reports.
+  `Laptop` was unknown, `GeForce RTX 5090 Laptop GPU` silently simulated the
+  desktop card at twice the bandwidth, and `RTX 5090 Max-Q` became an RTX A5000.
 - Recipes for unsloth's dynamic quants and Bartowski's XL files work. A label
   like `UD-Q4_K_XL` lost its suffix, and the Hub answers 400 to
   `llama-server -hf repo:Q4_K`.
