@@ -47,10 +47,11 @@ previous index. A failed build leaves the last good index online.
 
 GGUF repositories and pre-quantized checkpoints get their real file sizes.
 The Hub's model list names the files but not their sizes, so a live run
-estimates them from the parameter count. GGUF variants ran 10% low at the
-median and up to 2.8x off for mixed-precision quants (UD-Q8_K_XL) and small
-models with large vocabularies. NVFP4 repos ran 2x low, because they report
-only part of their parameters.
+estimates them from the parameter count, at the median bytes per parameter of
+each quant across the real files in the index. One repo can still be far off:
+up to 2.8x for mixed-precision quants (UD-Q8_K_XL) and small models with large
+vocabularies. NVFP4 repos ran 2x low, because they report only part of their
+parameters.
 The build reads the sizes from each repository's detail page. It reuses the
 previous index's sizes while the repository's commit is unchanged, and asks
 about at most 300 repositories per build, most downloaded first, stopping at

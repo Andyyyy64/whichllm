@@ -176,6 +176,7 @@ Use `--gpu` to simulate a GPU:
 
 ```bash
 whichllm --gpu "RTX 4090"
+whichllm --gpu "RTX 5090 Laptop"
 whichllm hardware --gpu "Apple M3 Max"
 whichllm upgrade "RTX 4090" "RTX 5090" "H100"
 ```
@@ -183,6 +184,12 @@ whichllm upgrade "RTX 4090" "RTX 5090" "H100"
 Simulation uses the `dbgpu` package for a TechPowerUp-backed GPU database.
 whichllm adds extra handling for common aliases and Apple Silicon chips because
 those are not covered by dbgpu.
+
+`Laptop`, `Laptop GPU`, `Mobile` and `Max-Q` select the laptop card, which often
+has half the bandwidth of the desktop one and a different amount of memory. The
+name a driver reports works too, such as `NVIDIA GeForce RTX 5090 Laptop GPU`.
+A laptop name with no matching card needs `--vram` and never falls back to the
+desktop card.
 
 Use `--vram` when a GPU name is ambiguous, unknown, or has multiple variants:
 

@@ -40,20 +40,20 @@ pip install whichllm
 $ whichllm
 
  #  Model                         Quant   Fit       Speed     Score
- 1  Qwen/Qwen3.6-35B-A3B          Q5_K_M  GPU+RAM   20 tok/s   68.9
- 2  google/gemma-4-26B-A4B-it     Q5_K_M  GPU+RAM   10 tok/s   65.3
- 3  unsloth/gemma-4-12b-it-GGUF   Q3_K_M  Full GPU  26 tok/s   65.1
- 4  zai-org/GLM-4.7-Flash         Q5_K_M  GPU+RAM   15 tok/s   62.2
- 5  Qwen/Qwen3.5-9B               Q4_K_M  Full GPU  28 tok/s   62.1
+ 1  Qwen/Qwen3.6-35B-A3B          Q6_K    GPU+RAM   16 tok/s   68.8
+ 2  unsloth/gemma-4-12b-it-GGUF   IQ4_XS  Full GPU  22 tok/s   66.2
+ 3  google/gemma-4-26B-A4B-it     Q4_K_M  GPU+RAM   11 tok/s   64.5
+ 4  Qwen/Qwen3.5-9B               Q5_K_M  Full GPU  22 tok/s   62.3
+ 5  zai-org/GLM-4.7-Flash         Q5_K_M  GPU+RAM   15 tok/s   62.3
 
   #1 Qwen3.6-35B-A3B also stands in for older generations of its line:
   Qwen3.5-35B-A3B, Qwen3-30B-A3B, Qwen_Qwen3-30B-A3B-Instruct-2507-GGUF and 2 more
 
   Run #1 with llama.cpp:
-    llama-server -hf unsloth/Qwen3.6-35B-A3B-GGUF:Q5_K_M -c 4096 -ngl 99 --n-cpu-moe 33 -fa on
+    llama-server -hf unsloth/Qwen3.6-35B-A3B-GGUF:Q6_K -c 4096 -ngl 99 --n-cpu-moe 35 -fa on
 ```
 
-8GB のカードで1位になったのは 35B のモデルです。これは mixture-of-experts（MoE）モデルで、1トークンの生成に使うパラメータは約 3B しかありません。whichllm は attention、共有の重み、KV キャッシュを VRAM に置き、40層のうち33層のエキスパートをシステム RAM に残します。llama.cpp の `--n-cpu-moe` と同じ配置です。速度は、1トークンごとに VRAM と RAM からそれぞれ読む量をもとに見積もります。VRAM に収まるかどうかだけで判定すればこのモデルは候補から外れ、普通の部分オフロードとして見積もれば遅すぎると判定されていたはずです。
+8GB のカードで1位になったのは 35B のモデルです。これは mixture-of-experts（MoE）モデルで、1トークンの生成に使うパラメータは約 3B しかありません。whichllm は attention、共有の重み、KV キャッシュを VRAM に置き、40層のうち35層のエキスパートをシステム RAM に残します。llama.cpp の `--n-cpu-moe` と同じ配置です。速度は、1トークンごとに VRAM と RAM からそれぞれ読む量をもとに見積もります。VRAM に収まるかどうかだけで判定すればこのモデルは候補から外れ、普通の部分オフロードとして見積もれば遅すぎると判定されていたはずです。
 
 24GB の RTX 4090 では、同じ計算で Qwen3.8-27B が1位になります。Qwen3-32B も Q4_K_M なら収まりますが、27B は同じ系列のほぼ同じサイズの新しい世代で、現行のベンチマークでもスコアが高いので、32B は別の行としては出さず、表の下の注記に名前を出します。
 

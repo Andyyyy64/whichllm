@@ -73,6 +73,9 @@ Examples:
 | `IQ2_XXS` | `0.40` |
 | `Q1_0` | `0.55` |
 
+A label an uploader extended (`Q6_K_L`, `UD-Q4_K_XL`, `IQ1_M_XL`) takes the
+penalty of its format, so a 1-bit file cannot pass for a 4-bit one.
+
 Extreme low-bit variants are excluded by default when better candidates exist.
 They can still be requested explicitly with `--quant`.
 
