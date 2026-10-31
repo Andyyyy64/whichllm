@@ -194,7 +194,7 @@ def display_ranking(
     if show_status:
         table.add_column("Weights", justify="right", width=8)
         table.add_column(f"Fit / {mem_label}", justify="center", width=8)
-        table.add_column("Speed", justify="right", width=12)
+        table.add_column("Speed", justify="right", width=14)
         table.add_column("Published", justify="center", width=10)
     else:
         table.add_column("Params", justify="right", width=6)

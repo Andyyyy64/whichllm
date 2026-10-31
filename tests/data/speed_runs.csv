@@ -347,7 +347,7 @@ RTX PRO 4500 Blackwell,nvidia,12.0,896.0,18.4,37.16,2,cuda,llama.cpp#15013
 RTX PRO 5000 Blackwell,nvidia,12.0,1340.0,3.56,213.31,10,cuda,llama.cpp#15013
 RTX PRO 6000 Blackwell,nvidia,12.0,1790.0,3.56,269.54,24,cuda,llama.cpp#15013
 RTX PRO 6000 Blackwell Max-Q,nvidia,12.0,1790.0,3.56,270.63,6,cuda,llama.cpp#15013
-Radeon RX 480,nvidia,,256.0,3.56,45.23,4,cuda,llama.cpp#15013
+Radeon RX 480,amd,,256.0,3.56,45.23,4,vulkan,llama.cpp#15013
 TITAN RTX,nvidia,7.5,672.0,3.56,125.91,2,cuda,llama.cpp#15013
 TITAN V,nvidia,7.0,651.3,3.56,110.48,4,cuda,llama.cpp#15013
 TITAN V,nvidia,7.0,651.3,3.56,107.13,2,vulkan,llama.cpp#10879

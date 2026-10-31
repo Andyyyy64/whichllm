@@ -357,7 +357,8 @@ disk space. If the model cannot be downloaded, it is marked unrunnable.
   as `speed_confidence` and `speed_range_tok_per_sec` show uncertainty.
 - Driver, runtime, batch size, prompt length, and thermal limits can change real
   performance.
-- Multi-GPU runtime behavior depends on the inference backend and is only
-  approximated.
+- Multi-GPU runtime behavior depends on the inference backend. Published layer
+  splits across identical cards stay close to the estimate; mixed cards have no
+  measurement yet.
 - Apple and shared-memory APU behavior is modeled as unified-memory style, but
   real results still depend on OS pressure and memory bandwidth.

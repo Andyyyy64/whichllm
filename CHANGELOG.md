@@ -186,6 +186,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   keep their own calibration.
 - The 36 GB M4 Max and M5 Max and the 36 and 96 GB M3 Max use the bandwidth of
   their cut-down memory bus. They were listed a third too high.
+- Speed confidence follows the published runs instead of being `medium` almost
+  everywhere. A dense GGUF with a known file size, all on an NVIDIA GPU from
+  Pascal on, a desktop RDNA Radeon or Apple Silicon is `high`, with a range of
+  0.75x to 1.30x. On Intel, GCN Radeon, NVIDIA before Pascal, HBM and laptop GPUs
+  it is `low`. A dense GGUF split across identical cards moves from `low` to
+  `medium`. At least 90% of the runs at each level fall inside its range.
 - Recipes for unsloth's dynamic quants and Bartowski's XL files work. A label
   like `UD-Q4_K_XL` lost its suffix, and the Hub answers 400 to
   `llama-server -hf repo:Q4_K`.

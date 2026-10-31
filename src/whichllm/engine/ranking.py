@@ -275,19 +275,9 @@ def rank_models(
                 tok_per_sec,
                 placement=compat.placement,
                 ram_bandwidth_source=hardware.ram_bandwidth_source,
+                uses_multi_gpu=compat.uses_multi_gpu,
+                identical_gpus=compat.multi_gpu_identical,
             )
-            if compat.uses_multi_gpu:
-                compat.speed_confidence = "low"
-                if tok_per_sec > 0:
-                    compat.speed_range_tok_per_sec = (
-                        round(tok_per_sec * 0.35, 1),
-                        round(tok_per_sec * 2.0, 1),
-                    )
-                compat.speed_notes.append(
-                    "Multi-GPU speed depends on layer/tensor split mode, "
-                    "PCIe/NVLink bandwidth, and backend support; this estimate "
-                    "does not assume ideal scaling."
-                )
             compat.quality_score = _compute_quality_score(
                 model,
                 variant,

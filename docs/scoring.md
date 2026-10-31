@@ -150,15 +150,20 @@ speed confidence:
 
 | Confidence | Range factor | Typical cases |
 | --- | ---: | --- |
-| `medium` | `0.60x`-`1.60x` | Normal GPU estimates, CPU-only and expert offload with a known RAM bandwidth, synthetic GGUF estimates, AMD shared-memory APU MoE estimates |
-| `low` | `0.35x`-`2.00x` | Layer offload, unknown GPU or RAM bandwidth, Apple Silicon MoE |
-| `high` | `0.85x`-`1.20x` | Reserved for future measured-speed data |
+| `high` | `0.75x`-`1.30x` | A dense GGUF with a known file size, all on an NVIDIA GPU from Pascal on, a desktop RDNA Radeon or Apple Silicon |
+| `medium` | `0.60x`-`1.60x` | Other GPUs, MoE, non-GGUF, Jetson and shared-memory APUs, CPU-only and expert offload with a known RAM bandwidth, synthetic GGUFs and estimated file sizes, a dense GGUF split across identical cards |
+| `low` | `0.35x`-`2.00x` | A dense GGUF on Intel, GCN Radeon, NVIDIA before Pascal, HBM or laptop GPUs; layer offload, unknown GPU or RAM bandwidth, Apple Silicon MoE, any other multi-GPU split |
+
+The ranges come from the published runs in `tests/data/speed_runs.csv`: at least
+90% of the runs at each level fall inside them, and a test keeps it that way.
+They describe llama.cpp with every layer on the GPU. Ollama, LM Studio and other
+runtimes can land elsewhere.
 
 Speed cells are colored by absolute usability: red is under `4 tok/s`, yellow
 is `4-8 tok/s`, green is `8-30 tok/s`, and bright green is `30+ tok/s`. `~`
-marks medium-confidence estimates with a range, and `?` marks low-confidence
-estimates. JSON exposes the same uncertainty data as `speed_confidence`,
-`speed_range_tok_per_sec`, and `speed_notes`.
+marks medium-confidence estimates, `?` marks low-confidence estimates, and
+high-confidence estimates have no marker. JSON exposes the same uncertainty data
+as `speed_confidence`, `speed_range_tok_per_sec`, and `speed_notes`.
 
 ## Source trust
 

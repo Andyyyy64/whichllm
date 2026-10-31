@@ -302,7 +302,8 @@ Speed colors and markers:
 - yellow: marginal generation speed, 4-8 tok/s
 - green: usable generation speed, 8-30 tok/s
 - bright green: fast local generation speed, 30+ tok/s
-- `~`: estimated speed range is available
+- no marker: published runs on this kind of GPU land close to the estimate
+- `~`: medium confidence; the range is wider
 - `?`: low-confidence estimate; runtime/backend differences can be large
 
 JSON includes the same information as `speed_confidence`,

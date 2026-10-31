@@ -488,6 +488,8 @@ def check_compatibility(
         uses_multi_gpu=uses_multi_gpu,
         multi_gpu_effective_vram_bytes=multi_gpu_effective_vram,
         multi_gpu_speed_factor=multi_gpu_speed_factor,
+        multi_gpu_identical=uses_multi_gpu
+        and _is_homogeneous_gpu_set(multi_gpu.gpus, multi_gpu.available),
         warnings=warnings,
         fit_type=fit_type,
         placement=placement,

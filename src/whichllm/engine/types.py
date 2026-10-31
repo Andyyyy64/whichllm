@@ -37,6 +37,7 @@ class CompatibilityResult:
     multi_gpu_effective_vram_bytes: int | None = None
     # Decode speed of the layer split relative to the best single card.
     multi_gpu_speed_factor: float = 1.0
+    multi_gpu_identical: bool = False
     artifact_model: ModelInfo | None = None
     artifact_variant: GGUFVariant | None = None
     local_path: str | None = None
