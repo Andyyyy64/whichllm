@@ -47,23 +47,23 @@ A desktop with an 8 GB RTX 4060 and 32 GB of DDR4 (output trimmed):
 $ whichllm
 
  #  Model                         Quant   Fit       Speed     Score
- 1  Qwen/Qwen3.6-35B-A3B          Q5_K_M  GPU+RAM   20 tok/s   68.9
- 2  google/gemma-4-26B-A4B-it     Q5_K_M  GPU+RAM   10 tok/s   65.3
- 3  unsloth/gemma-4-12b-it-GGUF   Q3_K_M  Full GPU  26 tok/s   65.1
- 4  zai-org/GLM-4.7-Flash         Q5_K_M  GPU+RAM   15 tok/s   62.2
- 5  Qwen/Qwen3.5-9B               Q4_K_M  Full GPU  28 tok/s   62.1
+ 1  Qwen/Qwen3.6-35B-A3B          Q6_K    GPU+RAM   16 tok/s   68.8
+ 2  unsloth/gemma-4-12b-it-GGUF   IQ4_XS  Full GPU  22 tok/s   66.2
+ 3  google/gemma-4-26B-A4B-it     Q4_K_M  GPU+RAM   11 tok/s   64.5
+ 4  Qwen/Qwen3.5-9B               Q5_K_M  Full GPU  22 tok/s   62.3
+ 5  zai-org/GLM-4.7-Flash         Q5_K_M  GPU+RAM   15 tok/s   62.3
 
   #1 Qwen3.6-35B-A3B also stands in for older generations of its line:
   Qwen3.5-35B-A3B, Qwen3-30B-A3B, Qwen_Qwen3-30B-A3B-Instruct-2507-GGUF and 2 more
 
   Run #1 with llama.cpp:
-    llama-server -hf unsloth/Qwen3.6-35B-A3B-GGUF:Q5_K_M -c 4096 -ngl 99 --n-cpu-moe 33 -fa on
+    llama-server -hf unsloth/Qwen3.6-35B-A3B-GGUF:Q6_K -c 4096 -ngl 99 --n-cpu-moe 35 -fa on
 ```
 
 The top pick is a 35B model on an 8 GB card. It is a mixture-of-experts
 model, so each token only uses about 3B of its parameters. whichllm keeps
 attention, the shared weights and the KV cache in VRAM and leaves the experts
-of 33 of its 40 layers in system RAM, which is what llama.cpp's `--n-cpu-moe`
+of 35 of its 40 layers in system RAM, which is what llama.cpp's `--n-cpu-moe`
 does. The speed estimate counts only what each token reads from each place.
 A fits-in-VRAM check would have skipped the model, and treating it as a
 plain partial offload would have rated it far too slow.
@@ -115,11 +115,10 @@ A wrong recommendation is a bug, so the rankings have regression tests:
   exact order: no pretrain-only checkpoints, draft heads or diffusion models,
   no outdated generation in the top 5, the top 3 stay within 1 tok/s of the
   8 tok/s bar whenever the machine has that many options that fast, full-GPU
-  rows keep
-  their VRAM headroom and stay inside Metal's working set, `run` can launch
-  the top rows, the newest dense 27B makes the top 3 on 24 GB+, a big MoE with
-  experts in RAM makes the top 5 on a 16 GB card with 64 GB of RAM, and coding
-  picks are not limited to models named "coder".
+  rows keep their VRAM headroom and stay inside Metal's working set, `run` can
+  launch the top rows, the newest dense 27B makes the top 3 on 24 GB+, a big
+  MoE with experts in RAM makes the top 5 on a 16 GB card with 64 GB of RAM,
+  and coding picks are not limited to models named "coder".
 - Speed and memory estimates stay within set bounds of runs measured on an
   RTX 5080 and its CPU, so the estimator cannot drift without a test failing.
 - The top picks for every archetype are committed in
