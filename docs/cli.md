@@ -271,17 +271,19 @@ whichllm run "qwen 2.5 1.5b gguf" --lm-studio-path /mnt/models/lm-studio
 
 If the resolved model has an exact local match in an LM Studio library, `run`
 opens that file instead of downloading a second copy from Hugging Face. A match
-requires the resolved repository and the complete artifact path, every part of a
-split GGUF beside the entry file, and a readable file. For a split artifact,
-`run` opens the first part. With llama-cli installed the recipe's `-hf` source
-becomes `-m <path>`; otherwise the generated script sets `model_path` and no
-longer imports `huggingface_hub`.
+requires the resolved repository, the exact artifact path, and every part of a
+split GGUF beside the entry file; for a split artifact `run` opens the first
+part. With llama-cli installed the recipe's `-hf <repo>:<quant>` becomes
+`-m <entry part>` and the flags stay the same. Otherwise the generated script
+opens the local files and keeps `huggingface-hub` only as the fallback below.
 
-The match is checked again immediately before launch. If the file disappeared or
-a part is no longer readable, `run` prints a warning and downloads the artifact
-instead, and only an explicit set that is incomplete from the start is worth a
-warning: a library without the artifact stays quiet. LM Studio libraries are
-only read.
+The files are checked again when they are actually opened: with llama-cli right
+before the process starts, and on the isolated path inside the generated script,
+because the `uv` build runs first and can take minutes. If a file disappeared in
+between, `run` prints a warning and downloads the artifact instead. A local set
+that was already incomplete names the missing part, including a set whose first
+part is gone; a library without the artifact stays quiet. LM Studio libraries
+are only read.
 
 `run` needs llama.cpp's `llama-cli` (GGUF models) or `uv` in `PATH`.
 

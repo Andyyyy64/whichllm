@@ -10,6 +10,7 @@ from whichllm.models import lmstudio
 from whichllm.models.lmstudio import (
     LocalGGUF,
     LMStudioPathError,
+    artifact_part_paths,
     attach_local_matches,
     default_lmstudio_paths,
     discover_lmstudio_ggufs,
@@ -566,6 +567,53 @@ def test_find_incomplete_local_artifact_ignores_other_repository(tmp_path):
         )
         is None
     )
+
+
+def test_find_incomplete_local_artifact_reports_a_missing_entry_part(tmp_path):
+    """Only the later parts are left, so nothing can be loaded from the library."""
+    parts = [f"Qwen3-8B-Q4_K_M-{part:05d}-of-00002.gguf" for part in (1, 2)]
+    _add_model_file(tmp_path, parts[1])
+    local_models = discover_lmstudio_ggufs(home=tmp_path)
+
+    found = find_incomplete_local_artifact(
+        "lmstudio-community/Qwen3-8B-GGUF", parts[0], local_models
+    )
+
+    assert found is not None
+    local, missing, total = found
+    assert local.artifact_path == parts[1]
+    assert missing == [1]
+    assert total == 2
+
+
+def test_find_incomplete_local_artifact_ignores_plain_missing_files(tmp_path):
+    _add_model_file(tmp_path, "Qwen3-8B-Q6_K.gguf")
+    local_models = discover_lmstudio_ggufs(home=tmp_path)
+
+    assert (
+        find_incomplete_local_artifact(
+            "lmstudio-community/Qwen3-8B-GGUF",
+            "Qwen3-8B-Q4_K_M-00001-of-00002.gguf",
+            local_models,
+        )
+        is None
+    )
+
+
+def test_artifact_part_paths_lists_every_part_beside_the_entry(tmp_path):
+    parts = [f"Qwen3-8B-Q4_K_M-{part:05d}-of-00003.gguf" for part in (1, 2, 3)]
+    for part in parts:
+        _add_model_file(tmp_path, part)
+    local_models = discover_lmstudio_ggufs(home=tmp_path)
+    match = find_local_artifact(
+        "lmstudio-community/Qwen3-8B-GGUF", parts[0], local_models
+    )
+    assert match is not None
+
+    paths = artifact_part_paths(match.path, parts[0])
+
+    assert [path.name for path in paths] == parts
+    assert artifact_part_paths(match.path, "Qwen3-8B-Q6_K.gguf") == (match.path,)
 
 
 def test_rich_ranking_marks_local_model_as_installed(tmp_path):

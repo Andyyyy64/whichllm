@@ -12,11 +12,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   downloading a second copy, with the repeatable `--lm-studio-path` option. A
   match needs the resolved repository, the exact artifact path, and every part
   of a split GGUF beside the entry file in the same library. With llama-cli
-  installed the recipe's `-hf` source becomes `-m <path>`; otherwise the
-  generated script opens the file and drops `huggingface-hub` from the isolated
-  run. The match is checked again immediately before launch, and a set that
-  disappeared or is incomplete prints a warning and falls back to the download.
-  (#20, #186)
+  installed the recipe's `-hf` source becomes `-m <entry part>`, and the printed
+  offload hint shows the same command; otherwise the generated script opens the
+  local files and keeps `huggingface-hub` only as the fallback. The files are
+  checked again when they are opened — right before llama-cli starts, and inside
+  the generated script after the isolated build — so a set that disappeared is
+  reported and downloaded instead of crashing. A set that was already incomplete
+  names the missing part, including a set whose first part is the one that is
+  gone. (#20, #186)
 - The whichllm index: a daily prebuilt file with the model catalog,
   `config.json` shapes for every family, published dates and merged
   benchmark scores, published on GitHub Pages. Recommendations, `plan`,

@@ -264,13 +264,15 @@ def _generate_chat_script(
     cpu_only: bool,
     n_gpu_layers: int | None = None,
     local_path: str | None = None,
+    local_parts: tuple[str, ...] = (),
 ) -> str:
     """Generate a self-contained Python chat script for any model type.
 
     ``n_gpu_layers`` is the GGUF layer split from the ranking (-1 = all on
-    the GPU); without it every layer goes to the GPU. A verified local artifact
-    path replaces the Hugging Face download, so the generated script never
-    imports the Hugging Face client.
+    the GPU); without it every layer goes to the GPU. ``local_path`` opens a
+    verified local artifact instead of downloading it. The isolated build runs
+    before the script starts, so the script checks every local part again and
+    falls back to the Hugging Face download when one went away in between.
     """
     if variant:
         if cpu_only:
@@ -280,15 +282,25 @@ def _generate_chat_script(
         if local_path is not None:
             hub_import = ""
             loader = f"""\
-model_path = {local_path!r}
-print(f"Using local GGUF {{quant_type}}: {{model_path}}")"""
+local_path = {local_path!r}
+local_parts = {tuple(local_parts or (local_path,))!r}
+if local_path and all(os.path.isfile(part) for part in local_parts):
+    model_path = local_path
+    print(f"Using local GGUF {{quant_type}}: {{model_path}}")
+else:
+    from huggingface_hub import hf_hub_download
+
+    print(f"Local GGUF {{local_path}} is gone or incomplete; downloading instead.")
+    model_path = hf_hub_download(repo_id=model_id, filename=filename)"""
+            stdlib_import = "import os\n"
         else:
+            stdlib_import = ""
             hub_import = "from huggingface_hub import hf_hub_download\n"
             loader = """\
 print(f"Downloading {model_id} ({quant_type})...")
 model_path = hf_hub_download(repo_id=model_id, filename=filename)"""
         return f"""\
-{hub_import}from llama_cpp import Llama
+{stdlib_import}{hub_import}from llama_cpp import Llama
 
 model_id = {model.id!r}
 filename = {variant.filename!r}

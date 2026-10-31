@@ -2219,6 +2219,8 @@ def test_run_ranks_like_the_main_command(monkeypatch):
     # The same VRAM headroom, size floor and evidence rules as `whichllm`.
     assert calls[-1] == main_call
     assert main_call[0] < _hw_with_gpu(12).gpus[0].vram_bytes
+
+
 def _local_gguf_model(
     model_id: str = "org/Test-7B-GGUF",
     filename: str = "q4.gguf",
@@ -2282,10 +2284,12 @@ def test_run_uses_verified_local_artifact_without_hf_download(monkeypatch, tmp_p
 
     assert result.exit_code == 0
     assert _flat(f"Using local LM Studio file: {artifact}") in _flat(result.stdout)
-    assert "hf_hub_download" not in captured["script"]
-    assert f"model_path = {str(artifact)!r}" in captured["script"]
+    assert f"local_path = {str(artifact)!r}" in captured["script"]
+    assert "all(os.path.isfile(part) for part in local_parts)" in captured["script"]
     assert "llama-cpp-python" in captured["cmd"]
-    assert "huggingface-hub" not in captured["cmd"]
+    # The isolated build runs before the script starts, so the download stays as
+    # the fallback for a file that goes away in between.
+    assert "huggingface-hub" in captured["cmd"]
 
 
 def test_run_uses_entry_part_of_complete_split_artifact(monkeypatch, tmp_path):
@@ -2303,8 +2307,8 @@ def test_run_uses_entry_part_of_complete_split_artifact(monkeypatch, tmp_path):
 
     assert result.exit_code == 0
     assert _flat(f"Using local LM Studio file: {entry}") in _flat(result.stdout)
-    assert "hf_hub_download" not in captured["script"]
-    assert f"model_path = {str(entry)!r}" in captured["script"]
+    assert f"local_path = {str(entry)!r}" in captured["script"]
+    assert str(entry.with_name(parts[1])) in captured["script"]
 
 
 def test_run_warns_about_incomplete_explicit_split_set(monkeypatch, tmp_path):
@@ -2399,8 +2403,7 @@ def test_run_uses_complete_split_artifact_from_a_later_library(monkeypatch, tmp_
     assert result.exit_code == 0
     assert _flat(f"Using local LM Studio file: {entry}") in _flat(result.stdout)
     assert "Warning" not in result.stdout
-    assert f"model_path = {str(entry)!r}" in captured["script"]
-    assert "hf_hub_download" not in captured["script"]
+    assert f"local_path = {str(entry)!r}" in captured["script"]
 
 
 def test_run_falls_back_when_local_file_disappears_before_launch(monkeypatch, tmp_path):
@@ -2546,17 +2549,19 @@ def test_gguf_chat_script_uses_local_path_without_download():
         if isinstance(node, ast.Assign)
         and len(node.targets) == 1
         and isinstance(node.targets[0], ast.Name)
-        and node.targets[0].id in {"model_id", "filename", "quant_type", "model_path"}
+        and node.targets[0].id
+        in {"model_id", "filename", "quant_type", "local_path", "local_parts"}
     }
 
-    assert "hf_hub_download" not in script
-    assert "huggingface_hub" not in script
+    assert "huggingface_hub import hf_hub_download" in script
     assert "n_gpu_layers=7" in script
+    assert "all(os.path.isfile(part) for part in local_parts)" in script
     assert assignments == {
         "model_id": model.id,
         "filename": variant.filename,
         "quant_type": variant.quant_type,
-        "model_path": local_path,
+        "local_path": local_path,
+        "local_parts": (local_path,),
     }
 
 
@@ -2603,7 +2608,7 @@ def test_run_passes_the_ranked_layer_split_with_a_local_artifact(monkeypatch, tm
     assert result.exit_code == 0, result.output
     assert captured["local_path"] == str(artifact)
     assert captured["n_gpu_layers"] == 14
-    assert "huggingface-hub" not in captured["cmd"]
+    assert "huggingface-hub" in captured["cmd"]
 
 
 def test_run_reuses_only_when_the_query_resolves_to_the_gguf_repo(
@@ -2639,7 +2644,178 @@ def test_run_reuses_only_when_the_query_resolves_to_the_gguf_repo(
 
     assert with_format.exit_code == 0, with_format.output
     assert _flat(f"Using local LM Studio file: {artifact}") in _flat(with_format.stdout)
-    assert f"model_path = {str(artifact)!r}" in captured["script"]
+    assert f"local_path = {str(artifact)!r}" in captured["script"]
+
+
+def test_run_warns_when_the_entry_part_is_missing(monkeypatch, tmp_path):
+    """A library that kept only the later parts cannot load either."""
+    parts = [f"q4-{part:05d}-of-00002.gguf" for part in (1, 2)]
+    model = _local_gguf_model(filename=parts[0])
+    root = tmp_path / "lmstudio"
+    _write_library_file(root, parts[1])
+    captured: dict[str, object] = {}
+    _capture_run(monkeypatch, captured)
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [model])
+
+    result = CliRunner().invoke(app, ["run", "Test-7B", "--lm-studio-path", str(root)])
+
+    assert result.exit_code == 0
+    assert _flat("is missing part 1 of 2; downloading instead") in _flat(result.stdout)
+    assert "Using local LM Studio file" not in result.stdout
+    assert f"local_path = {None!r}" not in captured["script"]
+
+
+def test_run_survives_a_library_path_with_markup_characters(monkeypatch, tmp_path):
+    model = _local_gguf_model()
+    root = tmp_path / "li[b]rary"
+    artifact = _write_library_file(root, "q4.gguf")
+    captured: dict[str, object] = {}
+    _capture_run(monkeypatch, captured)
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [model])
+
+    result = CliRunner().invoke(app, ["run", "Test-7B", "--lm-studio-path", str(root)])
+
+    assert result.exit_code == 0, result.output
+    assert _flat(f"Using local LM Studio file: {artifact}") in _flat(result.stdout)
+
+
+def test_run_prints_the_local_file_in_the_offload_hint(monkeypatch, tmp_path):
+    model = _local_gguf_model("org/MoE-35B-A3B-GGUF", "m.gguf")
+    picked = CompatibilityResult(
+        model=model,
+        gguf_variant=model.gguf_variants[0],
+        can_run=True,
+        vram_required_bytes=0,
+        vram_available_bytes=0,
+        quality_score=60.0,
+        placement=Placement("expert_offload", 7, 13, n_cpu_moe=31, num_layers=40),
+    )
+    root = tmp_path / "lmstudio"
+    artifact = _write_library_file(root, "m.gguf", repo_id="org/MoE-35B-A3B-GGUF")
+
+    uv_result, _uv_captured = _run_with_llama_cli_uv_only(
+        monkeypatch,
+        [model],
+        [picked],
+        ["run", "--lm-studio-path", str(root)],
+    )
+
+    flat_stdout = _flat(uv_result.stdout)
+    assert uv_result.exit_code == 0, uv_result.output
+    assert _flat("serve it with llama.cpp") in flat_stdout
+    assert f"llama-server-m{artifact}" in flat_stdout
+    assert "-hf" not in flat_stdout
+
+
+def _run_with_llama_cli_uv_only(monkeypatch, models, rank_results, argv):
+    captured: dict[str, object] = {}
+
+    class Completed:
+        returncode = 0
+
+    def fake_run(cmd):
+        captured["cmd"] = cmd
+        return Completed()
+
+    monkeypatch.setattr("shutil.which", _uv_only)
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: models)
+    monkeypatch.setattr(
+        "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
+    )
+    monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
+    monkeypatch.setattr(
+        "whichllm.engine.ranker.rank_models", lambda *a, **kw: rank_results
+    )
+    monkeypatch.setattr(
+        cli_mod, "_generate_chat_script", lambda *a, **kw: "print('ok')"
+    )
+    monkeypatch.setattr("subprocess.run", fake_run)
+    result = CliRunner().invoke(app, argv)
+    return result, captured
+
+
+def test_generated_script_falls_back_when_a_local_part_disappears(
+    tmp_path, monkeypatch
+):
+    """The isolated build runs first, so the script checks the files again."""
+    import sys
+    import types
+
+    model = _local_gguf_model()
+    variant = model.gguf_variants[0]
+    missing = tmp_path / "gone.gguf"
+    downloads: list[dict] = []
+
+    class FakeLlama:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    fake_llama = types.ModuleType("llama_cpp")
+    fake_llama.Llama = FakeLlama
+    fake_hub = types.ModuleType("huggingface_hub")
+    fake_hub.hf_hub_download = lambda **kwargs: downloads.append(kwargs) or str(missing)
+    monkeypatch.setitem(sys.modules, "llama_cpp", fake_llama)
+    monkeypatch.setitem(sys.modules, "huggingface_hub", fake_hub)
+
+    def stop_reading(_prompt=""):
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", stop_reading)
+
+    script = _generate_chat_script(
+        model,
+        variant,
+        context_length=4096,
+        cpu_only=False,
+        local_path=str(missing),
+        local_parts=(str(missing),),
+    )
+
+    exec(compile(script, "<generated>", "exec"), {"__name__": "__main__"})
+
+    assert downloads == [{"repo_id": model.id, "filename": variant.filename}]
+
+
+def test_generated_script_opens_an_existing_local_part_set(tmp_path, monkeypatch):
+    import sys
+    import types
+
+    model = _local_gguf_model()
+    variant = model.gguf_variants[0]
+    entry = tmp_path / "q4-00001-of-00002.gguf"
+    entry.write_bytes(b"gguf")
+    part = tmp_path / "q4-00002-of-00002.gguf"
+    part.write_bytes(b"gguf")
+    loaded: list[str] = []
+    downloads: list[dict] = []
+
+    class FakeLlama:
+        def __init__(self, **kwargs):
+            loaded.append(kwargs["model_path"])
+
+    fake_llama = types.ModuleType("llama_cpp")
+    fake_llama.Llama = FakeLlama
+    fake_hub = types.ModuleType("huggingface_hub")
+    fake_hub.hf_hub_download = lambda **kwargs: downloads.append(kwargs) or ""
+    monkeypatch.setitem(sys.modules, "llama_cpp", fake_llama)
+    monkeypatch.setitem(sys.modules, "huggingface_hub", fake_hub)
+    monkeypatch.setattr(
+        "builtins.input", lambda _prompt="": (_ for _ in ()).throw(EOFError)
+    )
+
+    script = _generate_chat_script(
+        model,
+        variant,
+        context_length=4096,
+        cpu_only=False,
+        local_path=str(entry),
+        local_parts=(str(entry), str(part)),
+    )
+
+    exec(compile(script, "<generated>", "exec"), {"__name__": "__main__"})
+
+    assert loaded == [str(entry)]
+    assert downloads == []
 
 
 def test_snippet_no_model_found(monkeypatch):
