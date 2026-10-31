@@ -222,8 +222,9 @@ def _multi_gpu_fit_budget(
         warnings.append(
             "Multi-GPU placement rejected: the runtime-only part of the estimate "
             f"({nonsplittable_bytes / _GiB:.2f} GB of activation buffers and "
-            "framework overhead) fits no single device, so no layer split can "
-            "carry it"
+            "framework overhead) does not fit any device after its runtime "
+            "buffer, so no layer split can carry it; the GPU part runs on the "
+            "largest card alone"
         )
         return _single_device_fit(usable_gpus, usable_available, utilization)
 

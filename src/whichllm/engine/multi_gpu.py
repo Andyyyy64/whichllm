@@ -45,8 +45,8 @@ class PlacementPlan:
     ``pooled_bytes`` is the budget the pooled fit check uses: the usable
     capacity of every device after its own runtime buffer, times the
     utilization factor. ``reserve_fits`` says whether the runtime-only part fits
-    on the largest device at all — when it does not, no layer split can carry it
-    and only a single card can host the GPU part.
+    the largest device's split budget — when it does not, no layer split can
+    carry it and the caller falls back to a single card.
 
     Shares are proportional to each device's remaining capacity, so a device
     cannot overflow once the reserve fits: the only way a split fails is the
@@ -54,9 +54,7 @@ class PlacementPlan:
     """
 
     devices: tuple[DevicePlacement, ...]
-    excluded: tuple[str, ...]
     pooled_bytes: int
-    single_device_bytes: int
     reserve_fits: bool
 
 
@@ -76,28 +74,22 @@ def plan_device_split(
     overhead cannot be divided by a layer split, so they are reserved on the
     device with the most capacity. A device that cannot hold its share makes the
     split unusable, which is what a pooled-total check misses.
+
+    The caller drops devices that cannot pay their own runtime buffer first, so
+    ``available`` holds the participating devices only.
     """
     budgets: list[tuple[int, GPUInfo, int]] = []
-    excluded: list[str] = []
     for index, (gpu, gpu_available) in enumerate(zip(gpus, available, strict=False)):
         budget = max(0, gpu_available - PER_DEVICE_RUNTIME_BUFFER_BYTES)
         if budget == 0:
-            excluded.append(gpu.name)
             continue
         budgets.append((index, gpu, budget))
 
-    single_device_bytes = max((budget for _, _, budget in budgets), default=0)
     pooled_bytes = int(max(0, sum(budget for _, _, budget in budgets)) * utilization)
 
     if len(budgets) < 2:
-        # Fewer than two usable devices is a single-device fit, not a split.
-        return PlacementPlan(
-            devices=(),
-            excluded=tuple(excluded),
-            pooled_bytes=pooled_bytes,
-            single_device_bytes=single_device_bytes,
-            reserve_fits=False,
-        )
+        # Defensive: a split needs two devices that can pay their buffer.
+        return PlacementPlan(devices=(), pooled_bytes=pooled_bytes, reserve_fits=False)
 
     reserve_position = max(range(len(budgets)), key=lambda pos: budgets[pos][2])
     capacities = [budget for _, _, budget in budgets]
@@ -136,8 +128,6 @@ def plan_device_split(
 
     return PlacementPlan(
         devices=tuple(placements),
-        excluded=tuple(excluded),
         pooled_bytes=pooled_bytes,
-        single_device_bytes=single_device_bytes,
         reserve_fits=reserve_fits,
     )
