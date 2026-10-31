@@ -311,9 +311,10 @@ of that is decided: two identical cards beside a card with 256 MiB free keep the
 homogeneous 0.95 budget, the speed estimate ignores the card that holds nothing,
 and one remaining card is treated as a plain single-GPU fit at its full
 available memory. Because the shares are proportional to what each device has
-left, the only way a split fails is the runtime-only part: when that fits no
-single device, the placement is rejected even though the pooled budget would
-have covered the estimate, and the pooled budget then only carries the partial
+left, the only way a split fails is the runtime-only part: when it does not fit
+a device after that device's runtime buffer, the placement is rejected even
+though the pooled budget would have covered the estimate, the GPU part runs on
+the largest card alone, and the pooled budget then only carries the partial
 offload. The plan also describes the GPU-resident part of an expert or layer
 offload, which is what the devices hold once the rest is in system RAM.
 

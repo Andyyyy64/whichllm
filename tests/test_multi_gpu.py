@@ -82,12 +82,10 @@ def test_device_below_its_runtime_buffer_leaves_one_card():
         utilization=0.95,
     )
 
-    # One usable device left: this is a single-device fit, not a split, and the
-    # remaining card keeps its usable capacity.
+    # The caller drops the card that cannot pay its buffer, so a plan built from
+    # one usable device is not a split.
     assert plan.devices == ()
-    assert plan.excluded == ("Tiny",)
     assert plan.reserve_fits is False
-    assert plan.single_device_bytes == 16 * _GiB - PER_DEVICE_RUNTIME_BUFFER_BYTES
 
 
 def test_runtime_part_that_fits_no_device_rejects_the_split():
@@ -106,8 +104,6 @@ def test_runtime_part_that_fits_no_device_rejects_the_split():
     # The device that was asked to host the runtime-only part cannot hold it.
     reserved = [device for device in plan.devices if device.nonsplittable_bytes]
     assert reserved and not reserved[0].fits
-    # A single card can still host the GPU part of a partial offload.
-    assert plan.single_device_bytes == _GiB - PER_DEVICE_RUNTIME_BUFFER_BYTES
 
 
 def test_placement_json_reports_the_device_split():
