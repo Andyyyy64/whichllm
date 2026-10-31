@@ -769,6 +769,8 @@ def test_excluded_card_does_not_make_a_homogeneous_set_heterogeneous():
     assert any(
         "GT 710" in w and "stay out of the multi-GPU pool" in w for w in result.warnings
     )
+    # The raw figure counts the pool, not the card that stayed out of it.
+    assert any("from 48.0 GB raw VRAM" in w for w in result.warnings)
 
 
 def test_moe_expert_offload_splits_across_two_gpus():
