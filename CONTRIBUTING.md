@@ -62,6 +62,11 @@ uv run --locked python scripts/update_golden.py snapshot
 a known failure pass, the strict xfail turns into a failure; remove its `xfail`
 entry from `archetypes.toml`.
 
+The `measured-*` constraints hold the estimates to real runs. If a change moves
+a speed or memory estimate past those bounds, measure again instead of widening
+them. `tests/test_golden_checks.py` fails when a constraint's pattern no longer
+matches anything in the catalog, so a stale pattern cannot pass by accident.
+
 ## Code Style
 - Follow existing code conventions
 - Use type hints

@@ -5,6 +5,14 @@ A diff here is a ranking change: review it like code.
 
 Catalog captured 2026-10-28 with whichllm 0.5.21 (9f3709f): 1129 models, 4728 benchmark ids (refreshed 2026-10-29).
 
+## gtx1650-4gb-win / general
+
+1. google/gemma-4-26B-A4B-it [Q4_K_M, partial_offload, 9.2 tok/s, score 64.0]
+2. zai-org/GLM-4.7-Flash [Q3_K_M, partial_offload, 16.1 tok/s, score 59.7]
+3. openai/gpt-oss-20b [Q5_K_M, partial_offload, 10.4 tok/s, score 59.4]
+4. Qwen/Qwen3-30B-A3B [Q3_K_M, partial_offload, 20.1 tok/s, score 59.3]
+5. Qwen/Qwen3.5-4B [Q4_K_M, full_gpu, 26.9 tok/s, score 57.7]
+
 ## rtx2060-6gb-win / general
 
 1. Qwen/Qwen3.6-35B-A3B [Q3_K_M, partial_offload, 32.4 tok/s, score 67.6]
@@ -37,6 +45,14 @@ Catalog captured 2026-10-28 with whichllm 0.5.21 (9f3709f): 1129 models, 4728 be
 4. Qwen/Qwen3-Coder-Next [Q3_K_M, partial_offload, 29.5 tok/s, score 67.1]
 5. unsloth/gemma-4-12b-it-GGUF [IQ4_XS, full_gpu, 31.4 tok/s, score 66.2]
 
+## rtx3060-12gb-win / vision
+
+1. Qwen/Qwen3.6-35B-A3B [Q5_K_M, partial_offload, 25.2 tok/s, score 71.1]
+2. unsloth/gemma-4-12b-it-GGUF [Q5_K_M, full_gpu, 22.9 tok/s, score 68.5]
+3. google/gemma-4-26B-A4B-it [Q3_K_M, partial_offload, 48.6 tok/s, score 66.7]
+4. Qwen/Qwen3.5-9B [Q5_K_M, full_gpu, 28.2 tok/s, score 64.6]
+5. Qwen/Qwen3.5-4B [Q8_0, full_gpu, 32.7 tok/s, score 60.2]
+
 ## rtx4060ti-16gb-win / general
 
 1. Qwen/Qwen3.8-27B [Q3_K_M, full_gpu, 11.8 tok/s, score 82.4]
@@ -44,6 +60,14 @@ Catalog captured 2026-10-28 with whichllm 0.5.21 (9f3709f): 1129 models, 4728 be
 3. google/gemma-4-31B-it [Q3_K_M, full_gpu, 10.5 tok/s, score 70.4]
 4. Qwen/Qwen3.6-35B-A3B [Q4_K_M, partial_offload, 37.7 tok/s, score 69.9]
 5. openai/gpt-oss-20b [Q5_K_M, full_gpu, 60.5 tok/s, score 68.9]
+
+## rtx5080-16gb-win / general
+
+1. Qwen/Qwen3.8-27B [Q3_K_M, full_gpu, 39.5 tok/s, score 86.2]
+2. google/gemma-4-26B-A4B-it [Q4_K_M, full_gpu, 194.0 tok/s, score 74.4]
+3. google/gemma-4-31B-it [Q3_K_M, full_gpu, 35.1 tok/s, score 74.3]
+4. Qwen/Qwen3.6-35B-A3B [Q6_K, partial_offload, 43.6 tok/s, score 71.7]
+5. unsloth/gemma-4-12b-it-GGUF [Q8_0, full_gpu, 34.1 tok/s, score 70.0]
 
 ## rtx5060ti-16gb-64gb-linux / general
 
@@ -85,6 +109,22 @@ Catalog captured 2026-10-28 with whichllm 0.5.21 (9f3709f): 1129 models, 4728 be
 4. google/gemma-4-26B-A4B-it [Q6_K, full_gpu, 122.1 tok/s, score 76.2]
 5. unsloth/gemma-4-12b-it-GGUF [Q8_0, full_gpu, 35.9 tok/s, score 71.2]
 
+## rtx4090-24gb-linux / math
+
+1. Qwen/Qwen3.8-27B [Q6_K, full_gpu, 22.4 tok/s, score 89.0]
+2. google/gemma-4-26B-A4B-it [Q6_K, full_gpu, 122.1 tok/s, score 76.3]
+3. google/gemma-4-31B-it [Q5_K_M, full_gpu, 24.4 tok/s, score 76.2]
+4. Qwen/Qwen3.6-35B-A3B [Q4_K_M, full_gpu, 139.2 tok/s, score 76.1]
+5. openai/gpt-oss-20b [Q8_0, full_gpu, 103.7 tok/s, score 72.7]
+
+## rtx4090-24gb-linux / any
+
+1. Qwen/Qwen3.8-27B [Q6_K, full_gpu, 22.4 tok/s, score 89.0]
+2. google/gemma-4-26B-A4B-it [Q6_K, full_gpu, 122.1 tok/s, score 76.3]
+3. google/gemma-4-31B-it [Q5_K_M, full_gpu, 24.4 tok/s, score 76.2]
+4. Qwen/Qwen3.6-35B-A3B [Q4_K_M, full_gpu, 139.2 tok/s, score 76.1]
+5. zai-org/GLM-4.7-Flash [Q5_K_M, full_gpu, 63.7 tok/s, score 71.4]
+
 ## rtx5090-32gb-linux / general
 
 1. Qwen/Qwen3.8-27B [Q6_K, full_gpu, 39.7 tok/s, score 90.8]
@@ -108,6 +148,46 @@ Catalog captured 2026-10-28 with whichllm 0.5.21 (9f3709f): 1129 models, 4728 be
 3. google/gemma-4-26B-A4B-it [Q8_0, full_gpu, 79.8 tok/s, score 76.9]
 4. Qwen/Qwen3.8-Flash-Next [Q4_K_M, partial_offload, 7.9 tok/s, score 76.2]
 5. google/gemma-4-31B-it [Q5_K_M, full_gpu, 22.6 tok/s, score 76.0]
+
+## mixed-1660s-5060ti-win / general
+
+1. Qwen/Qwen3.8-27B [Q4_K_M, full_gpu, 13.8 tok/s, score 85.1]
+2. google/gemma-4-26B-A4B-it [Q5_K_M, full_gpu, 77.8 tok/s, score 75.7]
+3. Qwen/Qwen3.6-35B-A3B [Q3_K_M, full_gpu, 142.0 tok/s, score 74.2]
+4. google/gemma-4-31B-it [Q3_K_M, full_gpu, 16.4 tok/s, score 71.7]
+5. zai-org/GLM-4.7-Flash [Q4_K_M, full_gpu, 31.9 tok/s, score 69.6]
+
+## rx7600-8gb-win / general
+
+1. Qwen/Qwen3.6-35B-A3B [Q5_K_M, partial_offload, 18.7 tok/s, score 68.6]
+2. unsloth/gemma-4-12b-it-GGUF [IQ4_XS, full_gpu, 19.6 tok/s, score 65.8]
+3. google/gemma-4-26B-A4B-it [Q5_K_M, partial_offload, 9.6 tok/s, score 65.2]
+4. zai-org/GLM-4.7-Flash [Q5_K_M, partial_offload, 14.2 tok/s, score 62.1]
+5. Qwen/Qwen3.5-9B [Q5_K_M, full_gpu, 17.6 tok/s, score 61.7]
+
+## rx7900xtx-24gb-linux / general
+
+1. Qwen/Qwen3.8-27B [Q6_K, full_gpu, 16.6 tok/s, score 88.0]
+2. google/gemma-4-26B-A4B-it [Q6_K, full_gpu, 95.2 tok/s, score 76.3]
+3. Qwen/Qwen3.6-35B-A3B [Q4_K_M, full_gpu, 108.6 tok/s, score 76.1]
+4. google/gemma-4-31B-it [Q5_K_M, full_gpu, 18.1 tok/s, score 75.2]
+5. zai-org/GLM-4.7-Flash [Q5_K_M, full_gpu, 47.2 tok/s, score 71.4]
+
+## arc-a770-16gb-win / general
+
+1. Qwen/Qwen3.8-27B [Q3_K_M, full_gpu, 13.7 tok/s, score 82.8]
+2. google/gemma-4-26B-A4B-it [Q4_K_M, full_gpu, 85.6 tok/s, score 74.4]
+3. google/gemma-4-31B-it [Q3_K_M, full_gpu, 12.2 tok/s, score 70.8]
+4. Qwen/Qwen3.6-35B-A3B [Q5_K_M, partial_offload, 28.6 tok/s, score 70.1]
+5. openai/gpt-oss-20b [Q5_K_M, full_gpu, 69.9 tok/s, score 68.9]
+
+## arc-b580-12gb-linux / general
+
+1. Qwen/Qwen3.6-35B-A3B [Q5_K_M, partial_offload, 23.3 tok/s, score 69.4]
+2. google/gemma-4-26B-A4B-it [Q3_K_M, partial_offload, 42.0 tok/s, score 66.8]
+3. unsloth/gemma-4-12b-it-GGUF [Q5_K_M, full_gpu, 18.8 tok/s, score 66.8]
+4. openai/gpt-oss-20b [Q3_K_M, full_gpu, 94.1 tok/s, score 66.1]
+5. mistralai/Mistral-Small-3.2-24B-Instruct-2506 [Q3_K_M, full_gpu, 14.1 tok/s, score 64.6]
 
 ## rtx3060-12gb-win-32k / general (context 32768)
 
@@ -141,6 +221,14 @@ Catalog captured 2026-10-28 with whichllm 0.5.21 (9f3709f): 1129 models, 4728 be
 4. Qwen/Qwen3-Coder-Next [Q5_K_M, partial_offload, 34.0 tok/s, score 70.7]
 5. openai/gpt-oss-20b [Q6_K, full_gpu, 150.6 tok/s, score 70.6]
 
+## m1-8gb-mac / general
+
+1. Qwen/Qwen3.5-4B [Q5_K_M, full_gpu, 9.1 tok/s, score 55.4]
+2. google/gemma-3-4b-it [Q5_K_M, full_gpu, 9.8 tok/s, score 53.1]
+3. unsloth/gemma-4-E4B-it-GGUF [Q3_K_M, full_gpu, 8.5 tok/s, score 50.6]
+4. AtomicChat/LFM2.5-8B-A1B-GGUF [IQ4_XS, full_gpu, 58.2 tok/s, score 48.0]
+5. unsloth/gemma-4-E2B-it-GGUF [IQ4_XS, full_gpu, 12.5 tok/s, score 47.5]
+
 ## m4-16gb-mac / general
 
 1. openai/gpt-oss-20b [Q3_K_M, full_gpu, 31.2 tok/s, score 65.5]
@@ -173,6 +261,14 @@ Catalog captured 2026-10-28 with whichllm 0.5.21 (9f3709f): 1129 models, 4728 be
 4. google/gemma-4-31B-it [Q6_K, full_gpu, 8.8 tok/s, score 76.8]
 5. Qwen/Qwen3-Coder-Next [Q4_K_M, full_gpu, 51.5 tok/s, score 76.2]
 
+## m4max-64gb-mac / vision
+
+1. Qwen/Qwen3.8-27B [Q6_K, full_gpu, 9.9 tok/s, score 82.2]
+2. Qwen/Qwen3.6-35B-A3B [Q8_0, full_gpu, 49.5 tok/s, score 80.4]
+3. google/gemma-4-26B-A4B-it [Q8_0, full_gpu, 49.9 tok/s, score 76.8]
+4. google/gemma-4-31B-it [Q6_K, full_gpu, 8.8 tok/s, score 74.9]
+5. unsloth/gemma-4-12b-it-GGUF [Q5_K_M, full_gpu, 28.4 tok/s, score 69.2]
+
 ## m4max-128gb-mac / general
 
 1. Qwen/Qwen3.8-27B [Q6_K, full_gpu, 9.9 tok/s, score 86.6]
@@ -189,6 +285,22 @@ Catalog captured 2026-10-28 with whichllm 0.5.21 (9f3709f): 1129 models, 4728 be
 4. openai/gpt-oss-120b [Q5_K_M, full_gpu, 25.9 tok/s, score 76.0]
 5. google/gemma-4-26B-A4B-it [Q6_K, full_gpu, 32.3 tok/s, score 75.8]
 
+## dgx-spark-128gb-linux / general
+
+1. Qwen/Qwen3.8-27B [Q4_K_M, full_gpu, 9.6 tok/s, score 84.2]
+2. deepseek-ai/DeepSeek-V4-Flash [Q3_K_M, full_gpu, 20.6 tok/s, score 82.3]
+3. AtomicChat/Ling-3.0-flash-Fin-GGUF [Q6_K, full_gpu, 19.6 tok/s, score 78.8]
+4. Qwen/Qwen3.6-35B-A3B [Q8_0, full_gpu, 38.5 tok/s, score 78.8]
+5. Qwen/Qwen3.5-122B-A10B [Q6_K, full_gpu, 16.8 tok/s, score 77.7]
+
+## cpu-16gb-win / general
+
+1. google/gemma-4-26B-A4B-it [Q3_K_M, cpu_only, 8.4 tok/s, score 39.1]
+2. openai/gpt-oss-20b [Q3_K_M, cpu_only, 8.9 tok/s, score 36.0]
+3. AtomicChat/LFM2.5-8B-A1B-GGUF [IQ4_XS, cpu_only, 29.0 tok/s, score 27.1]
+4. microsoft/Phi-4-mini-instruct [Q3_K_M, cpu_only, 8.3 tok/s, score 25.4]
+5. Qwen/Qwen3.5-2B [Q4_K_M, cpu_only, 12.0 tok/s, score 25.4]
+
 ## cpu-32gb-linux / general
 
 1. Qwen/Qwen3.6-35B-A3B [Q4_K_M, cpu_only, 9.1 tok/s, score 40.4]
@@ -204,3 +316,11 @@ Catalog captured 2026-10-28 with whichllm 0.5.21 (9f3709f): 1129 models, 4728 be
 3. Qwen/Qwen3-Next-80B-A3B-Instruct [Q4_K_M, cpu_only, 9.1 tok/s, score 38.3]
 4. openai/gpt-oss-20b [Q3_K_M, cpu_only, 8.9 tok/s, score 36.0]
 5. openai/gpt-oss-120b [Q3_K_M, cpu_only, 6.3 tok/s, score 31.4]
+
+## cpu-64gb-ddr5-win / general
+
+1. Qwen/Qwen3.6-35B-A3B [Q4_K_M, cpu_only, 15.9 tok/s, score 41.9]
+2. google/gemma-4-26B-A4B-it [Q4_K_M, cpu_only, 12.6 tok/s, score 41.1]
+3. openai/gpt-oss-120b [Q3_K_M, cpu_only, 11.0 tok/s, score 40.5]
+4. Qwen/Qwen3-Next-80B-A3B-Instruct [Q4_K_M, cpu_only, 15.9 tok/s, score 39.9]
+5. openai/gpt-oss-20b [Q4_K_M, cpu_only, 13.3 tok/s, score 37.9]

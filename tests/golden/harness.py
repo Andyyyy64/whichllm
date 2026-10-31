@@ -22,6 +22,7 @@ from whichllm.commands.ranking import rank_for_hardware
 from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.gpu_simulator import create_synthetic_gpu
 from whichllm.hardware.types import HardwareInfo
+from whichllm.models.artifacts import resolve_ranked_gguf_artifact
 from whichllm.models.fetcher import dicts_to_models
 from whichllm.models.grouper import group_models
 from whichllm.models.types import ModelInfo
@@ -49,7 +50,8 @@ class Archetype:
     ram_gb: float
     os: str
     profiles: tuple[str, ...]
-    vram_gb: float | None = None
+    # One size for every GPU, or one per GPU for a mixed set.
+    vram_gb: float | tuple[float, ...] | None = None
     # None means the default (dual-channel DDR4-3200), or the unified
     # bandwidth for Apple GPUs.
     ram_bandwidth_gbps: float | None = None
@@ -58,7 +60,15 @@ class Archetype:
     note: str = ""
 
     def hardware(self) -> HardwareInfo:
-        gpus = [create_synthetic_gpu(name, self.vram_gb) for name in self.gpus]
+        sizes = (
+            self.vram_gb
+            if isinstance(self.vram_gb, tuple)
+            else (self.vram_gb,) * len(self.gpus)
+        )
+        gpus = [
+            create_synthetic_gpu(name, size)
+            for name, size in zip(self.gpus, sizes, strict=True)
+        ]
         hardware = HardwareInfo(
             gpus=gpus,
             cpu_name="Golden CPU",
@@ -72,11 +82,16 @@ class Archetype:
         return _apply_memory_budgets(hardware, vram_headroom="auto", ram_budget=None)
 
     @cached_property
+    def gpu_memory_bytes(self) -> tuple[int, ...]:
+        """Each GPU's full memory, before headroom or Metal's working set."""
+        return tuple(
+            g.unified_memory_bytes or g.vram_bytes for g in self.hardware().gpus
+        )
+
+    @cached_property
     def gpu_memory_gb(self) -> float:
         """Largest single-GPU memory, the figure people shop by."""
-        if not self.gpus:
-            return 0.0
-        return max(g.vram_bytes for g in self.hardware().gpus) / _GiB
+        return max(self.gpu_memory_bytes, default=0) / _GiB
 
 
 @dataclass(frozen=True)
@@ -84,11 +99,22 @@ class Constraint:
     id: str
     kind: str
     rationale: str
-    draft: bool = True
     top: int = DISPLAY_TOP_N
     patterns: tuple[str, ...] = ()
     pairs: tuple[tuple[str, str], ...] = ()
+    quant: str | None = None
+    quants: tuple[str, ...] = ()
+    fit_type: str | None = None
+    placement: str | None = None
     min_tok_per_sec: float | None = None
+    max_tok_per_sec: float | None = None
+    min_required_gb: float | None = None
+    max_required_gb: float | None = None
+    max_gpu_fraction: float | None = None
+    max_ram_fraction: float | None = None
+    min_params_b: float | None = None
+    min_rows: int | None = None
+    # fnmatch patterns on archetype ids.
     archetypes: tuple[str, ...] = ()
     profiles: tuple[str, ...] = ("general",)
     min_gpu_memory_gb: float | None = None
@@ -97,7 +123,9 @@ class Constraint:
     xfail: dict[str, str] = field(default_factory=dict)
 
     def applies_to(self, archetype: Archetype, profile: str) -> bool:
-        if self.archetypes and archetype.id not in self.archetypes:
+        if self.archetypes and not any(
+            fnmatch(archetype.id, pattern) for pattern in self.archetypes
+        ):
             return False
         if profile not in self.profiles:
             return False
@@ -173,7 +201,11 @@ def load_spec() -> tuple[tuple[Archetype, ...], tuple[Constraint, ...]]:
             ram_gb=float(a["ram_gb"]),
             os=a["os"],
             profiles=tuple(a.get("profiles", ("general",))),
-            vram_gb=a.get("vram_gb"),
+            vram_gb=(
+                tuple(a["vram_gb"])
+                if isinstance(a.get("vram_gb"), list)
+                else a.get("vram_gb")
+            ),
             ram_bandwidth_gbps=a.get("ram_bandwidth_gbps"),
             cpu_cores=a.get("cpu_cores", 16),
             context_length=a.get("context_length", CONTEXT_LENGTH),
@@ -186,11 +218,21 @@ def load_spec() -> tuple[tuple[Archetype, ...], tuple[Constraint, ...]]:
             id=c["id"],
             kind=c["kind"],
             rationale=c["rationale"],
-            draft=c.get("draft", True),
             top=c.get("top", DISPLAY_TOP_N),
             patterns=tuple(c.get("patterns", ())),
             pairs=tuple((p["old"], p["new"]) for p in c.get("pairs", ())),
+            quant=c.get("quant"),
+            quants=tuple(c.get("quants", ())),
+            fit_type=c.get("fit_type"),
+            placement=c.get("placement"),
             min_tok_per_sec=c.get("min_tok_per_sec"),
+            max_tok_per_sec=c.get("max_tok_per_sec"),
+            min_required_gb=c.get("min_required_gb"),
+            max_required_gb=c.get("max_required_gb"),
+            max_gpu_fraction=c.get("max_gpu_fraction"),
+            max_ram_fraction=c.get("max_ram_fraction"),
+            min_params_b=c.get("min_params_b"),
+            min_rows=c.get("min_rows"),
             archetypes=tuple(c.get("archetypes", ())),
             profiles=tuple(c.get("profiles", ("general",))),
             min_gpu_memory_gb=c.get("min_gpu_memory_gb"),
@@ -216,9 +258,9 @@ def _check_spec(
     for c in constraints:
         if c.kind not in CHECKS:
             raise ValueError(f"{c.id}: unknown kind {c.kind!r}")
-        for archetype_id in c.archetypes:
-            if archetype_id not in ids:
-                raise ValueError(f"{c.id}: unknown archetype {archetype_id!r}")
+        for pattern in c.archetypes:
+            if not any(fnmatch(archetype_id, pattern) for archetype_id in ids):
+                raise ValueError(f"{c.id}: archetypes {pattern!r} matches nothing")
         applicable = [
             f"{a.id}/{p}" for a in archetypes for p in a.profiles if c.applies_to(a, p)
         ]
@@ -238,12 +280,14 @@ def golden_cases() -> list[GoldenCase]:
     ]
 
 
-_ranking_cache: dict[tuple[str, str], tuple[CompatibilityResult, ...]] = {}
+_ranking_cache: dict[tuple[str, str, str | None], tuple[CompatibilityResult, ...]] = {}
 
 
-def rank_case(archetype: Archetype, profile: str) -> tuple[CompatibilityResult, ...]:
+def rank_case(
+    archetype: Archetype, profile: str, quant: str | None = None
+) -> tuple[CompatibilityResult, ...]:
     """Rank the frozen catalog for one archetype the way `whichllm` does."""
-    key = (archetype.id, profile)
+    key = (archetype.id, profile, quant)
     if key not in _ranking_cache:
         _ranking_cache[key] = tuple(
             _rank(
@@ -251,6 +295,7 @@ def rank_case(archetype: Archetype, profile: str) -> tuple[CompatibilityResult, 
                 profile,
                 list(catalog_models()),
                 archetype.context_length,
+                quant,
             )
         )
     return _ranking_cache[key]
@@ -261,6 +306,7 @@ def _rank(
     profile: str,
     models: list[ModelInfo],
     context_length: int = CONTEXT_LENGTH,
+    quant: str | None = None,
 ) -> list[CompatibilityResult]:
     return rank_for_hardware(
         models,
@@ -270,6 +316,7 @@ def _rank(
         benchmark_scores=catalog_benchmarks(),
         task_scores=catalog_task_scores(profile),
         profile=profile,
+        quant=quant,
     )
 
 
@@ -287,16 +334,22 @@ def _matches(model_id: str, patterns: tuple[str, ...]) -> list[str]:
     return [p for p in patterns if re.search(p, model_id)]
 
 
-def _check_nonempty(c: Constraint, results) -> str | None:
+def _every_row(c: Constraint, results, ok, what: str) -> str | None:
+    bad = [
+        f"#{i} {describe(r)}"
+        for i, r in enumerate(results[: c.top], start=1)
+        if not ok(r)
+    ]
+    return f"{what} in top {c.top}: {bad}" if bad else None
+
+
+def _check_nonempty(c: Constraint, results, archetype: Archetype) -> str | None:
     if not results:
         return "no recommendations"
-    bad = [describe(r) for r in results[: c.top] if not r.can_run]
-    if bad:
-        return f"unrunnable rows in top {c.top}: {bad}"
-    return None
+    return _every_row(c, results, lambda r: r.can_run, "unrunnable rows")
 
 
-def _check_never_in_top(c: Constraint, results) -> str | None:
+def _check_never_in_top(c: Constraint, results, archetype: Archetype) -> str | None:
     hits = [
         f"#{i} {describe(r)} matches {_matches(r.model.id, c.patterns)}"
         for i, r in enumerate(results[: c.top], start=1)
@@ -305,14 +358,29 @@ def _check_never_in_top(c: Constraint, results) -> str | None:
     return f"forbidden models in top {c.top}: {hits}" if hits else None
 
 
-def _check_any_in_top(c: Constraint, results) -> str | None:
-    if any(_matches(r.model.id, c.patterns) for r in results[: c.top]):
+def _row_fits_filters(c: Constraint, r: CompatibilityResult) -> bool:
+    return (
+        (not c.patterns or bool(_matches(r.model.id, c.patterns)))
+        and (c.fit_type is None or r.fit_type == c.fit_type)
+        and (
+            c.placement is None
+            or (r.placement is not None and r.placement.kind == c.placement)
+        )
+        and (
+            c.min_required_gb is None
+            or r.vram_required_bytes >= c.min_required_gb * _GiB
+        )
+    )
+
+
+def _check_any_in_top(c: Constraint, results, archetype: Archetype) -> str | None:
+    if any(_row_fits_filters(c, r) for r in results[: c.top]):
         return None
     top = [describe(r) for r in results[: c.top]]
-    return f"none of {list(c.patterns)} in top {c.top}: {top}"
+    return f"no row like {list(c.patterns)} {c.fit_type} {c.placement} in top {c.top}: {top}"
 
 
-def _check_stale_generation(c: Constraint, results) -> str | None:
+def _check_stale_generation(c: Constraint, results, archetype: Archetype) -> str | None:
     problems = []
     for old, new in c.pairs:
         newer = [r for r in results if re.search(new, r.model.id)]
@@ -331,7 +399,18 @@ def _check_stale_generation(c: Constraint, results) -> str | None:
     return f"stale generation in top {c.top}: {problems}" if problems else None
 
 
-def _check_top_speed(c: Constraint, results) -> str | None:
+def _check_older_noted(c: Constraint, results, archetype: Archetype) -> str | None:
+    problems = [
+        f"{describe(r)} does not list {old!r}: {r.older_generations}"
+        for old, new in c.pairs
+        for r in results
+        if re.search(new, r.model.id)
+        and not any(re.search(old, model_id) for model_id in r.older_generations)
+    ]
+    return f"older generation not noted: {problems}" if problems else None
+
+
+def _check_top_speed(c: Constraint, results, archetype: Archetype) -> str | None:
     bar = c.min_tok_per_sec or 0.0
 
     def fast(r) -> bool:
@@ -339,10 +418,112 @@ def _check_top_speed(c: Constraint, results) -> str | None:
 
     # Only claim the slots the machine can fill with fast candidates.
     slots = min(c.top, sum(1 for r in results if fast(r)))
+    if slots == 0:
+        return f"no candidate reaches {bar} tok/s"
     slow = [describe(r) for r in results[:slots] if not fast(r)]
     if slow:
         return f"top {slots} has picks below {bar} tok/s: {slow}"
     return None
+
+
+def _check_row_within(c: Constraint, results, archetype: Archetype) -> str | None:
+    row = next((r for r in results if _matches(r.model.id, c.patterns)), None)
+    if row is None:
+        return f"no row for {list(c.patterns)}"
+    speed = row.estimated_tok_per_sec or 0.0
+    required = row.vram_required_bytes / _GiB
+    outside = (
+        (c.min_tok_per_sec is not None and speed < c.min_tok_per_sec)
+        or (c.max_tok_per_sec is not None and speed > c.max_tok_per_sec)
+        or (c.min_required_gb is not None and required < c.min_required_gb)
+        or (c.max_required_gb is not None and required > c.max_required_gb)
+    )
+    if outside:
+        return (
+            f"{describe(row)} needs {required:.1f} GB, outside "
+            f"{c.min_tok_per_sec}-{c.max_tok_per_sec} tok/s, "
+            f"{c.min_required_gb}-{c.max_required_gb} GB"
+        )
+    return None
+
+
+def _check_bandwidth_ceiling(
+    c: Constraint, results, archetype: Archetype
+) -> str | None:
+    bandwidth = max(g.memory_bandwidth_gbps or 0 for g in archetype.hardware().gpus)
+
+    def under_ceiling(r: CompatibilityResult) -> bool:
+        if r.fit_type != "full_gpu" or r.model.is_moe or r.gguf_variant is None:
+            return True
+        file_gb = r.gguf_variant.file_size_bytes / 1e9
+        return (r.estimated_tok_per_sec or 0.0) <= bandwidth / file_gb
+
+    return _every_row(
+        c, results, under_ceiling, f"rows past what {bandwidth:.0f} GB/s can read"
+    )
+
+
+def _check_full_gpu_budget(c: Constraint, results, archetype: Archetype) -> str | None:
+    budget = sum(archetype.gpu_memory_bytes) * c.max_gpu_fraction
+    return _every_row(
+        c,
+        results,
+        lambda r: r.fit_type != "full_gpu" or r.vram_required_bytes <= budget,
+        f"full-GPU rows past {budget / _GiB:.1f} GB",
+    )
+
+
+def _check_ram_budget(c: Constraint, results, archetype: Archetype) -> str | None:
+    budget = archetype.ram_gb * _GiB * c.max_ram_fraction
+    return _every_row(
+        c,
+        results,
+        lambda r: r.vram_required_bytes - r.vram_available_bytes <= budget,
+        f"rows putting more than {budget / _GiB:.1f} GB in RAM",
+    )
+
+
+def _check_gguf_only(c: Constraint, results, archetype: Archetype) -> str | None:
+    return _every_row(c, results, lambda r: r.gguf_variant, "non-GGUF rows")
+
+
+def _check_runnable(c: Constraint, results, archetype: Archetype) -> str | None:
+    models = list(catalog_models())
+
+    def runnable(r: CompatibilityResult) -> bool:
+        return r.gguf_variant is None or bool(
+            resolve_ranked_gguf_artifact(
+                r.model, r.gguf_variant, models, quant_filter=None
+            )
+        )
+
+    return _every_row(c, results, runnable, "rows `run` cannot launch")
+
+
+def _check_quant_in(c: Constraint, results, archetype: Archetype) -> str | None:
+    return _every_row(
+        c,
+        results,
+        lambda r: r.gguf_variant is None or r.gguf_variant.quant_type in c.quants,
+        f"rows outside {list(c.quants)}",
+    )
+
+
+def _check_min_params(c: Constraint, results, archetype: Archetype) -> str | None:
+    return _every_row(
+        c,
+        results,
+        lambda r: r.model.parameter_count >= c.min_params_b * 1e9,
+        f"rows under {c.min_params_b}B",
+    )
+
+
+def _check_task_evidence(c: Constraint, results, archetype: Archetype) -> str | None:
+    rows = results[: c.top]
+    scored = sum(1 for r in rows if r.benchmark_basis != "general")
+    if scored >= c.min_rows:
+        return None
+    return f"{scored} of top {c.top} ranked on task scores, want {c.min_rows}"
 
 
 CHECKS = {
@@ -350,14 +531,25 @@ CHECKS = {
     "never_in_top": _check_never_in_top,
     "any_in_top": _check_any_in_top,
     "stale_generation": _check_stale_generation,
+    "older_noted": _check_older_noted,
     "top_speed": _check_top_speed,
+    "row_within": _check_row_within,
+    "bandwidth_ceiling": _check_bandwidth_ceiling,
+    "full_gpu_budget": _check_full_gpu_budget,
+    "ram_budget": _check_ram_budget,
+    "gguf_only": _check_gguf_only,
+    "runnable": _check_runnable,
+    "quant_in": _check_quant_in,
+    "min_params": _check_min_params,
+    "task_evidence": _check_task_evidence,
 }
 
 
 def evaluate(case: GoldenCase) -> str | None:
     """Return None when the constraint holds, else a failure description."""
-    results = rank_case(case.archetype, case.profile)
-    return CHECKS[case.constraint.kind](case.constraint, results)
+    c = case.constraint
+    results = rank_case(case.archetype, case.profile, c.quant)
+    return CHECKS[c.kind](c, results, case.archetype)
 
 
 def render_top_picks() -> str:

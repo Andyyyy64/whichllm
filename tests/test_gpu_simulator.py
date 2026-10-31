@@ -140,6 +140,12 @@ class TestAppleSiliconAliases:
         gpu = create_synthetic_gpu(chip)
         assert gpu.shared_memory is True
 
+    @pytest.mark.parametrize("name", ["DGX Spark", "GB10"])
+    def test_nvidia_unified_memory_soc_has_shared_memory(self, name):
+        gpu = create_synthetic_gpu(name, vram_override_gb=128)
+        assert gpu.vendor == "nvidia"
+        assert gpu.shared_memory is True
+
 
 class TestVRAMOverride:
     def test_override_known_gpu(self):
