@@ -300,6 +300,66 @@ keep only MoE experts in RAM, so for an expert-offload pick `run` uses the
 equivalent layer split and prints the `llama-server` command that matches the
 estimate.
 
+## `bench`
+
+```bash
+whichllm bench [MODEL_NAME] [OPTIONS]
+```
+
+Measures a model's real decode speed, prints it next to the estimate and saves
+the result under `~/.cache/whichllm/reports/`. Nothing leaves your machine.
+
+If `MODEL_NAME` is omitted, `bench` measures the top pick for this hardware.
+Whichever model it measures runs with the placement the estimate assumed. Each
+run generates from the same fixed text, after one warm-up that is not counted.
+
+Options:
+
+| Option | Meaning |
+| --- | --- |
+| `--backend` | `auto` (default), `llama-server`, `ollama`, `lm-studio` or `openai` |
+| `--url` | Base URL of the server for `--backend openai` |
+| `--model` | The name that server knows the model by |
+| `--engine` | The engine behind that server, such as `vllm` or `sglang` |
+| `--runs` | Measured runs (default 3) |
+| `--tokens` | Tokens to generate per run (default 128) |
+| `--context-length`, `-c` | Context length |
+| `--quant`, `-q` | Preferred GGUF quantization |
+| `--yes`, `-y` | Skip the download prompt |
+| `--refresh` | Ignore model cache and fetch again |
+| `--cpu-only` | Force CPU-only execution |
+| `--lm-studio-path` | Scan an additional LM Studio model library |
+
+Examples:
+
+```bash
+whichllm bench
+whichllm bench "qwen 3.5 2b gguf"
+whichllm bench --backend ollama
+whichllm bench --backend lm-studio
+whichllm bench --backend openai --url http://localhost:8000/v1 --engine vllm --model my-model
+```
+
+`auto` uses `llama-server` when it is in `PATH`, then a running Ollama, then
+LM Studio's `lms`. Each runtime reports the speed it measured itself, except
+`openai`, which is timed from the first to the last token of the stream.
+
+| Backend | What `bench` does | Speed comes from |
+| --- | --- | --- |
+| `llama-server` | Starts it on a free local port with the flags of the recipe, and stops it afterwards | `timings.predicted_per_second` |
+| `ollama` | Uses the running server and unloads the model afterwards | `eval_count / eval_duration` |
+| `lm-studio` | Loads the model with `lms load` and unloads it afterwards | `stats.tokens_per_second` |
+| `openai` | Uses a server you started | Stream timing |
+
+`bench` asks before a download and names the file and its size. `lm-studio` only
+measures a model that is already in LM Studio's library. The estimate describes
+llama.cpp, so Ollama and LM Studio can land elsewhere with their own GPU/CPU
+split. GPU memory use is recorded on NVIDIA GPUs.
+
+A saved report holds your hardware, the runtime, the model file, the placement,
+the measured speeds and the estimate. It holds no username, hostname, file path,
+serial number, IP address or generated text.
+
 ## `snippet`
 
 ```bash

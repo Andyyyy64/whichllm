@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Added
 
+- `whichllm bench` measures a model's real decode speed, prints it next to the
+  estimate and saves the result in `~/.cache/whichllm/reports/`. It runs on
+  `llama-server`, Ollama, LM Studio or any OpenAI-compatible server through
+  `--backend`, with the placement the estimate assumed. It asks before a
+  download, stops what it started even after Ctrl+C, and saves nothing that
+  identifies you.
 - `whichllm run` opens a verified local LM Studio GGUF artifact instead of
   downloading a second copy, with the repeatable `--lm-studio-path` option. A
   match needs the resolved repository, the exact artifact path, and every part
