@@ -37,13 +37,13 @@ _EXCLUDED_ORGS = frozenset(
         "togethercomputer",  # mostly inference endpoints, no GGUFs
     }
 )
+# hf-, trl-, peft- and optimum-intel-internal-testing keep CI fixtures.
+_FIXTURE_ORG_SUFFIX = "-internal-testing"
 
 # Substring patterns in *names* that strongly suggest non-production usage.
+# A bare "tiny" is not one: Ling-3.0-tiny, Granite 4.0 Tiny and DeepSeek-VL2-tiny
+# are real models, and fixtures score too low to rank without a name rule.
 _EXCLUDED_NAME_PATTERNS = (
-    "tiny-",
-    "-tiny",
-    "tiny_",
-    "_tiny",
     "test-only",
     "debug-",
     "playground",
@@ -113,7 +113,7 @@ def _is_excluded_model(model_id: str) -> bool:
     if not model_id:
         return True
     org = model_id.split("/", 1)[0] if "/" in model_id else ""
-    if org in _EXCLUDED_ORGS:
+    if org in _EXCLUDED_ORGS or org.endswith(_FIXTURE_ORG_SUFFIX):
         return True
     lower = model_id.lower()
     name = lower.split("/", 1)[1] if "/" in lower else lower

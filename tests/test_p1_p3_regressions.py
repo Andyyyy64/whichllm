@@ -198,8 +198,17 @@ def test_p2_is_excluded_model_helper():
     assert _is_excluded_model("EleutherAI/pythia-70m-deduped")
     assert _is_excluded_model("trl-internal-testing/tiny-Qwen2ForCausalLM-2.5")
     assert _is_excluded_model("hmellor/tiny-random-LlamaForCausalLM")
+    assert _is_excluded_model("llamafactory/tiny-random-Llama-3")
+    assert _is_excluded_model("peft-internal-testing/tiny-dummy-qwen2")
+    assert _is_excluded_model("hf-internal-testing/llama-tokenizer")
     assert not _is_excluded_model("Qwen/Qwen3-8B")
     assert not _is_excluded_model("meta-llama/Llama-4-Maverick-17B-128E-Instruct")
+
+
+def test_p2_tiny_in_a_name_is_a_size_not_a_fixture():
+    assert not _is_excluded_model("bartowski/Ling-3.0-tiny-GGUF")
+    assert not _is_excluded_model("ibm-granite/granite-4.0-h-tiny")
+    assert not _is_excluded_model("deepseek-ai/deepseek-vl2-tiny")
 
 
 # ---------------------------------------------------------------------- P2-1
