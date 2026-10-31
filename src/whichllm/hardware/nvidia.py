@@ -16,8 +16,7 @@ logger = logging.getLogger(__name__)
 _NVIDIA_UNIFIED_MEMORY_MARKERS = (
     "GB10",
     "DGX SPARK",
-    "JETSON AGX XAVIER",
-    "JETSON XAVIER NX",
+    "JETSON",
     "XAVIER",
 )
 
