@@ -1,0 +1,256 @@
+cpu,platform,bandwidth_gbps,file_gib,tok_per_sec,runs
+Intel Core i3-3240 CPU @ 3.40GHz,Core 3rd-4th gen,25.6,0.85,12.22,1
+Intel Core i3-3240 CPU @ 3.40GHz,Core 3rd-4th gen,25.6,4.58,2.37,1
+Intel Core i5-3570K CPU @ 3.40GHz,Core 3rd-4th gen,25.6,0.85,19.06,2
+Intel Core i5-3570K CPU @ 3.40GHz,Core 3rd-4th gen,25.6,4.58,4.0,1
+Intel Core i5-4570 CPU @ 3.20GHz,Core 3rd-4th gen,25.6,0.85,19.2,1
+Intel Core i5-4570 CPU @ 3.20GHz,Core 3rd-4th gen,25.6,4.58,3.52,1
+Intel Core i7-3770K CPU @ 3.50GHz,Core 3rd-4th gen,25.6,0.85,17.4,1
+Intel Core i7-4770 CPU @ 3.40GHz,Core 3rd-4th gen,25.6,0.85,21.18,1
+Intel Core i7-4770 CPU @ 3.40GHz,Core 3rd-4th gen,25.6,4.58,4.1,1
+Intel Core i7-4770K CPU @ 3.50GHz,Core 3rd-4th gen,25.6,0.85,19.94,1
+Intel Core i7-4790 CPU @ 3.60GHz,Core 3rd-4th gen,25.6,0.85,18.89,1
+Intel Core i3-6100 CPU @ 3.70GHz,Core 6th gen,34.1,0.85,6.08,1
+Intel Core i5-6400 CPU @ 2.70GHz,Core 6th gen,34.1,4.58,1.22,1
+Intel Core i5-6600K CPU @ 3.50GHz,Core 6th gen,34.1,0.85,25.18,1
+Intel Core i7-6700 CPU @ 3.40GHz,Core 6th gen,34.1,0.85,20.87,2
+Intel Core i7-6700 CPU @ 3.40GHz,Core 6th gen,34.1,4.58,4.5,1
+Intel Core i7-6700 CPU @ 3.40GHz,Core 6th gen,34.1,8.37,2.52,1
+Intel Core i7-6700K CPU @ 4.00GHz,Core 6th gen,34.1,0.85,28.97,3
+Intel Core i7-6700K CPU @ 4.00GHz,Core 6th gen,34.1,8.37,2.33,1
+Intel Core i5-7400 CPU @ 3.00GHz,Core 7th gen,38.4,4.58,3.16,1
+Intel Core i5-7500 CPU @ 3.40GHz,Core 7th gen,38.4,0.85,16.94,2
+Intel Core i7-7700 CPU @ 3.60GHz,Core 7th gen,38.4,0.85,22.9,2
+Intel Core i7-7700K CPU @ 4.20GHz,Core 7th gen,38.4,0.85,25.73,1
+Intel Core i7-7700K CPU @ 4.20GHz,Core 7th gen,38.4,4.58,4.39,1
+AMD Ryzen 5 1600 Six-Core Processor,AM4 Zen,42.7,0.85,23.97,1
+AMD Ryzen 7 1700 Eight-Core Processor,AM4 Zen,42.7,0.85,28.12,1
+AMD Ryzen 7 1700X Eight-Core Processor,AM4 Zen,42.7,4.58,5.59,1
+Intel Core i3-9100 CPU @ 3.60GHz,Core 8th-9th gen,42.7,0.85,22.33,1
+Intel Core i3-9100 CPU @ 3.60GHz,Core 8th-9th gen,42.7,4.58,4.14,1
+Intel Core i3-9100 CPU @ 3.60GHz,Core 8th-9th gen,42.7,8.37,2.35,1
+Intel Core i5-8400 CPU @ 2.80GHz,Core 8th-9th gen,42.7,0.85,20.52,1
+Intel Core i5-8400 CPU @ 2.80GHz,Core 8th-9th gen,42.7,4.58,4.32,1
+Intel Core i5-8400 CPU @ 2.80GHz,Core 8th-9th gen,42.7,8.37,1.39,1
+Intel Core i5-8500 CPU @ 3.00GHz,Core 8th-9th gen,42.7,0.85,29.19,2
+Intel Core i5-8600K CPU @ 3.60GHz,Core 8th-9th gen,42.7,0.85,21.42,1
+Intel Core i5-9500 CPU @ 3.00GHz,Core 8th-9th gen,42.7,0.85,31.26,1
+Intel Core i5-9600K CPU @ 3.70GHz,Core 8th-9th gen,42.7,0.85,22.36,1
+Intel Core i7-8700 CPU @ 3.20GHz,Core 8th-9th gen,42.7,0.85,29.29,2
+Intel Core i7-8700 CPU @ 3.20GHz,Core 8th-9th gen,42.7,4.58,5.59,1
+Intel Core i7-8700K CPU @ 3.70GHz,Core 8th-9th gen,42.7,0.85,32.46,2
+Intel Core i7-8700K CPU @ 3.70GHz,Core 8th-9th gen,42.7,4.58,6.44,2
+Intel Core i7-8700K CPU @ 3.70GHz,Core 8th-9th gen,42.7,8.37,2.96,1
+Intel Core i7-9700F CPU @ 3.00GHz,Core 8th-9th gen,42.7,0.85,31.14,1
+Intel Core i7-9700K CPU @ 3.60GHz,Core 8th-9th gen,42.7,0.85,33.48,2
+Intel Core i7-9700KF CPU @ 3.60GHz,Core 8th-9th gen,42.7,0.85,28.49,1
+Intel Core i7-9700KF CPU @ 3.60GHz,Core 8th-9th gen,42.7,4.58,5.45,1
+Intel Core i9-9900K CPU @ 3.60GHz,Core 8th-9th gen,42.7,0.85,37.59,1
+Intel Core i9-9900K CPU @ 3.60GHz,Core 8th-9th gen,42.7,4.58,5.45,1
+Intel Core i9-9900K CPU @ 3.60GHz,Core 8th-9th gen,42.7,8.37,2.83,3
+Intel Core i9-9900KF CPU @ 3.60GHz,Core 8th-9th gen,42.7,0.85,39.03,1
+Intel Core i9-9900KF CPU @ 3.60GHz,Core 8th-9th gen,42.7,4.58,3.04,1
+AMD Ryzen 5 2600 Six-Core Processor,AM4 Zen+,46.9,0.85,36.36,2
+AMD Ryzen 7 2700 Eight-Core Processor,AM4 Zen+,46.9,0.85,25.45,1
+AMD Ryzen 7 2700 Eight-Core Processor,AM4 Zen+,46.9,4.58,6.33,1
+AMD Ryzen 7 2700 Eight-Core Processor,AM4 Zen+,46.9,8.37,3.45,1
+Intel Core i5-10400F CPU @ 2.90GHz,Core 10th gen,46.9,0.85,25.98,2
+Intel Core i5-10400F CPU @ 2.90GHz,Core 10th gen,46.9,4.58,5.53,1
+Intel Core i5-10400F CPU @ 2.90GHz,Core 10th gen,46.9,8.37,3.1,1
+Intel Core i7-10700 CPU @ 2.90GHz,Core 10th gen,46.9,0.85,21.41,2
+Intel Core i7-10700 CPU @ 2.90GHz,Core 10th gen,46.9,8.37,2.59,2
+Intel Core i7-10700K CPU @ 3.80GHz,Core 10th gen,46.9,0.85,22.94,1
+Intel Core i7-10700K CPU @ 3.80GHz,Core 10th gen,46.9,4.58,6.28,2
+Intel Core i9-10900K CPU @ 3.70GHz,Core 10th gen,46.9,0.85,39.13,1
+Intel Core i9-10900KF CPU @ 3.70GHz,Core 10th gen,46.9,8.37,2.51,1
+11th Gen Intel Core i5-11400 @ 2.60GHz,Core 11th gen,51.2,0.85,29.08,1
+11th Gen Intel Core i5-11400F @ 2.60GHz,Core 11th gen,51.2,0.85,37.77,2
+11th Gen Intel Core i5-11500 @ 2.70GHz,Core 11th gen,51.2,4.58,7.76,1
+11th Gen Intel Core i5-11600K @ 3.90GHz,Core 11th gen,51.2,0.85,41.03,2
+11th Gen Intel Core i7-11700 @ 2.50GHz,Core 11th gen,51.2,0.85,33.6,1
+11th Gen Intel Core i7-11700 @ 2.50GHz,Core 11th gen,51.2,4.58,7.92,1
+11th Gen Intel Core i7-11700F @ 2.50GHz,Core 11th gen,51.2,0.85,40.52,2
+11th Gen Intel Core i7-11700F @ 2.50GHz,Core 11th gen,51.2,4.58,7.79,1
+11th Gen Intel Core i7-11700F @ 2.50GHz,Core 11th gen,51.2,8.37,4.42,2
+11th Gen Intel Core i7-11700K @ 3.60GHz,Core 11th gen,51.2,0.85,38.72,3
+11th Gen Intel Core i7-11700K @ 3.60GHz,Core 11th gen,51.2,8.37,4.43,1
+11th Gen Intel Core i7-11700KF @ 3.60GHz,Core 11th gen,51.2,4.58,6.27,1
+11th Gen Intel Core i7-11700KF @ 3.60GHz,Core 11th gen,51.2,8.37,3.79,1
+11th Gen Intel Core i9-11900K @ 3.50GHz,Core 11th gen,51.2,0.85,48.01,1
+11th Gen Intel Core i9-11900K @ 3.50GHz,Core 11th gen,51.2,4.58,8.79,1
+11th Gen Intel Core i9-11900K @ 3.50GHz,Core 11th gen,51.2,8.37,4.76,1
+AMD Ryzen 3 3300X 4-Core Processor,AM4 Zen 2,51.2,0.85,29.2,1
+AMD Ryzen 5 3400G with Radeon Vega Graphics,AM4 Zen 2,51.2,4.58,4.74,1
+AMD Ryzen 5 3600 6-Core Processor,AM4 Zen 2,51.2,0.85,33.92,4
+AMD Ryzen 5 3600 6-Core Processor,AM4 Zen 2,51.2,4.58,6.36,4
+AMD Ryzen 5 3600 6-Core Processor,AM4 Zen 2,51.2,8.37,4.21,2
+AMD Ryzen 5 5600 6-Core Processor,AM4 Zen 3,51.2,0.85,43.72,1
+AMD Ryzen 5 5600 6-Core Processor,AM4 Zen 3,51.2,4.58,8.34,1
+AMD Ryzen 5 5600G with Radeon Graphics,AM4 Zen 3,51.2,0.85,38.34,2
+AMD Ryzen 5 5600G with Radeon Graphics,AM4 Zen 3,51.2,4.58,4.99,1
+AMD Ryzen 5 5600G with Radeon Graphics,AM4 Zen 3,51.2,8.37,4.71,1
+AMD Ryzen 5 5600X 6-Core Processor,AM4 Zen 3,51.2,0.85,39.79,6
+AMD Ryzen 5 5600X 6-Core Processor,AM4 Zen 3,51.2,4.58,7.58,1
+AMD Ryzen 5 5600X 6-Core Processor,AM4 Zen 3,51.2,8.37,4.23,3
+AMD Ryzen 7 3700X 8-Core Processor,AM4 Zen 2,51.2,0.85,38.3,6
+AMD Ryzen 7 3700X 8-Core Processor,AM4 Zen 2,51.2,4.58,6.75,3
+AMD Ryzen 7 3700X 8-Core Processor,AM4 Zen 2,51.2,8.37,4.13,1
+AMD Ryzen 7 3800X 8-Core Processor,AM4 Zen 2,51.2,0.85,29.51,1
+AMD Ryzen 7 5700G with Radeon Graphics,AM4 Zen 3,51.2,4.58,8.51,1
+AMD Ryzen 7 5700G with Radeon Graphics,AM4 Zen 3,51.2,8.37,4.52,4
+AMD Ryzen 7 5700X 8-Core Processor,AM4 Zen 3,51.2,0.85,40.29,4
+AMD Ryzen 7 5700X 8-Core Processor,AM4 Zen 3,51.2,4.58,7.67,2
+AMD Ryzen 7 5700X 8-Core Processor,AM4 Zen 3,51.2,8.37,4.24,1
+AMD Ryzen 7 5700X3D 8-Core Processor,AM4 Zen 3,51.2,0.85,41.8,2
+AMD Ryzen 7 5700X3D 8-Core Processor,AM4 Zen 3,51.2,4.58,7.82,2
+AMD Ryzen 7 5700X3D 8-Core Processor,AM4 Zen 3,51.2,8.37,4.07,4
+AMD Ryzen 7 5800X 8-Core Processor,AM4 Zen 3,51.2,0.85,32.21,3
+AMD Ryzen 7 5800X 8-Core Processor,AM4 Zen 3,51.2,4.58,6.27,1
+AMD Ryzen 7 5800X 8-Core Processor,AM4 Zen 3,51.2,8.37,4.15,4
+AMD Ryzen 7 5800X3D 8-Core Processor,AM4 Zen 3,51.2,0.85,47.95,3
+AMD Ryzen 7 5800X3D 8-Core Processor,AM4 Zen 3,51.2,4.58,8.71,2
+AMD Ryzen 7 5800X3D 8-Core Processor,AM4 Zen 3,51.2,8.37,4.65,1
+AMD Ryzen 9 3900X 12-Core Processor,AM4 Zen 2,51.2,0.85,41.39,5
+AMD Ryzen 9 3900X 12-Core Processor,AM4 Zen 2,51.2,4.58,8.43,4
+AMD Ryzen 9 3900X 12-Core Processor,AM4 Zen 2,51.2,8.37,4.36,4
+AMD Ryzen 9 3950X 16-Core Processor,AM4 Zen 2,51.2,0.85,37.6,2
+AMD Ryzen 9 3950X 16-Core Processor,AM4 Zen 2,51.2,8.37,3.96,1
+AMD Ryzen 9 5900X 12-Core Processor,AM4 Zen 3,51.2,0.85,46.91,6
+AMD Ryzen 9 5900X 12-Core Processor,AM4 Zen 3,51.2,4.58,8.76,2
+AMD Ryzen 9 5900X 12-Core Processor,AM4 Zen 3,51.2,8.37,4.79,2
+AMD Ryzen 9 5950X 16-Core Processor,AM4 Zen 3,51.2,0.85,45.37,7
+AMD Ryzen 9 5950X 16-Core Processor,AM4 Zen 3,51.2,4.58,8.68,3
+AMD Ryzen 9 5950X 16-Core Processor,AM4 Zen 3,51.2,8.37,4.65,6
+Intel Xeon CPU E5-1620 v3 @ 3.50GHz,Xeon E5 v3,68.3,4.58,4.93,1
+Intel Xeon CPU E5-1630 v3 @ 3.70GHz,Xeon E5 v3,68.3,0.85,31.36,1
+Intel Xeon CPU E5-1630 v3 @ 3.70GHz,Xeon E5 v3,68.3,4.58,5.99,1
+Intel Xeon CPU E5-1630 v3 @ 3.70GHz,Xeon E5 v3,68.3,8.37,3.26,1
+Intel Xeon CPU E5-1650 v3 @ 3.50GHz,Xeon E5 v3,68.3,4.58,5.16,2
+Intel Xeon CPU E5-2620 v3 @ 2.40GHz,Xeon E5 v3,68.3,0.85,21.7,1
+Intel Xeon CPU E5-2630 v3 @ 2.40GHz,Xeon E5 v3,68.3,0.85,37.67,1
+Intel Xeon CPU E5-2630 v3 @ 2.40GHz,Xeon E5 v3,68.3,4.58,7.59,1
+Intel Xeon CPU E5-2660 v3 @ 2.60GHz,Xeon E5 v3,68.3,0.85,26.69,2
+Intel Xeon CPU E5-2660 v3 @ 2.60GHz,Xeon E5 v3,68.3,8.37,2.16,1
+Intel Xeon CPU E5-2667 v3 @ 3.20GHz,Xeon E5 v3,68.3,0.85,16.72,1
+Intel Xeon CPU E5-2687W v3 @ 3.10GHz,Xeon E5 v3,68.3,0.85,49.5,1
+Intel Xeon CPU E5-2697 v3 @ 2.60GHz,Xeon E5 v3,68.3,0.85,34.47,1
+Intel Xeon CPU E5-2699 v3 @ 2.30GHz,Xeon E5 v3,68.3,0.85,21.99,2
+Intel Xeon CPU E5-2699 v3 @ 2.30GHz,Xeon E5 v3,68.3,4.58,5.32,1
+Intel Xeon CPU E5-1620 v4 @ 3.50GHz,Xeon E5 v4,76.8,0.85,29.52,1
+Intel Xeon CPU E5-1620 v4 @ 3.50GHz,Xeon E5 v4,76.8,4.58,5.61,1
+Intel Xeon CPU E5-1620 v4 @ 3.50GHz,Xeon E5 v4,76.8,8.37,3.03,1
+Intel Xeon CPU E5-2630 v4 @ 2.20GHz,Xeon E5 v4,76.8,0.85,33.33,1
+Intel Xeon CPU E5-2630 v4 @ 2.20GHz,Xeon E5 v4,76.8,4.58,6.87,1
+Intel Xeon CPU E5-2630 v4 @ 2.20GHz,Xeon E5 v4,76.8,8.37,4.51,1
+Intel Xeon CPU E5-2640 v4 @ 2.40GHz,Xeon E5 v4,76.8,0.85,17.22,1
+Intel Xeon CPU E5-2650 v4 @ 2.20GHz,Xeon E5 v4,76.8,0.85,31.67,2
+Intel Xeon CPU E5-2650 v4 @ 2.20GHz,Xeon E5 v4,76.8,4.58,9.95,1
+Intel Xeon CPU E5-2650 v4 @ 2.20GHz,Xeon E5 v4,76.8,8.37,5.6,1
+Intel Xeon CPU E5-2673 v4 @ 2.30GHz,Xeon E5 v4,76.8,4.58,2.72,1
+Intel Xeon CPU E5-2680 v4 @ 2.40GHz,Xeon E5 v4,76.8,0.85,27.71,1
+Intel Xeon CPU E5-2680 v4 @ 2.40GHz,Xeon E5 v4,76.8,4.58,5.23,1
+Intel Xeon CPU E5-2680 v4 @ 2.40GHz,Xeon E5 v4,76.8,8.37,3.17,3
+Intel Xeon CPU E5-2690 v4 @ 2.60GHz,Xeon E5 v4,76.8,0.85,50.9,2
+Intel Xeon CPU E5-2690 v4 @ 2.60GHz,Xeon E5 v4,76.8,4.58,9.75,1
+Intel Xeon CPU E5-2690 v4 @ 2.60GHz,Xeon E5 v4,76.8,8.37,5.89,1
+Intel Xeon CPU E5-2695 v4 @ 2.10GHz,Xeon E5 v4,76.8,0.85,35.16,1
+Intel Xeon CPU E5-2696 v4 @ 2.20GHz,Xeon E5 v4,76.8,0.85,36.72,2
+Intel Xeon CPU E5-2696 v4 @ 2.20GHz,Xeon E5 v4,76.8,4.58,11.22,1
+Intel Xeon CPU E5-2697 v4 @ 2.30GHz,Xeon E5 v4,76.8,0.85,30.67,1
+Intel Xeon CPU E5-2698 v4 @ 2.20GHz,Xeon E5 v4,76.8,0.85,53.23,1
+Intel Xeon CPU E5-2699 v4 @ 2.20GHz,Xeon E5 v4,76.8,0.85,29.11,2
+Intel Xeon CPU E5-2699 v4 @ 2.20GHz,Xeon E5 v4,76.8,4.58,5.46,1
+Intel Xeon CPU E5-2699 v4 @ 2.20GHz,Xeon E5 v4,76.8,8.37,4.4,1
+AMD Ryzen 5 7500F 6-Core Processor,AM5 Zen 4,96.0,0.85,50.63,1
+AMD Ryzen 5 7500F 6-Core Processor,AM5 Zen 4,96.0,4.58,10.12,1
+AMD Ryzen 5 7600 6-Core Processor,AM5 Zen 4,96.0,0.85,54.51,1
+AMD Ryzen 5 7600X 6-Core Processor,AM5 Zen 4,96.0,0.85,58.0,2
+AMD Ryzen 5 7600X 6-Core Processor,AM5 Zen 4,96.0,4.58,10.81,1
+AMD Ryzen 5 7600X 6-Core Processor,AM5 Zen 4,96.0,8.37,5.79,2
+AMD Ryzen 5 9500F 6-Core Processor,AM5 Zen 5,96.0,8.37,7.33,1
+AMD Ryzen 5 9600X 6-Core Processor,AM5 Zen 5,96.0,0.85,56.09,3
+AMD Ryzen 7 7700 8-Core Processor,AM5 Zen 4,96.0,0.85,61.53,1
+AMD Ryzen 7 7700X 8-Core Processor,AM5 Zen 4,96.0,0.85,56.92,2
+AMD Ryzen 7 7800X3D 8-Core Processor,AM5 Zen 4,96.0,0.85,56.44,7
+AMD Ryzen 7 7800X3D 8-Core Processor,AM5 Zen 4,96.0,4.58,10.38,4
+AMD Ryzen 7 7800X3D 8-Core Processor,AM5 Zen 4,96.0,8.37,5.81,6
+AMD Ryzen 7 9700X 8-Core Processor,AM5 Zen 5,96.0,0.85,53.31,3
+AMD Ryzen 7 9700X 8-Core Processor,AM5 Zen 5,96.0,4.58,10.71,4
+AMD Ryzen 7 9700X 8-Core Processor,AM5 Zen 5,96.0,8.37,6.14,3
+AMD Ryzen 7 9800X3D 8-Core Processor,AM5 Zen 5,96.0,0.85,63.39,6
+AMD Ryzen 7 9800X3D 8-Core Processor,AM5 Zen 5,96.0,4.58,12.37,1
+AMD Ryzen 7 9800X3D 8-Core Processor,AM5 Zen 5,96.0,8.37,6.41,2
+AMD Ryzen 7 9850X3D 8-Core Processor,AM5 Zen 5,96.0,8.37,6.6,1
+AMD Ryzen 9 7900 12-Core Processor,AM5 Zen 4,96.0,0.85,51.45,1
+AMD Ryzen 9 7900X 12-Core Processor,AM5 Zen 4,96.0,0.85,53.11,2
+AMD Ryzen 9 7900X 12-Core Processor,AM5 Zen 4,96.0,4.58,8.54,1
+AMD Ryzen 9 7900X3D 12-Core Processor,AM5 Zen 4,96.0,0.85,62.32,1
+AMD Ryzen 9 7900X3D 12-Core Processor,AM5 Zen 4,96.0,4.58,9.01,1
+AMD Ryzen 9 7950X 16-Core Processor,AM5 Zen 4,96.0,0.85,47.53,1
+AMD Ryzen 9 7950X 16-Core Processor,AM5 Zen 4,96.0,4.58,8.83,1
+AMD Ryzen 9 7950X 16-Core Processor,AM5 Zen 4,96.0,8.37,7.64,1
+AMD Ryzen 9 7950X3D 16-Core Processor,AM5 Zen 4,96.0,0.85,62.74,2
+AMD Ryzen 9 7950X3D 16-Core Processor,AM5 Zen 4,96.0,4.58,11.38,2
+AMD Ryzen 9 7950X3D 16-Core Processor,AM5 Zen 4,96.0,8.37,5.82,1
+AMD Ryzen 9 9900X 12-Core Processor,AM5 Zen 5,96.0,0.85,70.32,3
+AMD Ryzen 9 9900X 12-Core Processor,AM5 Zen 5,96.0,8.37,7.23,2
+AMD Ryzen 9 9950X 16-Core Processor,AM5 Zen 5,96.0,0.85,70.37,4
+AMD Ryzen 9 9950X 16-Core Processor,AM5 Zen 5,96.0,4.58,11.49,1
+AMD Ryzen 9 9950X 16-Core Processor,AM5 Zen 5,96.0,8.37,6.4,1
+AMD Ryzen 9 9950X3D 16-Core Processor,AM5 Zen 5,96.0,0.85,62.54,6
+AMD Ryzen 9 9950X3D 16-Core Processor,AM5 Zen 5,96.0,4.58,11.29,4
+AMD Ryzen 9 9950X3D 16-Core Processor,AM5 Zen 5,96.0,8.37,6.36,4
+AMD Ryzen 9 9950X3D2 16-Core Processor,AM5 Zen 5,96.0,4.58,12.23,1
+AMD Ryzen 9 9950X3D2 16-Core Processor,AM5 Zen 5,96.0,8.37,6.7,2
+Apple M3 4P+4E,Apple,100.0,0.85,61.58,1
+Apple M3 4P+4E,Apple,100.0,4.58,11.83,1
+AMD Ryzen Threadripper 3960X 24-Core Processor,TRX40 4-channel,102.4,0.85,71.86,2
+AMD Ryzen Threadripper 3960X 24-Core Processor,TRX40 4-channel,102.4,4.58,14.52,2
+AMD Ryzen Threadripper 3960X 24-Core Processor,TRX40 4-channel,102.4,8.37,7.93,2
+AMD Ryzen Threadripper 3970X 32-Core Processor,TRX40 4-channel,102.4,0.85,48.05,3
+AMD Ryzen Threadripper 3970X 32-Core Processor,TRX40 4-channel,102.4,8.37,5.22,2
+Intel Core Ultra 5 245K,LGA1851,102.4,8.37,5.36,1
+Intel Core Ultra 7 265F,LGA1851,102.4,8.37,6.8,1
+Intel Core Ultra 7 265K,LGA1851,102.4,0.85,79.97,1
+Intel Core Ultra 7 265K,LGA1851,102.4,4.58,13.57,1
+Intel Core Ultra 7 265K,LGA1851,102.4,8.37,6.84,4
+Intel Core Ultra 7 270K Plus,LGA1851,102.4,0.85,74.44,1
+Intel Core Ultra 7 270K Plus,LGA1851,102.4,8.37,7.61,2
+Intel Core Ultra 9 285K,LGA1851,102.4,0.85,70.91,6
+Intel Core Ultra 9 285K,LGA1851,102.4,4.58,10.89,1
+Intel Core Ultra 9 285K,LGA1851,102.4,8.37,7.81,4
+Apple M4 4P+6E,Apple,120.0,0.85,67.95,1
+AMD Ryzen Threadripper 7970X 32-Cores,TR5 4-channel,192.0,0.85,125.42,3
+AMD Ryzen Threadripper 9970X 32-Cores,TR5 4-channel,192.0,0.85,125.46,1
+AMD Ryzen Threadripper PRO 3945WX 12-Cores,WRX80 8-channel,204.8,0.85,57.63,4
+AMD Ryzen Threadripper PRO 3945WX 12-Cores,WRX80 8-channel,204.8,4.58,12.45,4
+AMD Ryzen Threadripper PRO 3945WX 12-Cores,WRX80 8-channel,204.8,8.37,7.21,3
+AMD Ryzen Threadripper PRO 3955WX 16-Cores,WRX80 8-channel,204.8,0.85,55.34,1
+AMD Ryzen Threadripper PRO 3955WX 16-Cores,WRX80 8-channel,204.8,4.58,10.34,1
+AMD Ryzen Threadripper PRO 3975WX 32-Cores,WRX80 8-channel,204.8,8.37,11.48,1
+AMD Ryzen Threadripper PRO 3995WX 64-Cores,WRX80 8-channel,204.8,0.85,101.52,1
+AMD Ryzen Threadripper PRO 5945WX 12-Cores,WRX80 8-channel,204.8,0.85,48.34,1
+AMD Ryzen Threadripper PRO 5945WX 12-Cores,WRX80 8-channel,204.8,4.58,9.75,1
+AMD Ryzen Threadripper PRO 5975WX 32-Cores,WRX80 8-channel,204.8,8.37,5.42,1
+AMD RYZEN AI MAX PRO 390 w/ Radeon 8050S,Strix Halo,256.0,0.85,58.47,1
+AMD RYZEN AI MAX+ 395 w/ Radeon 8060S,Strix Halo,256.0,0.85,108.12,5
+AMD RYZEN AI MAX+ 395 w/ Radeon 8060S,Strix Halo,256.0,4.58,21.78,1
+AMD RYZEN AI MAX+ 395 w/ Radeon 8060S,Strix Halo,256.0,8.37,11.47,8
+AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S,Strix Halo,256.0,0.85,107.02,3
+AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S,Strix Halo,256.0,4.58,21.37,2
+AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S,Strix Halo,256.0,8.37,11.73,1
+AMD Ryzen Threadripper PRO 7965WX 24-Cores,TR5 8-channel,332.8,0.85,151.99,1
+AMD Ryzen Threadripper PRO 7965WX 24-Cores,TR5 8-channel,332.8,8.37,18.51,1
+AMD Ryzen Threadripper PRO 7975WX 32-Cores,TR5 8-channel,332.8,8.37,18.34,1
+AMD Ryzen Threadripper PRO 7995WX,TR5 8-channel,332.8,0.85,118.18,1
+AMD Ryzen Threadripper PRO 9965WX 24-Cores,TR5 8-channel,409.6,8.37,22.39,1
+AMD Ryzen Threadripper PRO 9995WX,TR5 8-channel,409.6,8.37,23.87,1
+AMD EPYC 9135 16-Core Processor,SP5 12-channel,460.8,8.37,26.09,1
+AMD EPYC 9454P 48-Core Processor,SP5 12-channel,460.8,0.85,148.63,1
+AMD EPYC 9454P 48-Core Processor,SP5 12-channel,460.8,8.37,20.92,1
+AMD EPYC 9634 84-Core Processor,SP5 12-channel,460.8,0.85,41.12,1
+Apple M4 Max 12P+4E,Apple,546.0,0.85,156.3,1
+Apple M1 Ultra 16P+4E,Apple,800.0,0.85,57.07,1
+Apple M1 Ultra 16P+4E,Apple,800.0,4.58,15.25,1
+Apple M1 Ultra 16P+4E,Apple,800.0,8.37,7.99,1
+Apple M2 Ultra 16P+8E,Apple,800.0,0.85,120.41,1

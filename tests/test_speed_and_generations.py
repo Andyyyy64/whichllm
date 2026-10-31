@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import pytest
+
 from whichllm.engine.ranker import rank_models
+from whichllm.engine.ranking import _hide_older_generations
 from whichllm.engine.ranking_filters import _newer_generation
 from whichllm.engine.ranking_score import USABLE_SPEED_TOK_S, _compute_quality_score
+from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.types import GPUInfo, HardwareInfo
 from whichllm.models.types import GGUFVariant, ModelInfo
 
@@ -139,3 +143,25 @@ def test_an_older_generation_that_outranks_the_newer_one_is_kept():
 
     assert [r.model.id for r in results] == [q36.id, q38.id]
     assert results[0].older_generations == []
+
+
+@pytest.mark.parametrize(("older_score", "kept"), [(71.5, 1), (72.5, 2)])
+def test_an_older_generation_needs_a_clear_lead_to_keep_its_row(older_score, kept):
+    def row(model_id: str, billions: float, score: float) -> CompatibilityResult:
+        return CompatibilityResult(
+            model=_model(model_id, billions),
+            gguf_variant=None,
+            can_run=True,
+            vram_required_bytes=0,
+            vram_available_bytes=0,
+            quality_score=score,
+        )
+
+    older = row("Qwen/Qwen3.6-27B", 27.8, older_score)
+    newer = row("Qwen/Qwen3.8-27B", 27.3, 70.0)
+
+    results = _hide_older_generations([older, newer])
+
+    assert len(results) == kept
+    assert results[-1] is newer
+    assert newer.older_generations == ([older.model.id] if kept == 1 else [])
