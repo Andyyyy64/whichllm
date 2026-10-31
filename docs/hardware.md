@@ -297,10 +297,25 @@ available RAM reported by the OS, or pass a fixed budget such as
 
 ## Multiple GPUs
 
-For fit checks, whichllm uses a conservative multi-GPU budget rather than
-pretending all VRAM is one perfect device. It starts from raw total VRAM, applies
-a small per-GPU overhead, and then applies a utilization factor. Homogeneous
-sets receive a less severe reduction than heterogeneous sets.
+For fit checks, whichllm plans a layer split instead of pretending all VRAM is
+one perfect device. Each device first pays its own runtime buffer (driver
+context, graph buffers, allocator slack). The budget left on each device is what
+the plan can use, and weights and KV cache are assigned in proportion to it.
+The runtime-only part of the estimate — activation buffers and framework
+overhead — cannot be split by a layer split, so it is reserved on the device
+with the most capacity. A utilization factor is applied last: homogeneous sets
+receive a less severe reduction than heterogeneous sets.
+
+A device that cannot pay its own runtime buffer stays out of the pool before any
+of that is decided: two identical cards beside a card with 256 MiB free keep the
+homogeneous 0.95 budget, the speed estimate ignores the card that holds nothing,
+and one remaining card is treated as a plain single-GPU fit at its full
+available memory. Because the shares are proportional to what each device has
+left, the only way a split fails is the runtime-only part: when that fits no
+single device, the placement is rejected even though the pooled budget would
+have covered the estimate, and the pooled budget then only carries the partial
+offload. The plan also describes the GPU-resident part of an expert or layer
+offload, which is what the devices hold once the rest is in system RAM.
 
 If a dedicated GPU is present, low-aperture shared-memory integrated GPUs are
 not added to the fit pool. This avoids treating unrelated system RAM and
@@ -322,13 +337,13 @@ PCIe/NVLink, and the backend.
 This is a practical fit approximation. It does not model every tensor-parallel
 or pipeline-parallel runtime configuration.
 
-The fit check compares a combined memory estimate with the effective GPU budget;
-it does not assign weights and KV cache separately to individual GPUs. LM Studio
-can use a different placement, so its per-GPU memory usage can differ even when
-the model runs within the estimated speed range. To compare a real run, record
-the model and quantization, context length, runtime version, GPU layer split,
-per-GPU memory use, KV-cache placement, and generation speed. See [#104](https://github.com/Andyyyy64/whichllm/issues/104)
-for the reported multi-GPU case.
+The estimated per-GPU memory use can still differ from a real run: LM Studio and
+llama.cpp choose their own layer split. To compare a real run, record the model
+and quantization, context length, runtime version, GPU layer split, per-GPU
+memory use, KV-cache placement, and generation speed. See
+[#104](https://github.com/Andyyyy64/whichllm/issues/104) and
+[#189](https://github.com/Andyyyy64/whichllm/issues/189) for the reported
+multi-GPU cases.
 
 ## Disk checks
 

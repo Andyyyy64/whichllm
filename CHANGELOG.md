@@ -78,6 +78,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Changed
 
+- Multi-GPU fit now plans a layer split per device instead of comparing one
+  combined budget. Each device pays its own runtime buffer first, the weights
+  and KV cache that stay on the GPUs are assigned in proportion to what is
+  left, and the part a split cannot divide (activation buffers and framework
+  overhead) is reserved on the device with the most capacity. A device that
+  cannot pay its own buffer stays out of the pool, so it no longer changes the
+  homogeneous budget or the split speed, and one remaining card is a plain
+  single-GPU fit at its full memory. Because the shares are proportional, the
+  only failing case is the runtime-only part: a placement whose runtime-only
+  part fits no single device is rejected even when the pooled budget would have
+  covered the estimate, and an oversized model keeps its pooled partial offload.
+  `--json` reports the per-device share under `placement.devices`. This is the
+  estimator part of #189; the per-device comparison on real hardware is still
+  open. (#104, #189)
 - **Breaking:** `--ram-bandwidth` is now system RAM bandwidth, no longer an
   alias of `--bandwidth`. It bounds CPU-only runs, experts in RAM and
   offloaded layers; for an iGPU or unified memory it still sets the GPU's

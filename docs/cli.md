@@ -140,7 +140,7 @@ Ranking JSON model rows include:
 | Field | Meaning |
 | --- | --- |
 | `fit_type` | Runtime fit classification: `full_gpu`, `partial_offload`, or `cpu_only` |
-| `placement` | Where the weights live: `kind` (`gpu`, `expert_offload`, `layer_offload`, `cpu`), `gpu_weight_bytes`, `cpu_weight_bytes`, `n_cpu_moe` (llama.cpp `--n-cpu-moe`; `null` with expert offload means every expert, `--cpu-moe`), `n_gpu_layers`, `num_layers` |
+| `placement` | Where the weights live: `kind` (`gpu`, `expert_offload`, `layer_offload`, `cpu`), `gpu_weight_bytes`, `cpu_weight_bytes`, `n_cpu_moe` (llama.cpp `--n-cpu-moe`; `null` with expert offload means every expert, `--cpu-moe`), `n_gpu_layers`, `num_layers`, and `devices` — the per-device share of the GPU-resident part on a pooled multi-GPU fit: `name`, `available_bytes`, `budget_bytes` (after that device's runtime buffer), `weight_bytes`, `kv_bytes`, `nonsplittable_bytes` (activation buffers and framework overhead, reserved on one device), `required_bytes`, `fits` |
 | `vram_required_bytes` | Estimated runtime memory requirement for the candidate |
 | `vram_available_bytes` | GPU memory budget used for the fit check |
 | `uses_multi_gpu` | Whether the fit check used more than one GPU |

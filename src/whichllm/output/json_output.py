@@ -6,6 +6,7 @@ import json
 
 from dataclasses import asdict
 
+from whichllm.engine.multi_gpu import DevicePlacement
 from whichllm.engine.quantization import effective_quant_type, estimate_weight_bytes
 from whichllm.engine.recipe import build_recipe
 from whichllm.engine.types import CompatibilityResult
@@ -13,6 +14,15 @@ from whichllm.hardware.types import HardwareInfo
 from whichllm.models.types import GGUFVariant, ModelInfo
 from whichllm.output import _console
 from whichllm.output.upgrade import _summarize_row
+
+
+def _placement_rows(
+    devices: tuple[DevicePlacement, ...] | list[DevicePlacement] | None,
+) -> list[dict[str, object]] | None:
+    """Serialize a per-device layer split for JSON consumers."""
+    if not devices:
+        return None
+    return [asdict(device) for device in devices]
 
 
 def _placement_json(result: CompatibilityResult) -> dict | None:
@@ -26,6 +36,7 @@ def _placement_json(result: CompatibilityResult) -> dict | None:
         "n_cpu_moe": placement.n_cpu_moe,
         "n_gpu_layers": placement.n_gpu_layers,
         "num_layers": placement.num_layers,
+        "devices": _placement_rows(placement.devices),
     }
 
 
