@@ -37,6 +37,7 @@ from whichllm.constants import GPU_BANDWIDTH
 from whichllm.engine.performance import estimate_tok_per_sec
 from whichllm.hardware import jetson, nvidia
 from whichllm.hardware.gpu_db import resolve_detected_bandwidth
+from whichllm.hardware.gpu_simulator import create_synthetic_gpu
 from whichllm.hardware.types import GPUInfo
 from whichllm.models.types import GGUFVariant, ModelInfo
 
@@ -66,6 +67,20 @@ def _isolate_device_tree(monkeypatch, tmp_path):
 def _write_dt(tmp_path, compatible: str) -> None:
     (tmp_path / "compatible").write_bytes(compatible.encode())
     jetson.detect_jetson_module.cache_clear()
+
+
+@pytest.mark.parametrize(
+    ("name", "memory_gb"),
+    [
+        ("Jetson AGX Orin", None),
+        ("Jetson AGX Orin 64 GB", None),
+        ("Jetson Orin NX", 16),
+        ("Jetson Orin Nano", 8),
+        ("Jetson AGX Xavier", None),
+    ],
+)
+def test_a_simulated_jetson_has_unified_memory(name, memory_gb):
+    assert create_synthetic_gpu(name, memory_gb).shared_memory is True
 
 
 # --- device-tree module identification ---------------------------------------
