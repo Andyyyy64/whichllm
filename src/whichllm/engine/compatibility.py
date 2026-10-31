@@ -173,7 +173,6 @@ def _multi_gpu_fit_budget(
     nonsplittable_bytes: int,
 ) -> _MultiGpuFit:
     """Pooled budget for the placement choice, plus the per-device plan."""
-    raw_total = sum(available)
     if len(gpus) <= 1:
         return _single_device_fit(gpus, available, 1.0)
 
@@ -231,7 +230,7 @@ def _multi_gpu_fit_budget(
     warnings.append(
         "Multi-GPU fit uses a conservative layer-split budget: "
         f"{plan.pooled_bytes / _GiB:.1f} GB effective from "
-        f"{raw_total / _GiB:.1f} GB raw VRAM"
+        f"{sum(usable_available) / _GiB:.1f} GB raw VRAM"
     )
     if not homogeneous:
         warnings.append(
