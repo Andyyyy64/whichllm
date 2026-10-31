@@ -199,7 +199,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   a GPU, Xeon, EPYC and Threadripper are `low` confidence. MoE estimates on the
   CPU keep their own calibration.
 - An older generation keeps its own row only when it outscores the newer one by
-  more than 2 points. A model that won by a fraction of a point stayed listed.
+  more than 2 points. Any lead at all used to keep it listed.
 - Recipes for unsloth's dynamic quants and Bartowski's XL files work. A label
   like `UD-Q4_K_XL` lost its suffix, and the Hub answers 400 to
   `llama-server -hf repo:Q4_K`.
