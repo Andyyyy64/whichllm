@@ -283,6 +283,24 @@ something to chat with."""
 patterns = ['(?i)diffusion', '(?i)dflash']
 
 [[constraint]]
+id = "no-test-fixtures"
+kind = "never_in_top"
+top = 50
+profiles = ["general", "coding", "vision", "math", "any"]
+rationale = """CI fixtures have huge download counts and no use, so they must not
+appear anywhere in the list."""
+patterns = ['(?i)tiny-random', '-internal-testing/']
+
+[[constraint]]
+id = "tiny-is-a-size"
+kind = "any_in_top"
+top = 5
+archetypes = ["m1-8gb-mac", "cpu-16gb-win"]
+rationale = """Ling-3.0-tiny is a real 8B model with direct benchmarks and the
+right size for these machines. A name rule meant for fixtures must not hide it."""
+patterns = ['(?i)ling-3\.0-tiny']
+
+[[constraint]]
 id = "qwen25-not-top1"
 kind = "never_in_top"
 top = 1

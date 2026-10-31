@@ -224,10 +224,10 @@ Catalog captured 2026-10-28 with whichllm 0.5.21 (9f3709f): 1129 models, 4728 be
 ## m1-8gb-mac / general
 
 1. Qwen/Qwen3.5-4B [Q5_K_M, full_gpu, 9.1 tok/s, score 55.4]
-2. google/gemma-3-4b-it [Q5_K_M, full_gpu, 9.8 tok/s, score 53.1]
-3. unsloth/gemma-4-E4B-it-GGUF [Q3_K_M, full_gpu, 8.5 tok/s, score 50.6]
-4. AtomicChat/LFM2.5-8B-A1B-GGUF [IQ4_XS, full_gpu, 58.2 tok/s, score 48.0]
-5. unsloth/gemma-4-E2B-it-GGUF [IQ4_XS, full_gpu, 12.5 tok/s, score 47.5]
+2. bartowski/Ling-3.0-tiny-GGUF [IQ4_XS, full_gpu, 42.1 tok/s, score 55.4]
+3. google/gemma-3-4b-it [Q5_K_M, full_gpu, 9.8 tok/s, score 53.1]
+4. unsloth/gemma-4-E4B-it-GGUF [Q3_K_M, full_gpu, 8.5 tok/s, score 50.6]
+5. AtomicChat/LFM2.5-8B-A1B-GGUF [IQ4_XS, full_gpu, 58.2 tok/s, score 48.0]
 
 ## m4-16gb-mac / general
 
@@ -235,7 +235,7 @@ Catalog captured 2026-10-28 with whichllm 0.5.21 (9f3709f): 1129 models, 4728 be
 2. unsloth/gemma-4-12b-it-GGUF [IQ4_XS, full_gpu, 8.6 tok/s, score 63.5]
 3. google/gemma-4-26B-A4B-it [Q3_K_M, partial_offload, 25.2 tok/s, score 63.1]
 4. Qwen/Qwen3.5-9B [Q4_K_M, full_gpu, 10.0 tok/s, score 59.0]
-5. unsloth/gemma-4-E4B-it-GGUF [Q5_K_M, full_gpu, 9.9 tok/s, score 53.2]
+5. bartowski/Ling-3.0-tiny-GGUF [Q6_K, full_gpu, 43.8 tok/s, score 56.9]
 
 ## m3max-36gb-mac / general
 
@@ -297,17 +297,17 @@ Catalog captured 2026-10-28 with whichllm 0.5.21 (9f3709f): 1129 models, 4728 be
 
 1. google/gemma-4-26B-A4B-it [Q3_K_M, cpu_only, 8.4 tok/s, score 39.1]
 2. openai/gpt-oss-20b [Q3_K_M, cpu_only, 8.9 tok/s, score 36.0]
-3. AtomicChat/LFM2.5-8B-A1B-GGUF [IQ4_XS, cpu_only, 29.0 tok/s, score 27.1]
-4. microsoft/Phi-4-mini-instruct [Q3_K_M, cpu_only, 8.3 tok/s, score 25.4]
-5. Qwen/Qwen3.5-2B [Q4_K_M, cpu_only, 12.0 tok/s, score 25.4]
+3. bartowski/Ling-3.0-tiny-GGUF [IQ4_XS, cpu_only, 21.0 tok/s, score 29.6]
+4. AtomicChat/LFM2.5-8B-A1B-GGUF [IQ4_XS, cpu_only, 29.0 tok/s, score 27.1]
+5. ibm-granite/granite-4.0-h-tiny [Q3_K_M, cpu_only, 21.8 tok/s, score 26.4]
 
 ## cpu-32gb-linux / general
 
 1. Qwen/Qwen3.6-35B-A3B [Q4_K_M, cpu_only, 9.1 tok/s, score 40.4]
 2. google/gemma-4-26B-A4B-it [Q3_K_M, cpu_only, 8.4 tok/s, score 39.1]
 3. openai/gpt-oss-20b [Q3_K_M, cpu_only, 8.9 tok/s, score 36.0]
-4. AtomicChat/LFM2.5-8B-A1B-GGUF [IQ4_XS, cpu_only, 29.0 tok/s, score 27.1]
-5. microsoft/Phi-4-mini-instruct [Q3_K_M, cpu_only, 8.3 tok/s, score 25.4]
+4. bartowski/Ling-3.0-tiny-GGUF [IQ4_XS, cpu_only, 21.0 tok/s, score 29.6]
+5. AtomicChat/LFM2.5-8B-A1B-GGUF [IQ4_XS, cpu_only, 29.0 tok/s, score 27.1]
 
 ## cpu-64gb-win / general
 

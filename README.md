@@ -110,7 +110,7 @@ A wrong recommendation is a bug, so the rankings have regression tests:
 - 28 hardware archetypes, from a 4 GB GTX 1650 to a 128 GB M4 Max and a DGX
   Spark, with AMD, Intel and mixed GPU sets, CPU-only boxes and
   32K/128K-context setups, ranked against a frozen catalog of 1,129 models.
-- 27 constraints describe what a good answer looks like instead of pinning an
+- 29 constraints describe what a good answer looks like instead of pinning an
   exact order: no pretrain-only checkpoints, draft heads or diffusion models,
   no outdated generation in the top 5, the top 3 run at 8 tok/s or more
   whenever the machine has that many options that fast, full-GPU rows keep
