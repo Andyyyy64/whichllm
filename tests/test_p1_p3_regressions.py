@@ -199,6 +199,7 @@ def test_p2_is_excluded_model_helper():
     assert _is_excluded_model("trl-internal-testing/tiny-Qwen2ForCausalLM-2.5")
     assert _is_excluded_model("hmellor/tiny-random-LlamaForCausalLM")
     assert _is_excluded_model("llamafactory/tiny-random-Llama-3")
+    assert _is_excluded_model("tiny-random/qwen3.5-moe")
     assert _is_excluded_model("peft-internal-testing/tiny-dummy-qwen2")
     assert _is_excluded_model("hf-internal-testing/llama-tokenizer")
     assert not _is_excluded_model("Qwen/Qwen3-8B")

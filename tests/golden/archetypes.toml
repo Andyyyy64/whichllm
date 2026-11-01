@@ -374,8 +374,8 @@ rationale = """The top 3 must be usable, whatever the placement. The bar is
 8 tok/s (#76, #104; andy's decision of 2026-10-29), as far as the machine has
 that many candidates that fast. The check allows 1 tok/s because the bar is soft
 in the score and the estimates are not that exact: on real file sizes the
-strongest CPU picks land at 7.5-7.7 tok/s. Replacing them with a toy model at
-29 tok/s would be worse."""
+strongest CPU picks land at 7.5-7.7 tok/s, and so does the #2 on a 128 GB M4 Max
+at 7.6. A hard 8 would drop the #1 on 16 GB of RAM from a 20B model to a 4B one."""
 
 [[constraint]]
 id = "measured-qwen36-35b-expert-offload"
