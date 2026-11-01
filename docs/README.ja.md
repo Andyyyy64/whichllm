@@ -59,6 +59,14 @@ $ whichllm
 
 表示される速度はメモリ帯域からの推定で、あなたのマシンで測った値ではありません。推定がどのくらい確かかは表に表示されます。
 
+実機で確かめた例を1つ挙げます。16GB の RTX 5080 と DDR5-5600 の環境で、whichllm は Qwen3.6-35B-A3B の Q4_K_M を 70 tok/s と見積もり、次のコマンドを示します。
+
+```bash
+llama-server -hf unsloth/Qwen3.6-35B-A3B-GGUF:Q4_K_M -c 4096 -ngl 99 --n-cpu-moe 15 -fa on
+```
+
+llama.cpp b11977 で測ると 79 tok/s でした。16GB のカードで 22GB のファイルを動かした結果です。`whichllm bench` を使えば、自分のマシンでも同じ比較ができます。
+
 ## 順位の付け方
 
 品質の評価には、Artificial Analysis と LiveBench のスコアを同じスケールにそろえて平均した値を使います。`--profile coding`、`math`、`vision` では、SciCode や LiveCodeBench のようなその用途のベンチマークで順位を付けます。Open LLM Leaderboard と Chatbot Arena は更新が止まっているので、現行のソースがどれも扱っていないモデルにだけ使います。古い世代のモデルは順位を下げます。ベンチマークのスコアをモデルにどう対応づけたか（リポジトリそのもの、ベースモデル、同じファミリーからの補間、アップローダーの自己申告）も記録し、根拠が弱いほどスコアを割り引きます。事前学習だけのベースチェックポイントは推薦しません。

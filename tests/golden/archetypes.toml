@@ -383,11 +383,11 @@ kind = "row_within"
 archetypes = ["rtx5080-16gb-win"]
 quant = "Q4_K_M"
 patterns = ['^Qwen/Qwen3\.6-35B-A3B$']
-min_tok_per_sec = 59.0
-max_tok_per_sec = 109.0
-rationale = """Measured on an RTX 5080 with llama-server b11977: 88-93 tok/s
-with experts in RAM, 99.9 under Ollama. The estimate may stay 35% under that
-and 20% over it, which is how far a change can move the speed model before
+min_tok_per_sec = 52.0
+max_tok_per_sec = 95.0
+rationale = """Measured on an RTX 5080 with llama-server b11977: 79 tok/s at
+--n-cpu-moe 15, the command whichllm prints. The estimate may stay 35% under
+that and 20% over it, which is how far a change can move the speed model before
 someone has to measure again."""
 
 [[constraint]]
