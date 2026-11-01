@@ -395,9 +395,10 @@ whichllm report --file ~/.cache/whichllm/reports/20261101-123000.json
 whichllm report --manual --engine mlx --model mlx-community/Qwen3.5-9B-4bit --tok-per-sec 42
 ```
 
-Results from plain llama.cpp help calibrate the speed estimates. Results from
-Ollama, LM Studio, MLX and vLLM are kept as reference values for that runtime,
-and `--manual` results stay reference values too.
+A maintainer checks each issue. Once three verified `bench` runs on plain
+llama.cpp agree with the estimate for a GPU, that GPU's estimates count as high
+confidence. Results from Ollama, LM Studio, MLX and vLLM are kept as reference
+values for that runtime, and `--manual` results stay reference values too.
 
 ## `snippet`
 

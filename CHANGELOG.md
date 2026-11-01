@@ -17,6 +17,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - `whichllm report` shares a measurement. It prints the whole report, asks, and
   opens a prefilled GitHub issue that you submit yourself; whichllm sends nothing.
   `--manual` covers runtimes `bench` cannot drive, and `--print` opens nothing.
+- Verified measurements raise confidence. `scripts/collect_measurements.py` turns
+  issues labeled `measurement-verified` into `data/measurements.json`, and three
+  `bench` runs on plain llama.cpp that agree with the estimate make that GPU
+  `high` confidence. Other runtimes and `--manual` results stay reference values.
 - `whichllm run` opens a verified local LM Studio GGUF artifact instead of
   downloading a second copy, with the repeatable `--lm-studio-path` option. A
   match needs the resolved repository, the exact artifact path, and every part

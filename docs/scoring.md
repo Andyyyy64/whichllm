@@ -151,7 +151,7 @@ two memory channels. The CPU constants come from llama.cpp and LocalScore runs
 
 | Confidence | Range factor | Typical cases |
 | --- | ---: | --- |
-| `high` | `0.75x`-`1.30x` | A dense GGUF with a known file size, all on an NVIDIA GPU from Pascal on, a desktop RDNA Radeon or Apple Silicon |
+| `high` | `0.75x`-`1.30x` | A dense GGUF with a known file size, all on an NVIDIA GPU from Pascal on, a desktop RDNA Radeon or Apple Silicon, or on any GPU where at least 3 verified reports land inside this range |
 | `medium` | `0.60x`-`1.60x` | Other GPUs, MoE, non-GGUF, Jetson and shared-memory APUs, CPU-only and expert offload with a known RAM bandwidth, synthetic GGUFs and estimated file sizes, a dense GGUF split across identical cards |
 | `low` | `0.35x`-`2.00x` | A dense GGUF on Intel, GCN Radeon, NVIDIA before Pascal, HBM or laptop GPUs; layer offload, unknown GPU or RAM bandwidth, Apple Silicon MoE, any other multi-GPU split, Xeon, EPYC and Threadripper without a GPU |
 
