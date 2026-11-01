@@ -187,6 +187,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- RTX 50 cards show CUDA compute capability 12.0, as the driver reports, instead
+  of 10.0.
 - `--gpu "RTX 5090 Laptop"` works, and so does the name a driver reports.
   `Laptop` was unknown, `GeForce RTX 5090 Laptop GPU` silently simulated the
   desktop card at twice the bandwidth, and `RTX 5090 Max-Q` became an RTX A5000.

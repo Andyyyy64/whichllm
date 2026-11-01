@@ -234,11 +234,11 @@ INTEL_PCI_DEVICE_NAMES: dict[str, str] = {
 # NVIDIA GPU compute capability lookup (substring match, case-insensitive)
 NVIDIA_COMPUTE_CAPABILITY: dict[str, tuple[int, int]] = {
     # RTX 50 series (Blackwell)
-    "RTX 5090": (10, 0),
-    "RTX 5080": (10, 0),
-    "RTX 5070": (10, 0),
-    "RTX 5070 Ti": (10, 0),
-    "RTX 5060": (10, 0),
+    "RTX 5090": (12, 0),
+    "RTX 5080": (12, 0),
+    "RTX 5070": (12, 0),
+    "RTX 5070 Ti": (12, 0),
+    "RTX 5060": (12, 0),
     # RTX 40 series (Ada Lovelace)
     "RTX 4090": (8, 9),
     "RTX 4080": (8, 9),
