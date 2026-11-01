@@ -1,6 +1,7 @@
 # VHS demo recording for whichllm run/snippet
 # Install: https://github.com/charmbracelet/vhs
-# Run: cd assets && vhs demo-run.tape
+# Needs llama-cli on PATH and unsloth/Qwen3.5-2B-GGUF:Q4_K_M in its cache.
+# Run: cd assets && LLAMA_ARG_THREADS=8 vhs demo-run.tape
 # Output: demo-run.gif
 
 Output demo-run.gif
@@ -11,6 +12,7 @@ Set Height 800
 Set Theme "Catppuccin Mocha"
 Set Padding 20
 Set TypingSpeed 50ms
+Set Framerate 10
 
 # Warm up cache
 Hide
@@ -23,23 +25,22 @@ Sleep 500ms
 Show
 
 # Scene 1: snippet — show the code
-Type "whichllm snippet 'qwen 2.5 1.5b gguf'"
+Type "whichllm snippet 'qwen 3.5 2b gguf'"
 Sleep 500ms
 Enter
 Sleep 4s
 
 # Scene 2: run — download and chat
-Type "whichllm run 'qwen 2.5 1.5b gguf'"
+Type "whichllm run 'qwen 3.5 2b gguf'"
 Sleep 500ms
 Enter
-Sleep 12s
+Sleep 8s
 
 # Chat
-Type "Explain quantum computing in one sentence."
+Type "What is the capital of Japan?"
 Enter
-Sleep 8s
-Sleep 2s
+Sleep 14s
 
-Type "exit"
+Type "/exit"
 Enter
 Sleep 2s
