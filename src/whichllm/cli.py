@@ -22,6 +22,7 @@ from whichllm.cli_commands import (
     hardware_command,
     main_command,
     plan_command,
+    report_command,
     run_command,
     snippet_command,
     upgrade_command,
@@ -358,6 +359,50 @@ def bench(
         refresh=refresh,
         cpu_only=cpu_only,
         lm_studio_path=lm_studio_path,
+    )
+
+
+@app.command()
+def report(
+    file: Optional[Path] = typer.Option(
+        None, "--file", help="Report to share (default: the latest from bench)"
+    ),
+    print_only: bool = typer.Option(
+        False, "--print", help="Show the text and open nothing"
+    ),
+    manual: bool = typer.Option(
+        False, "--manual", help="Report a speed you measured yourself"
+    ),
+    engine: Optional[str] = typer.Option(
+        None, "--engine", help="Engine for --manual (e.g. mlx, vllm)"
+    ),
+    served_model: Optional[str] = typer.Option(
+        None, "--model", help="Model for --manual"
+    ),
+    tok_per_sec: Optional[float] = typer.Option(
+        None, "--tok-per-sec", help="Measured speed for --manual"
+    ),
+    quant: Optional[str] = typer.Option(
+        None, "--quant", "-q", help="Quantization for --manual"
+    ),
+    context_length: int = typer.Option(
+        4096,
+        "--context-length",
+        "-c",
+        click_type=CONTEXT_LENGTH,
+        help="Context length for --manual (e.g. 4096, 64k, 128k)",
+    ),
+):
+    """Share a measurement: show it, then open a prefilled GitHub issue."""
+    return report_command(
+        file=file,
+        print_only=print_only,
+        manual=manual,
+        engine=engine,
+        served_model=served_model,
+        tok_per_sec=tok_per_sec,
+        quant=quant,
+        context_length=context_length,
     )
 
 

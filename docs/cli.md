@@ -360,6 +360,45 @@ A saved report holds your hardware, the runtime, the model file, the placement,
 the measured speeds and the estimate. It holds no username, hostname, file path,
 serial number, IP address or generated text.
 
+## `report`
+
+```bash
+whichllm report [OPTIONS]
+```
+
+Shares a measurement. `report` prints the whole report, asks, and then opens a
+prefilled GitHub issue in your browser. whichllm sends nothing itself: you read
+the issue and submit it there, and it is public from then on.
+
+There is no option to skip the question. A report that holds a field whichllm
+does not know, as an edited file might, is refused.
+
+Options:
+
+| Option | Meaning |
+| --- | --- |
+| `--file` | Report to share (default: the latest from `bench`) |
+| `--print` | Show the text and open nothing |
+| `--manual` | Report a speed you measured yourself |
+| `--engine` | Engine for `--manual`, such as `mlx` or `vllm` |
+| `--model` | Model for `--manual` |
+| `--tok-per-sec` | Measured speed for `--manual` |
+| `--quant`, `-q` | Quantization for `--manual` |
+| `--context-length`, `-c` | Context length for `--manual` |
+
+Examples:
+
+```bash
+whichllm report
+whichllm report --print
+whichllm report --file ~/.cache/whichllm/reports/20261101-123000.json
+whichllm report --manual --engine mlx --model mlx-community/Qwen3.5-9B-4bit --tok-per-sec 42
+```
+
+Results from plain llama.cpp help calibrate the speed estimates. Results from
+Ollama, LM Studio, MLX and vLLM are kept as reference values for that runtime,
+and `--manual` results stay reference values too.
+
 ## `snippet`
 
 ```bash

@@ -269,6 +269,7 @@ def _print_result(report: dict, path: Path) -> None:
     if measured["vram_used_mb"] is not None:
         console.print(f"[bold]GPU memory[/] {measured['vram_used_mb']} MB")
     console.print(f"\n[dim]Saved to {escape(str(path))}[/]")
+    console.print("[dim]Run `whichllm report` to share it. It sends nothing itself.[/]")
 
 
 def bench_command(
