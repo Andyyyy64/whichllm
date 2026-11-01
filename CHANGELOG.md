@@ -14,6 +14,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   `--backend`, with the placement the estimate assumed. It asks before a
   download, stops what it started even after Ctrl+C, and saves nothing that
   identifies you.
+- `whichllm report` shares a measurement. It prints the whole report, asks, and
+  opens a prefilled GitHub issue that you submit yourself; whichllm sends nothing.
+  `--manual` covers runtimes `bench` cannot drive, and `--print` opens nothing.
 - `whichllm run` opens a verified local LM Studio GGUF artifact instead of
   downloading a second copy, with the repeatable `--lm-studio-path` option. A
   match needs the resolved repository, the exact artifact path, and every part

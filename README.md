@@ -153,6 +153,7 @@ whichllm plan "qwen3 32b"         # what GPU a model needs
 whichllm upgrade "RTX 4090" "RTX 5090"   # compare against candidate GPUs
 whichllm run                      # download the top pick and chat with it
 whichllm bench                    # measure the top pick on this machine
+whichllm report                   # share that measurement in a GitHub issue
 whichllm snippet                  # print Python that loads the top pick
 ```
 
