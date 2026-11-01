@@ -79,18 +79,27 @@ def _rank_named_model(
     quant: str | None,
 ) -> CompatibilityResult | None:
     """The estimate for a model the user named, resolved to a real GGUF."""
+    # Its uploads rank along, so an official repo takes their real file sizes
+    # the way it does in the table.
+    uploads = [
+        m
+        for m in models
+        if m.gguf_variants
+        and m.base_model_relation == "quantized"
+        and (m.base_model or "").casefold() == model.id.casefold()
+    ]
     ranked = rank_for_hardware(
-        [model],
+        [model, *uploads],
         hardware,
         context_length=context_length,
-        top_n=1,
+        top_n=1 + len(uploads),
         quant=quant,
         benchmark_scores={},
         min_params=0.0,
     )
     if not ranked:
         return None
-    picked = ranked[0]
+    picked = next((r for r in ranked if r.model.id == model.id), ranked[0])
     if picked.gguf_variant is not None:
         resolved = resolve_ranked_gguf_artifact(
             picked.model, picked.gguf_variant, models, quant_filter=quant
