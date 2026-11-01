@@ -76,6 +76,16 @@ line at about the same size and scores higher on current benchmarks, so the
 Speeds are estimates from memory bandwidth, not measurements of your
 machine. The table marks how confident each estimate is.
 
+Here is one checked on real hardware. On a 16 GB RTX 5080 with DDR5-5600,
+whichllm estimates 70 tok/s for Qwen3.6-35B-A3B at Q4_K_M, with this command:
+
+```bash
+llama-server -hf unsloth/Qwen3.6-35B-A3B-GGUF:Q4_K_M -c 4096 -ngl 99 --n-cpu-moe 15 -fa on
+```
+
+It measured 79 tok/s on llama.cpp b11977, from a 22 GB file on a 16 GB card.
+`whichllm bench` runs the same comparison on your machine.
+
 ## How it ranks
 
 Quality comes from Artificial Analysis and LiveBench, put on one scale and
