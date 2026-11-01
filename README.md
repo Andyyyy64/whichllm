@@ -54,7 +54,7 @@ $ whichllm
  5  zai-org/GLM-4.7-Flash         Q5_K_M  GPU+RAM   15 tok/s   62.3
 
   #1 Qwen3.6-35B-A3B also stands in for older generations of its line:
-  Qwen3.5-35B-A3B, Qwen3-30B-A3B, Qwen_Qwen3-30B-A3B-Instruct-2507-GGUF and 2 more
+  Qwen3.5-35B-A3B, Qwen3-30B-A3B, Qwen_Qwen3-30B-A3B-Instruct-2507-GGUF
 
   Run #1 with llama.cpp:
     llama-server -hf unsloth/Qwen3.6-35B-A3B-GGUF:Q6_K -c 4096 -ngl 99 --n-cpu-moe 35 -fa on
@@ -109,7 +109,7 @@ A wrong recommendation is a bug, so the rankings have regression tests:
 
 - 29 hardware archetypes, from a 4 GB GTX 1650 to a 128 GB M4 Max and a DGX
   Spark, with AMD, Intel and mixed GPU sets, CPU-only boxes and
-  32K/128K-context setups, ranked against a frozen copy of the index: 1,441
+  32K/128K-context setups, ranked against a frozen copy of the index: 1,430
   models, most GGUF repos with their real file sizes.
 - 30 constraints describe what a good answer looks like instead of pinning an
   exact order: no pretrain-only checkpoints, draft heads or diffusion models,

@@ -47,7 +47,7 @@ $ whichllm
  5  zai-org/GLM-4.7-Flash         Q5_K_M  GPU+RAM   15 tok/s   62.3
 
   #1 Qwen3.6-35B-A3B also stands in for older generations of its line:
-  Qwen3.5-35B-A3B, Qwen3-30B-A3B, Qwen_Qwen3-30B-A3B-Instruct-2507-GGUF and 2 more
+  Qwen3.5-35B-A3B, Qwen3-30B-A3B, Qwen_Qwen3-30B-A3B-Instruct-2507-GGUF
 
   Run #1 with llama.cpp:
     llama-server -hf unsloth/Qwen3.6-35B-A3B-GGUF:Q6_K -c 4096 -ngl 99 --n-cpu-moe 35 -fa on
@@ -73,7 +73,7 @@ $ whichllm
 
 推薦の間違いはバグとして扱うので、ランキングには回帰テストがあります（[`tests/golden/`](../tests/golden/)）。
 
-- 4GB の GTX 1650 から 128GB の M4 Max や DGX Spark まで、AMD、Intel、異なる GPU の組み合わせ、CPU だけのマシン、32K/128K コンテキストの構成も含めた29のハードウェア構成を、インデックスを凍結したカタログ（1,441モデル、GGUF リポジトリの多くは実ファイルサイズ付き）でランキングします。
+- 4GB の GTX 1650 から 128GB の M4 Max や DGX Spark まで、AMD、Intel、異なる GPU の組み合わせ、CPU だけのマシン、32K/128K コンテキストの構成も含めた29のハードウェア構成を、インデックスを凍結したカタログ（1,430モデル、GGUF リポジトリの多くは実ファイルサイズ付き）でランキングします。
 - 順位そのものは固定せず、良い推薦が満たすべき条件を30個の制約として書いています。たとえば、事前学習だけのチェックポイントやドラフトヘッド、拡散モデルを出さない、古い世代を上位5位に入れない、上位3件は（そこまで速い候補がある限り）8 tok/s の基準から 1 tok/s 以内に収まる、フル GPU の行は VRAM の余裕を残し Metal の上限に収まる、上位の行は `run` で起動できる、24GB 以上では最新の dense 27B が上位3位に入る、16GB のカードと 64GB の RAM ならエキスパートを RAM に置いた大きな MoE が上位5位に入る、コーディング向けの推薦が名前に「coder」を含むモデルに偏らない、などです。
 - 速度とメモリの見積もりは、RTX 5080 とその CPU の実測に加えて、194 種類の GPU で公開された llama.cpp の結果 379 件と、138 種類の CPU の LocalScore の結果 255 件（[`tests/data/`](../tests/data/)）から決めた範囲に収まることをテストしています。見積もりがずれるとテストが失敗します。
 - 全構成の上位候補を [`top_picks.md`](../tests/golden/top_picks.md) としてコミットしているので、ランキングが変わればレビューで diff として見えます。

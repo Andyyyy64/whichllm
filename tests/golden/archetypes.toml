@@ -524,9 +524,11 @@ patterns = [
 id = "no-tiny-models-12gb"
 kind = "min_params"
 min_gpu_memory_gb = 12
-min_params_b = 6.0
+min_params_b = 5.0
 rationale = """On 12 GB and up the general list has room for real models, so
-3-4B toys stay out of the top 10."""
+3-4B toys stay out of the top 10. The line sits at 5B because that is the size
+floor on a 12 GB card or a 16 GB Mac once headroom is taken off. K2-Horizon-3.7B
+counts 5.06B parameters and has a direct benchmark, so it may stay."""
 
 [[constraint]]
 id = "coding-modern-top5"
