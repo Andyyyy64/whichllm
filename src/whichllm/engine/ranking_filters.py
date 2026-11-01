@@ -32,6 +32,7 @@ _EXCLUDED_ORGS = frozenset(
         "EleutherAI",  # pythia/gpt-neo research
         "trl-internal-testing",  # TRL CI fixtures
         "hmellor",  # random tiny test models
+        "tiny-random",  # random tiny test models
         "HuggingFaceH4",  # often staging / fixtures
         "transformersbook",
         "togethercomputer",  # mostly inference endpoints, no GGUFs
