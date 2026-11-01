@@ -597,6 +597,30 @@ def test_a_named_model_gets_the_placement_the_estimate_assumed():
     assert picked.estimated_tok_per_sec > 0
 
 
+def test_a_named_official_model_is_estimated_on_its_upload():
+    official = ModelInfo(
+        id="Qwen/M-8B", family_id="m", name="M-8B", parameter_count=int(8e9)
+    )
+    upload = ModelInfo(
+        id="unsloth/M-8B-GGUF",
+        family_id="m",
+        name="M-8B-GGUF",
+        parameter_count=int(8e9),
+        gguf_variants=[GGUFVariant("M-8B-Q4_K_M.gguf", "Q4_K_M", 4 * _GiB)],
+        base_model="Qwen/M-8B",
+        base_model_relation="quantized",
+        tags=["base_model:quantized:Qwen/M-8B"],
+    )
+
+    picked = bench_command._rank_named_model(
+        [official, upload], official, _hardware(), context_length=4096, quant="Q4_K_M"
+    )
+
+    assert picked.gguf_variant.file_size_bytes == 4 * _GiB
+    assert not picked.gguf_variant.is_estimated
+    assert picked.artifact_model is upload
+
+
 def test_a_model_too_large_to_rank_runs_without_a_placement():
     model, _ = _model()
     tiny = _hardware()
