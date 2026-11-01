@@ -275,7 +275,6 @@ patterns = [
     '^Qwen/Qwen2\.5-\d+(\.\d+)?B$',
     'Qwen2\.5-Coder-\d+(\.\d+)?B(-GGUF)?$',
     '^google/gemma-2b$',
-    '^google/gemma-4-31B$',
     '^HuggingFaceTB/SmolLM2-135M$',
 ]
 
@@ -312,13 +311,12 @@ id = "no-fragment-of-a-base"
 kind = "never_in_top"
 top = 50
 rationale = """A derivative that claims under a tenth of its base cannot be that
-model: no quant shrinks one tenfold. These four are a head, broken counts and a
-bit width read as a size. They listed at up to 14,000 tok/s on an 8 GB Mac."""
+model: no quant shrinks one tenfold. These three are a head and broken counts.
+Rows like them listed at up to 14,000 tok/s on an 8 GB Mac."""
 patterns = [
     '^kaushikvira/DeepSeek-V4\.1-Flash-1017-GSQ-agentic-strata$',
     '^AtomicChat/Qwen3\.8-Flash-Next-Uncensored-GGUF$',
     '^AtomicChat/DeepSeek-V4\.1-Flash-1017-Uncensored-GGUF$',
-    '^BlackwellBoy/',
 ]
 
 [[constraint]]
@@ -524,9 +522,11 @@ patterns = [
 id = "no-tiny-models-12gb"
 kind = "min_params"
 min_gpu_memory_gb = 12
-min_params_b = 6.0
+min_params_b = 5.0
 rationale = """On 12 GB and up the general list has room for real models, so
-3-4B toys stay out of the top 10."""
+3-4B toys stay out of the top 10. The line sits at 5B because that is the size
+floor on a 12 GB card or a 16 GB Mac once headroom is taken off. K2-Horizon-3.7B
+counts 5.06B parameters and has a direct benchmark, so it may stay."""
 
 [[constraint]]
 id = "coding-modern-top5"
