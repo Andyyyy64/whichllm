@@ -18,6 +18,7 @@ from typing import Optional
 import typer
 
 from whichllm.cli_commands import (
+    bench_command,
     hardware_command,
     main_command,
     plan_command,
@@ -303,6 +304,64 @@ def run(
 
 
 @app.command()
+def bench(
+    model_name: Optional[str] = typer.Argument(
+        None, help="Model to measure (default: auto-pick best)"
+    ),
+    backend: str = typer.Option(
+        "auto",
+        "--backend",
+        help="Runtime: auto | llama-server | ollama | lm-studio | openai",
+    ),
+    url: Optional[str] = typer.Option(
+        None, "--url", help="Base URL of the server for --backend openai"
+    ),
+    engine: Optional[str] = typer.Option(
+        None, "--engine", help="Engine behind --url (e.g. vllm, sglang)"
+    ),
+    served_model: Optional[str] = typer.Option(
+        None, "--model", help="Name the server knows the model by (--backend openai)"
+    ),
+    context_length: int = typer.Option(
+        4096,
+        "--context-length",
+        "-c",
+        click_type=CONTEXT_LENGTH,
+        help="Context length (e.g. 4096, 64k, 128k)",
+    ),
+    quant: Optional[str] = typer.Option(
+        None, "--quant", "-q", help="Quantization type"
+    ),
+    runs: int = typer.Option(3, "--runs", help="Measured runs, after one warm-up"),
+    tokens: int = typer.Option(128, "--tokens", help="Tokens to generate per run"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip the download prompt"),
+    refresh: bool = typer.Option(False, "--refresh", help="Ignore cache"),
+    cpu_only: bool = typer.Option(False, "--cpu-only", help="CPU-only mode"),
+    lm_studio_path: Optional[list[Path]] = typer.Option(
+        None,
+        "--lm-studio-path",
+        help="Additional LM Studio model library path (repeatable)",
+    ),
+):
+    """Measure a model's real speed and save it next to the estimate."""
+    return bench_command(
+        model_name=model_name,
+        backend=backend,
+        url=url,
+        engine=engine,
+        served_model=served_model,
+        quant=quant,
+        context_length=context_length,
+        runs=runs,
+        tokens=tokens,
+        yes=yes,
+        refresh=refresh,
+        cpu_only=cpu_only,
+        lm_studio_path=lm_studio_path,
+    )
+
+
+@app.command()
 def snippet(
     model_name: Optional[str] = typer.Argument(
         None, help="Model to show snippet for (default: auto-pick best)"
@@ -365,4 +424,4 @@ def hardware(
     )
 
 
-__all__ = ["app", "main", "plan", "upgrade", "run", "snippet", "hardware"]
+__all__ = ["app", "main", "plan", "upgrade", "run", "bench", "snippet", "hardware"]

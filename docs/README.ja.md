@@ -98,6 +98,7 @@ whichllm hardware                 # 検出したハードウェア
 whichllm plan "qwen3 32b"         # モデルに必要な GPU
 whichllm upgrade "RTX 4090" "RTX 5090"   # 購入候補の GPU と比較
 whichllm run                      # 1位をダウンロードしてチャット
+whichllm bench                    # 1位の実際の速度をこのマシンで測る
 whichllm snippet                  # 1位を読み込む Python コードを表示
 ```
 
