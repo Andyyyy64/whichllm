@@ -67,6 +67,19 @@ a speed or memory estimate past those bounds, measure again instead of widening
 them. `tests/test_golden_checks.py` fails when a constraint's pattern no longer
 matches anything in the catalog, so a stale pattern cannot pass by accident.
 
+### Measurements
+`whichllm bench` and `whichllm report` produce issues with the `measurement`
+label. A maintainer reads each one, and if it looks real, adds
+`measurement-verified`. Then:
+
+```bash
+uv run --locked python scripts/collect_measurements.py
+```
+
+That rewrites `src/whichllm/data/measurements.json`. Read the diff and open a PR
+by hand. The script treats issue text as untrusted: it only parses JSON and checks
+each field, and it prints every issue it left out and why.
+
 ## Code Style
 - Follow existing code conventions
 - Use type hints

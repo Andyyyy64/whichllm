@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 
+from whichllm.engine.measurements import gpu_evidence
 from whichllm.engine.moe import active_expert_fraction, routed_expert_fraction
 from whichllm.engine.placement import Placement
 from whichllm.engine.quantization import estimate_weight_bytes
@@ -310,6 +311,13 @@ def _split_tok_per_sec(
 
 def _dense_gguf_confidence(gpu: GPUInfo) -> tuple[str, str | None]:
     """How well published runs back a dense GGUF estimate on this GPU."""
+    evidence = gpu_evidence(gpu.name)
+    low, high = _SPEED_CONFIDENCE_RANGE_FACTORS["high"]
+    if evidence is not None and low <= evidence.median_ratio <= high:
+        return "high", (
+            f"{evidence.reports} verified reports on this GPU land close to this "
+            "estimate."
+        )
     if _JETSON_NAME_RE.search(gpu.name) or (
         gpu.shared_memory and gpu.vendor != "apple"
     ):
