@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-02
+
 ### Added
 
 - `whichllm bench` measures a model's real decode speed, prints it next to the
@@ -53,11 +55,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   but its attention, shared weights and KV cache do, whichllm keeps the
   routed experts of the first N layers in system RAM, as llama.cpp's
   `--n-cpu-moe N` does, and estimates speed from what each token actually
-  reads: its few active experts from RAM, the rest from VRAM. On a 16 GB
-  card with 64 GB of DDR5, gpt-oss-120b now ranks #5 at an estimated
-  18 tok/s (it was #21). The CPU side is calibrated against llama.cpp on an
-  RTX 5080 with DDR5-5600: Qwen3.6-35B-A3B at `--n-cpu-moe` 12-40 measured
-  44-83 tok/s, and the estimates land within 25% of the medians. The table
+  reads: its few active experts from RAM, the rest from VRAM. On an 8 GB
+  RTX 4060 with 32 GB of DDR4, Qwen3.6-35B-A3B is the top pick at an estimated
+  16 tok/s, and a 16 GB card with 64 GB of DDR5 runs gpt-oss-120b at 16 tok/s.
+  On an RTX 5080 with DDR5-5600, Qwen3.6-35B-A3B at `--n-cpu-moe 15` measured
+  79 tok/s against an estimate of 70. The table
   shows these fits as `GPU+RAM`, the warning names the `--n-cpu-moe` value,
   and JSON rows carry a `placement` object.
 - Run recipes. Below the ranking, whichllm prints the `llama-server`
@@ -114,10 +116,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   discrete GPU present, the hardware panel says so when the flag is used.
 - CPU-only speed and layers offloaded from a discrete GPU are estimated from
   RAM bandwidth instead of a size heuristic and a fixed 0.45x factor. Dense
-  models spilling layers on a fast GPU are slower than before (Qwen3.6-27B
-  at 128K context on an RTX 4090: 5 tok/s, not 16), CPU-only MoE models are
-  faster, and CPU-only candidates must reach 4 tok/s to score as usable.
-
+  models spilling layers on a fast GPU are slower than before, and CPU-only
+  MoE models are faster.
 - `--profile coding` is no longer limited to repositories with "coder" in
   their names: strong general models such as gpt-oss, Devstral and
   Qwen3.6-27B are eligible, and a code-tuned model gets a 2-point edge over
@@ -130,31 +130,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   math, and MMMU-Pro plus the curated vision index for vision. Each result is
   mapped onto the general 0-100 scale through the models it shares with the
   general index, so a model without task results keeps its general score.
-  On an RTX 3060, gpt-oss-20b and Qwen3-Coder-Next now rank above the dense
-  Qwen3.8-27B for coding, and the name-based 2-point edge only applies to
-  code-tuned models with no coding results. JSON rows gain
-  `benchmark_basis`, and the index gains an optional `task_scores` map.
+  The name-based 2-point edge only applies to code-tuned models with no coding
+  results. JSON rows gain `benchmark_basis`, and the index gains an optional
+  `task_scores` map.
 - Every placement is held to one usable speed, 8 tok/s (layer offload and
   CPU-only used 4). Below it a model's quality is scaled by
   `(speed / 8) ** 0.5`, where it used to lose at most 8 points, which a
-  benchmark lead easily outweighed. On a 16 GB M4 the #1 is now
-  gemma-4-26B-A4B at 25 tok/s instead of Qwen3.8-27B at 4, and a 3 tok/s
-  Qwen3.8-27B leaves the RTX 3060 top 5. The golden constraint for a #1 that
-  needs offload is replaced by one for the whole top 3.
+  benchmark lead easily outweighed. On a 16 GB M4 the #1 is now gemma-4-12b
+  at 12 tok/s instead of Qwen3.8-27B at 4. The golden constraint for a #1
+  that needs offload is replaced by one for the whole top 3.
 - `--speed usable` hides models under 8 tok/s, the same speed the ranking
   holds every placement to (it was 10), and the speed column turns green
   from 8 tok/s.
 - A model that fits on the largest GPU alone is no longer treated as a
   multi-GPU run, and a split's speed follows each card's bandwidth instead
-  of a flat 0.7x. On two RTX 3090s, Qwen3.8-27B at Q5_K_M fits one card and
-  is estimated at 25.5 tok/s (it was split at Q6_K and estimated at 14.5);
-  a 4090 + 3060 split runs at about 0.6x of the 4090 alone.
+  of a flat 0.7x. On two RTX 3090s, Qwen3.8-27B at Q5_K_M runs on one card at
+  39 tok/s, and at Q8_0 it splits across both at 28 tok/s.
 - When a newer generation of a model line ranks above an older one of the
   same size, the older one is left out and named under the table
   (`older_generations` in JSON). The 4090 top 3 was Qwen3.8-27B, Qwen3.6-27B
-  and Qwen3.5-27B; it is now Qwen3.8-27B, gemma-4-26B-A4B and
-  Qwen3.6-35B-A3B. Gemma ids such as `diffusiongemma-26B` are no longer read
-  as Gemma 2.
+  and Qwen3.5-27B; it is now Qwen3.8-27B, gemma-4-31B and gemma-4-26B-A4B.
+  Gemma ids such as `diffusiongemma-26B` are no longer read as Gemma 2.
 - New releases that neither LiveBench nor the pinned AA index covers get a
   general score from at least three of AA's broad benchmarks, mapped the same
   way, so models such as GLM-5.3-Flash, Qwen3.8-Flash-Next and Gemma 4 12B
@@ -168,7 +164,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   checkpoints whose publisher ships an instruct version derived from them
   (`Qwen2.5-7B`, `Qwen2.5-Coder-7B`, `Llama-3.1-8B`) and their quantized
   uploads. The coding top 10 used to include the base `Qwen2.5-Coder-7B`.
-
 - The KV cache is computed per layer from each model's `config.json` instead
   of from its parameter count. whichllm reads the config for the families
   near the top of a ranking (and for the model `plan` shows), caches it for a
@@ -269,7 +264,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   where it runs fully on the GPU at 55 tok/s using 12.8 GiB. Recurrent
   state (Qwen3.5 and later, Qwen3-Next, Granite 4.0, LFM2) is counted for
   llama-server's 4 default slots. Dense models now fit one quant higher
-  in a few places (Qwen3.8-27B at Q6_K on a 24 GB card).
+  in a few places (Qwen3.8-27B at Q5_K_M on a 24 GB card).
 - GGUF variants: `run` downloads part 1 of a split file (it could pick a
   later part), and vision projectors (`mmproj`) and draft models are no
   longer listed as a model's F16, BF16 or Q8_0 variant. With real sizes, a
@@ -279,7 +274,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Apple Silicon is budgeted at Metal's default GPU working set, about two
   thirds of unified memory up to 32 GB and three quarters above, not all of
   it. On a 16 GB Mac the GPU got 15.2 GB, so the #1 was a 15 GB gemma-4-26B
-  build that llama.cpp would not keep on the GPU; it is now gpt-oss-20b. A
+  build that llama.cpp would not keep on the GPU; it is now gemma-4-12b. A
   model past the working set can spill layers to the CPU within unified
   memory, and a raised `iogpu.wired_limit_mb` is detected.
 - RAM bandwidth is detected on Linux from systemd's udev DMI properties,
@@ -325,8 +320,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   83.5 from LiveBench against 61.0 on AA, while Qwen3.8-27B kept its AA
   77.8). LiveBench is now fitted onto AA's scale, the two are averaged, and
   hand-estimated entries only count for models neither source measured.
-  Qwen3.8-27B now leads on 16 GB+ GPUs at default context, and
-  Qwen3.6-35B-A3B with its experts in RAM is the top pick on 6-12 GB GPUs.
+  Qwen3.8-27B now leads on 12 GB+ GPUs at default context, and
+  Qwen3.6-35B-A3B with its experts in RAM is the top pick on 6-8 GB GPUs.
 - Artificial Analysis scores are on one scale again. The snapshot mixed
   values from before and after AA rescaled its Intelligence Index, and
   models AA has deprecated (Kimi K2, GLM-5, ...) kept their old, roughly
