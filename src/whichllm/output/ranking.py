@@ -185,6 +185,12 @@ def display_hardware(hw: HardwareInfo) -> None:
     _console.console.print(panel)
 
 
+def _min_table_width(table: Table) -> int:
+    """Width the table needs with every column at its fixed or minimum width."""
+    cells = sum((column.width or column.min_width or 0) + 2 for column in table.columns)
+    return cells + len(table.columns) + 1
+
+
 def _context_text(result: CompatibilityResult) -> str:
     """The model's limit, then the longest context this placement still holds."""
     return context_cell(result).replace("→", "\n→")
@@ -216,12 +222,18 @@ def display_ranking(
         table.add_column(f"Fit / {mem_label}", justify="center", width=8)
         table.add_column("Speed", justify="right", width=14)
         table.add_column("Context", justify="right", width=9)
+        context_column = table.columns[-1]
         table.add_column("Published", justify="center", width=10)
     else:
         table.add_column("Params", justify="right", width=6)
         table.add_column("Published", justify="center", width=10)
         table.add_column("Downloads", justify="right", width=9)
     table.add_column("Score", justify="right", width=5)
+    # Past the terminal's width Rich squeezes the model name to nothing, so a
+    # narrow terminal goes without Context instead.
+    show_context = show_status and _min_table_width(table) <= _console.console.width
+    if show_status and not show_context:
+        table.columns.remove(context_column)
 
     download_logs = [
         log10(max(r.model.downloads, 1)) for r in results if r.model.downloads > 0
@@ -291,7 +303,7 @@ def display_ranking(
                     weights_str,
                     f"{fit_str}\n[dim]{vram_str}[/dim]",
                     speed_str,
-                    _context_text(r),
+                    *([_context_text(r)] if show_context else []),
                     published_str,
                 ]
             )
@@ -335,12 +347,12 @@ def display_ranking(
             if has_speed_low:
                 parts.append("[red]?[/red] = low-confidence/backend-sensitive tok/s")
             _console.console.print(f"  [dim]Speed:[/dim]  {',  '.join(parts)}")
-        if any(
+        if show_context and any(
             r.max_context_tokens is not None and "→" in context_cell(r) for r in results
         ):
             _console.console.print(
-                "  [dim]Context:[/dim]  the model's limit → the longest context "
-                "this fit holds on your hardware"
+                "  [dim]Context:[/dim]  the model's limit (? if unknown) → the longest "
+                "context this fit holds on your hardware"
             )
 
     has_direct = any(r.benchmark_status == "direct" for r in results)

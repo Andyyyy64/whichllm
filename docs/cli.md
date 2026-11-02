@@ -67,7 +67,9 @@ Context shows the model's own limit and, after the arrow, the longest
 context that keeps the row's fit on your hardware: `256k→127k` stays fully on
 the GPU up to 127k tokens. One number means the whole limit fits. The limit
 comes from the Hub metadata or the model's `config.json`; where neither has
-it, `128k+` says only that 128k fits. JSON rows carry the two numbers as
+it, `?→18k` gives the edge alone and `128k+` says only that 128k fits. A
+terminal narrower than 105 columns leaves the column out, since Rich would
+otherwise squeeze the model name away. JSON rows carry the two numbers as
 `context_length` and `max_context_tokens`.
 
 `--vram-headroom auto` subtracts a small budget from each GPU before fit
