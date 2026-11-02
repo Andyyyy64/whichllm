@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 
 import typer
 
@@ -17,6 +18,7 @@ def _validate_gpu_flags(
     vram: float | None,
     bandwidth: float | None = None,
     gpu_index: int | None = None,
+    ram_bandwidth: float | None = None,
 ) -> None:
     """Validate mutual exclusivity of GPU-related flags."""
     if cpu_only and gpu:
@@ -31,6 +33,9 @@ def _validate_gpu_flags(
     if bandwidth is not None and bandwidth <= 0:
         console.print("[red]Error:[/] --bandwidth must be greater than 0.")
         raise typer.Exit(code=1)
+    if ram_bandwidth is not None and ram_bandwidth <= 0:
+        console.print("[red]Error:[/] --ram-bandwidth must be greater than 0.")
+        raise typer.Exit(code=1)
     if gpu_index is not None and gpu_index < 0:
         console.print("[red]Error:[/] --gpu-index must be 0 or greater.")
         raise typer.Exit(code=1)
@@ -40,6 +45,30 @@ def _validate_gpu_flags(
     if gpu_index is not None and vram is None and bandwidth is None:
         console.print("[red]Error:[/] --gpu-index requires --vram or --bandwidth.")
         raise typer.Exit(code=1)
+
+
+# --quant matches one label exactly. A pattern ("Q5*") or a bare family ("Q5")
+# matched no file and the ranking said only "No compatible models found".
+_QUANT_FAMILY_RE = re.compile(r"I?Q\d", re.IGNORECASE)
+
+
+def _validate_quant(quant: str | None) -> None:
+    """Refuse a --quant value that can only match nothing, and name real labels."""
+    if not quant:
+        return
+    label = quant.strip().upper()
+    if not any(c in label for c in "*?[") and not _QUANT_FAMILY_RE.fullmatch(label):
+        return
+    from whichllm.data.quantization import QUANT_BYTES_PER_WEIGHT
+
+    stem = label.rstrip("*?[]")
+    known = sorted(k for k in QUANT_BYTES_PER_WEIGHT if stem and k.startswith(stem))
+    hint = f" Labels that start with {stem}: {', '.join(known)}." if known else ""
+    console.print(
+        f"[red]Error:[/] --quant takes one quant label such as Q4_K_M, "
+        f"not {quant!r}.{hint}"
+    )
+    raise typer.Exit(code=1)
 
 
 def _validate_output_flags(json_output: bool, markdown_output: bool) -> None:
@@ -121,10 +150,13 @@ def _resolve_speed_filter(speed: str, min_speed: float | None) -> float | None:
     """Resolve named speed presets while preserving --min-speed as exact input."""
     if min_speed is not None:
         return min_speed
+    from whichllm.engine.ranking_score import USABLE_SPEED_TOK_S
+
     mode = speed.lower().replace("_", "-")
+    # "usable" is the speed the ranking holds every placement to.
     presets = {
         "any": None,
-        "usable": 10.0,
+        "usable": USABLE_SPEED_TOK_S,
         "fast": 30.0,
     }
     if mode not in presets:

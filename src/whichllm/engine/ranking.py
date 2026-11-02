@@ -4,11 +4,17 @@ from __future__ import annotations
 
 from whichllm.engine.compatibility import check_compatibility
 from whichllm.engine.performance import estimate_speed_uncertainty, estimate_tok_per_sec
+from whichllm.engine.quantization import effective_quant_type
 from whichllm.engine.ranking_filters import (
+    _detect_specializations,
     _is_excluded_model,
     _is_gguf_only_backend,
     _knowledge_capacity_b,
+    _is_auxiliary_model,
     _matches_profile,
+    _newer_generation,
+    _non_gguf_format_note,
+    _understates_its_base,
     _passes_evidence_filter,
 )
 from whichllm.engine.ranking_score import _compute_quality_score, _family_selection_key
@@ -22,9 +28,91 @@ from whichllm.models.benchmark import (
     build_score_name_index,
     lookup_benchmark_evidence,
 )
+from whichllm.models.roles import find_base_checkpoints
 from whichllm.models.types import ModelInfo
 
-_MULTI_GPU_SPEED_FACTOR = 0.70
+# Quality points a code-tuned model gains under --profile coding when it has
+# no coding benchmark results of its own.
+_CODING_SPECIALIST_BONUS = 2.0
+_TASK_EVIDENCE_SOURCES = frozenset({"direct", "variant", "base_model"})
+# How far an older generation must outscore a newer one to keep its own row.
+_GENERATION_TIE_POINTS = 2.0
+
+
+def _hide_older_generations(
+    results: list[CompatibilityResult],
+) -> list[CompatibilityResult]:
+    """Drop a model when a newer generation of its line is about as good.
+
+    Qwen3.8-27B, Qwen3.6-27B and Qwen3.5-27B filling the top three says less
+    than three different models would. The newer row lists what it replaced,
+    and an older generation stays only when it clearly outranks the newer one.
+    """
+    kept: list[CompatibilityResult] = []
+    for result in results:
+        floor = result.quality_score - _GENERATION_TIE_POINTS
+        newer = next(
+            (
+                r
+                for r in results
+                if r.quality_score >= floor and _newer_generation(r.model, result.model)
+            ),
+            None,
+        )
+        if newer is None:
+            kept.append(result)
+        else:
+            newer.older_generations.append(result.model.id)
+    return kept
+
+
+def _score_indices(scores: dict[str, float] | None) -> tuple:
+    if not scores:
+        return {}, {}, {}, {}
+    ci_index, line_index = build_score_index(scores)
+    return (
+        ci_index,
+        line_index,
+        build_line_bucket_index(scores),
+        build_score_name_index(scores),
+    )
+
+
+def _lookup_evidence(
+    model: ModelInfo,
+    scores: dict[str, float],
+    indices: tuple,
+    family_dominant_params: dict[str, int],
+    self_reported: float | None,
+) -> BenchmarkEvidence:
+    ci_index, line_index, line_buckets, name_index = indices
+    actual_params_b = (
+        (model.parameter_count or 0) / 1e9 if model.parameter_count else None
+    )
+    evidence = lookup_benchmark_evidence(
+        model.id,
+        model.base_model,
+        scores,
+        ci_index=ci_index,
+        line_index=line_index,
+        line_bucket_index=line_buckets,
+        self_reported_score=self_reported,
+        actual_params_b=actual_params_b,
+        name_index=name_index,
+    )
+    # Family-size sanity check: if this model inherited benchmarks
+    # via family/base_model lookup but its own params disagree
+    # sharply with the family's dominant member, reject the
+    # inheritance. Catches MTP heads / draft / abliterated forks
+    # that share a family_id with their base but are effectively
+    # different models.
+    if evidence.source in ("variant", "base_model", "line_interp"):
+        dom_params = family_dominant_params.get(model.family_id)
+        if dom_params and model.parameter_count and dom_params > 0:
+            ratio = model.parameter_count / dom_params
+            if ratio < 0.5 or ratio > 2.0:
+                return BenchmarkEvidence(score=None, confidence=0.0, source="none")
+    return evidence
 
 
 def rank_models(
@@ -36,12 +124,17 @@ def rank_models(
     min_speed: float | None = None,
     benchmark_scores: dict[str, float] | None = None,
     task_profile: str = "general",
+    task_scores: dict[str, float] | None = None,
     require_direct_top: bool = True,
     min_params_b: float | None = None,
     evidence_filter: str = "any",
     fit_filter: str = "any",
 ) -> list[CompatibilityResult]:
-    """Rank models by quality for the given hardware. Returns top N results."""
+    """Rank models by quality for the given hardware. Returns top N results.
+
+    ``task_scores`` are the active profile's scores (coding, math, vision).
+    A model with task evidence is ranked on it instead of its general score.
+    """
     results: list[CompatibilityResult] = []
     gguf_only_backend = _is_gguf_only_backend(hardware)
 
@@ -63,21 +156,26 @@ def rank_models(
             family_dominant_downloads[fid] = m.downloads
             family_dominant_params[fid] = m.parameter_count
 
+    # GGUF uploads by the repo they quantize: an official repo's synthetic
+    # variants take the real size of the upload file they resolve to.
+    gguf_uploads: dict[str, list[ModelInfo]] = {}
+    for m in models:
+        if m.gguf_variants and m.base_model and m.base_model_relation == "quantized":
+            gguf_uploads.setdefault(m.base_model.casefold(), []).append(m)
+
     # Deduplicate by family: pick best variant per family
     seen_families: set[str] = set()
 
     # Sort models by downloads (popular first) to process best candidates first
     sorted_models = sorted(models, key=lambda m: m.downloads, reverse=True)
+    # Pretrain-only checkpoints are not chat models; never recommend them.
+    base_checkpoints = find_base_checkpoints(models)
+    coding_profile = task_profile.lower() == "coding"
+    params_by_repo = {m.id.casefold(): m.parameter_count for m in models}
 
     # Build benchmark indices once (case-insensitive, model line, repo name)
-    if benchmark_scores:
-        bench_ci_index, bench_line_index = build_score_index(benchmark_scores)
-        bench_line_buckets = build_line_bucket_index(benchmark_scores)
-        bench_name_index = build_score_name_index(benchmark_scores)
-    else:
-        bench_ci_index, bench_line_index = {}, {}
-        bench_line_buckets = {}
-        bench_name_index = {}
+    general_indices = _score_indices(benchmark_scores)
+    task_indices = _score_indices(task_scores)
 
     best_gpu = None
     for gpu in hardware.gpus:
@@ -85,14 +183,18 @@ def rank_models(
             best_gpu = gpu
 
     for model in sorted_models:
-        if _is_excluded_model(model.id):
+        if _is_excluded_model(model.id) or model.id in base_checkpoints:
+            continue
+        if _is_auxiliary_model(model) or _understates_its_base(model, params_by_repo):
             continue
         if not _matches_profile(model, task_profile):
             continue
         if min_params_b is not None and _knowledge_capacity_b(model) < min_params_b:
             continue
 
-        candidates = _iter_candidate_variants(model, quant_filter)
+        candidates = _iter_candidate_variants(
+            model, quant_filter, gguf_uploads.get(model.id.casefold(), ())
+        )
         if not candidates:
             continue
 
@@ -106,34 +208,23 @@ def rank_models(
 
         bench_evidence = BenchmarkEvidence(score=None, confidence=0.0, source="none")
         if benchmark_scores or self_reported is not None:
-            actual_params_b = (
-                (model.parameter_count or 0) / 1e9 if model.parameter_count else None
-            )
-            bench_evidence = lookup_benchmark_evidence(
-                model.id,
-                model.base_model,
+            bench_evidence = _lookup_evidence(
+                model,
                 benchmark_scores or {},
-                ci_index=bench_ci_index,
-                line_index=bench_line_index,
-                line_bucket_index=bench_line_buckets,
-                self_reported_score=self_reported,
-                actual_params_b=actual_params_b,
-                name_index=bench_name_index,
+                general_indices,
+                family_dominant_params,
+                self_reported,
             )
-            # Family-size sanity check: if this model inherited benchmarks
-            # via family/base_model lookup but its own params disagree
-            # sharply with the family's dominant member, reject the
-            # inheritance. Catches MTP heads / draft / abliterated forks
-            # that share a family_id with their base but are effectively
-            # different models.
-            if bench_evidence.source in ("variant", "base_model", "line_interp"):
-                dom_params = family_dominant_params.get(model.family_id)
-                if dom_params and model.parameter_count and dom_params > 0:
-                    ratio = model.parameter_count / dom_params
-                    if ratio < 0.5 or ratio > 2.0:
-                        bench_evidence = BenchmarkEvidence(
-                            score=None, confidence=0.0, source="none"
-                        )
+        basis = "general"
+        if task_scores:
+            task_evidence = _lookup_evidence(
+                model, task_scores, task_indices, family_dominant_params, None
+            )
+            # Interpolating a task score from other sizes of the line is too
+            # loose; only the model itself, a variant or its base count.
+            if task_evidence.source in _TASK_EVIDENCE_SOURCES:
+                bench_evidence = task_evidence
+                basis = task_profile.lower()
         if not _passes_evidence_filter(bench_evidence.source, evidence_filter):
             continue
 
@@ -142,17 +233,31 @@ def rank_models(
         for variant in candidates:
             if gguf_only_backend and variant is None:
                 continue
+            format_note = ""
+            if variant is None:
+                format_note = _non_gguf_format_note(
+                    effective_quant_type(model, None), hardware
+                )
+                if format_note is None:
+                    continue
             compat = check_compatibility(model, variant, hardware, context_length)
             if not compat.can_run:
                 continue
+            if format_note:
+                compat.warnings.append(format_note)
             if fit_filter == "full_gpu" and compat.fit_type != "full_gpu":
                 continue
 
             tok_per_sec = estimate_tok_per_sec(
-                model, variant, best_gpu, compat.fit_type
+                model,
+                variant,
+                best_gpu,
+                compat.fit_type,
+                placement=compat.placement,
+                ram_bandwidth_gbps=hardware.ram_bandwidth_gbps,
             )
             if compat.uses_multi_gpu:
-                tok_per_sec *= _MULTI_GPU_SPEED_FACTOR
+                tok_per_sec *= compat.multi_gpu_speed_factor
             if min_speed is not None and tok_per_sec < min_speed:
                 continue
 
@@ -178,30 +283,35 @@ def rank_models(
                 best_gpu,
                 compat.fit_type,
                 tok_per_sec,
+                placement=compat.placement,
+                ram_bandwidth_source=hardware.ram_bandwidth_source,
+                uses_multi_gpu=compat.uses_multi_gpu,
+                identical_gpus=compat.multi_gpu_identical,
+                cpu_name=hardware.cpu_name,
             )
-            if compat.uses_multi_gpu:
-                compat.speed_confidence = "low"
-                if tok_per_sec > 0:
-                    compat.speed_range_tok_per_sec = (
-                        round(tok_per_sec * 0.35, 1),
-                        round(tok_per_sec * 2.0, 1),
-                    )
-                compat.speed_notes.append(
-                    "Multi-GPU speed depends on layer/tensor split mode, "
-                    "PCIe/NVLink bandwidth, and backend support; this estimate "
-                    "does not assume ideal scaling."
-                )
             compat.quality_score = _compute_quality_score(
                 model,
                 variant,
                 tok_per_sec,
                 compat.fit_type,
                 offload_ratio=compat.offload_ratio,
+                placement=compat.placement.kind if compat.placement else None,
                 family_downloads=family_max_downloads.get(fid, 0),
                 family_likes=family_max_likes.get(fid, 0),
                 benchmark_avg=bench_avg,
                 benchmark_source=bench_evidence.source,
             )
+            if (
+                coding_profile
+                and basis == "general"
+                and "coding" in _detect_specializations(model.id)
+            ):
+                # Between otherwise equal candidates, prefer the code-tuned
+                # variant (Qwen3-Coder-30B-A3B over Qwen3-30B-A3B). Small
+                # enough that an older coder cannot pass a stronger new model.
+                compat.quality_score = min(
+                    100.0, compat.quality_score + _CODING_SPECIALIST_BONUS
+                )
             # Map evidence source to a 4-value display status. "self_reported"
             # is shown distinctly so users can spot uploader-claimed numbers.
             if bench_evidence.score is None:
@@ -214,6 +324,7 @@ def rank_models(
                 compat.benchmark_status = "estimated"
             compat.benchmark_source = bench_evidence.source
             compat.benchmark_confidence = bench_evidence.confidence
+            compat.benchmark_basis = basis
 
             if (
                 best_for_model is None
@@ -268,6 +379,8 @@ def rank_models(
     # and we still want to show what's available.
     if any(r.estimated_tok_per_sec >= 5.0 for r in results):
         results = [r for r in results if r.estimated_tok_per_sec >= 1.5]
+
+    results = _hide_older_generations(results)
 
     # Clamp top_n: a negative value would slice from the end
     # (``results[:-5]``) and silently return a truncated, unrequested subset,

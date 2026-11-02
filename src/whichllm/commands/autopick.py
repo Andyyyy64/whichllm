@@ -5,6 +5,8 @@ from __future__ import annotations
 import typer
 
 from whichllm.cli_shared import console
+from whichllm.commands.ranking import apply_default_budgets, rank_for_hardware
+from whichllm.engine.types import CompatibilityResult
 from whichllm.models.artifacts import resolve_ranked_gguf_artifact
 from whichllm.models.types import GGUFVariant, ModelInfo
 
@@ -16,33 +18,40 @@ def pick_top_runnable(
     quant: str | None,
     cpu_only: bool = False,
     top_n: int = 5,
-) -> tuple[ModelInfo, GGUFVariant | None]:
+) -> tuple[ModelInfo, GGUFVariant | None, CompatibilityResult]:
     """Rank models for this machine and return the first runnable pick.
 
     GGUF-ranked candidates are resolved to a real GGUF repository and file.
     A candidate without a matching GGUF build is skipped with a warning.
-    The returned variant is None for a non-GGUF pick.
+    The returned variant is None for a non-GGUF pick; the ranked result
+    carries the placement the pick was estimated with.
     """
-    from whichllm.engine.ranker import rank_models
     from whichllm.hardware.detector import detect_hardware
     from whichllm.models.benchmark import load_benchmark_cache
     from whichllm.models.grouper import group_models
+    from whichllm.models.index_client import load_index
+    from whichllm.models.shape_fetch import attach_cached_shapes
 
     hardware = detect_hardware()
     if cpu_only:
         hardware.gpus = []
-    bench_scores = load_benchmark_cache() or {}
+    apply_default_budgets(hardware)
+    catalog = load_index()
+    bench_scores = (
+        catalog.benchmark_scores if catalog is not None else load_benchmark_cache()
+    ) or {}
     all_models = []
     for family in group_models(models):
         all_models.append(family.base_model)
         all_models.extend(family.variants)
+    attach_cached_shapes(all_models)
 
-    results = rank_models(
+    results = rank_for_hardware(
         all_models,
         hardware,
         context_length=context_length,
         top_n=top_n,
-        quant_filter=quant,
+        quant=quant,
         benchmark_scores=bench_scores,
     )
     if not results:
@@ -50,10 +59,10 @@ def pick_top_runnable(
         raise typer.Exit(code=1)
 
     skipped_gguf: list[str] = []
-    picked: tuple[ModelInfo, GGUFVariant | None] | None = None
+    picked: tuple[ModelInfo, GGUFVariant | None, CompatibilityResult] | None = None
     for ranked in results:
         if not ranked.gguf_variant:
-            picked = (ranked.model, None)
+            picked = (ranked.model, None, ranked)
             break
         resolved = resolve_ranked_gguf_artifact(
             ranked.model,
@@ -69,7 +78,9 @@ def pick_top_runnable(
                     f"{ranked.model.id} -> {resolved_model.id} "
                     f"({variant.quant_type})[/]"
                 )
-            picked = (resolved_model, variant)
+            ranked.artifact_model = resolved_model
+            ranked.artifact_variant = variant
+            picked = (resolved_model, variant, ranked)
             break
         skipped_gguf.append(ranked.model.id)
 
@@ -84,6 +95,10 @@ def pick_top_runnable(
         console.print(
             "[red]Error:[/] Top recommendations require GGUF builds, "
             "but no matching GGUF repos were found."
+        )
+        console.print(
+            "[dim]Try specifying a GGUF model explicitly, for example "
+            '`whichllm run "qwen gguf"`.[/]'
         )
         raise typer.Exit(code=1)
     return picked

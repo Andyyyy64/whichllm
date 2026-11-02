@@ -1,0 +1,24 @@
+name: Measurement
+description: Share a real speed measurement from `whichllm report`.
+title: "[Measurement] "
+labels: ["measurement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        `whichllm bench` measures a model on your machine, and `whichllm report` fills this form. Results from plain llama.cpp help calibrate the speed estimates. Results from other runtimes are kept as reference values for that runtime.
+
+        This issue is public. The report holds your hardware, the runtime, the model file and the speeds. Remove anything you would rather not share.
+  - type: textarea
+    id: report
+    attributes:
+      label: Report
+      description: The JSON that `whichllm report` printed.
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Anything unusual about this run, such as a power limit or background load.

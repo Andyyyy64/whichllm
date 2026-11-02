@@ -15,7 +15,7 @@ The ranker receives a `HardwareInfo` object with:
 - CPU name
 - physical CPU cores
 - AVX2 and AVX-512 support
-- total RAM
+- total RAM, and the RAM free when whichllm started
 - free disk space
 - OS name
 
@@ -29,6 +29,7 @@ Each GPU is represented as `GPUInfo`:
 - CUDA or ROCm version, when known
 - memory bandwidth estimate
 - whether the GPU uses shared memory
+- PCIe generation and lane count, for NVIDIA cards through NVML
 
 ## NVIDIA
 
@@ -59,6 +60,47 @@ system RAM for fit checks.
 Compute capability is used to warn when a card is below the minimum expected by
 common local inference tools.
 
+NVML also reports the PCIe link the card and its slot support together, such
+as `PCIe 5.0 x16`. It reads the maximum because the current link drops to
+Gen 1 while the card idles. The link is shown and written to `--json`; no
+estimate uses it. The `nvidia-smi` fallback leaves it out.
+
+## NVIDIA Jetson Orin
+
+Jetson (Tegra) boards are unified-memory SoCs, and neither signal desktop
+detection relies on works there. The driver reports one generic name per SoC
+generation — every Orin module is `Orin (nvgpu)`, from a 4 GB Orin Nano to a
+64 GB AGX Orin — and the memory queries return `NVML_ERROR_NOT_SUPPORTED` or
+`[N/A]`, so the memory-clock trick that separates same-name desktop variants is
+unavailable too.
+
+Only Orin is handled. Xavier and earlier stop at a JetPack that ships neither a
+Tegra NVML nor a Tegra `nvidia-smi`, so no GPU name reaches this code there.
+
+whichllm resolves the module from the kernel device tree instead, which needs
+no root and no NVIDIA tooling:
+
+```bash
+cat /proc/device-tree/compatible | tr '\0' '\n'
+# nvidia,p3768-0000+p3767-0000   carrier board + module
+# nvidia,p3767-0000              module
+# nvidia,tegra234                SoC generation
+```
+
+The module name replaces the generic one, so the curated tables resolve it like
+any other GPU, and system RAM is used for fit checks as it is for DGX Spark. A
+module that is not recognised keeps its generic name and resolves no bandwidth,
+rather than a product being guessed from the SoC generation — `tegra210` alone
+covers both Jetson Nano and TX1. Detection still requires the driver to
+enumerate the GPU, so a board with a broken or absent CUDA stack reports none.
+
+Bandwidth values are data-sheet peaks. Orin NX 16GB is the one verified against
+measured throughput; the other Orin modules come from the module data sheets.
+JetPack 6.2 "Super Mode" raises Orin Nano bandwidth (8 GB to 102, 4 GB to 51)
+under a higher nvpmodel profile with no hardware change — the base value is
+kept, and `--ram-bandwidth` covers that case. Orin NX is unchanged at 102 GB/s
+in both modes.
+
 ## AMD
 
 On Linux, AMD detection tries `rocm-smi` first:
@@ -77,9 +119,12 @@ cap larger cards around 4 GB.
 
 AMD shared-memory APUs are treated differently from discrete GPUs. Names such
 as Strix Halo, Ryzen AI MAX, Radeon 8050S, Radeon 8060S, Radeon 890M, and
-Radeon 780M are modeled as shared-memory systems. If the reported VRAM is just
-a small aperture, whichllm uses the system memory pool for fit checks instead
-of treating it as a tiny discrete GPU.
+Radeon 780M are modeled as shared-memory systems. On Linux the GPU's memory is
+its BIOS carve-out plus the GTT, the system RAM the amdgpu driver lets it map
+(`mem_info_gtt_total` in sysfs; half of RAM by default, raised with
+`amdgpu.gttsize` or `ttm.pages_limit`). Without a GTT reading, a small
+aperture means whichllm uses the system memory pool for fit checks instead of
+treating it as a tiny discrete GPU.
 
 ## Intel
 
@@ -102,11 +147,20 @@ On macOS, whichllm uses:
 system_profiler SPHardwareDataType -json
 ```
 
-Apple Silicon uses unified memory, so the detected chip memory is treated as
-available GPU memory. Memory bandwidth is looked up by chip family when known.
+Apple Silicon uses unified memory, but by default Metal lets the GPU use only
+part of it: its recommended working set, which llama.cpp logs at start-up as
+`recommendedMaxWorkingSetSize` and uses as its GPU budget. whichllm assumes
+about two thirds of the memory up to 32 GB and three quarters above (a 16 GB
+Mac gives the GPU about 10.7 GB), and the hardware panel says so. A limit
+raised with `sudo sysctl iogpu.wired_limit_mb=<MB>` is detected and used
+instead. On a detected Mac, `--vram` states the GPU's limit directly; with
+`--gpu "Apple M4"`, `--vram` is the Mac's memory size and the working set is
+taken from it. Memory bandwidth is looked up by chip family when known.
 
-Partial offload on Apple Silicon is not penalized like discrete PCIe offload.
-Weights still live in unified memory, so the speed penalty is milder.
+A model larger than the working set can still run: llama.cpp keeps the
+remaining layers on the CPU, in the same unified memory, as long as the total
+fits in RAM. That partial offload is not penalized like discrete PCIe offload,
+because the weights stay in unified memory.
 
 ## CPU and memory
 
@@ -119,8 +173,10 @@ CPU detection reads:
 
 Physical core count comes from `psutil`, with a Linux `/proc/cpuinfo` fallback.
 
-RAM comes from `psutil.virtual_memory()`. Disk free space is checked under the
-user's home directory by default.
+RAM comes from `psutil.virtual_memory()`, which also gives the RAM free right
+now. The free figure is shown and written to `--json`; fit checks keep using
+the total less a reserve unless `--ram-budget auto` asks for the free figure.
+Disk free space is checked under the user's home directory by default.
 
 ## GPU simulation
 
@@ -128,6 +184,7 @@ Use `--gpu` to simulate a GPU:
 
 ```bash
 whichllm --gpu "RTX 4090"
+whichllm --gpu "RTX 5090 Laptop"
 whichllm hardware --gpu "Apple M3 Max"
 whichllm upgrade "RTX 4090" "RTX 5090" "H100"
 ```
@@ -135,6 +192,12 @@ whichllm upgrade "RTX 4090" "RTX 5090" "H100"
 Simulation uses the `dbgpu` package for a TechPowerUp-backed GPU database.
 whichllm adds extra handling for common aliases and Apple Silicon chips because
 those are not covered by dbgpu.
+
+`Laptop`, `Laptop GPU`, `Mobile` and `Max-Q` select the laptop card, which often
+has half the bandwidth of the desktop one and a different amount of memory. The
+name a driver reports works too, such as `NVIDIA GeForce RTX 5090 Laptop GPU`.
+A laptop name with no matching card needs `--vram` and never falls back to the
+desktop card.
 
 Use `--vram` when a GPU name is ambiguous, unknown, or has multiple variants:
 
@@ -144,24 +207,25 @@ whichllm hardware --gpu "Unknown GPU" --vram 24
 ```
 
 For detected integrated or unified-memory GPUs, use `--vram` and
-`--bandwidth` / `--ram-bandwidth` to override the automatically detected usable
-capacity and memory bandwidth:
+`--ram-bandwidth` to override the automatically detected usable capacity and
+memory bandwidth:
 
 ```bash
 whichllm --vram 8 --ram-bandwidth 68
 whichllm hardware --vram 8 --bandwidth 68
 ```
 
-Both flag names set the same value: the selected GPU's memory bandwidth. On an
-iGPU or unified-memory system that is the system RAM bandwidth. On a discrete
-GPU it replaces the VRAM bandwidth; it does not change how CPU offload is
-estimated.
+`--bandwidth` sets the selected GPU's memory bandwidth. `--ram-bandwidth` sets
+system RAM bandwidth, which bounds everything the CPU reads: CPU-only runs,
+MoE experts kept in RAM and layers offloaded from a discrete GPU. An iGPU or
+unified-memory GPU reads from the same RAM, so `--ram-bandwidth` sets its
+bandwidth too unless `--bandwidth` is also given.
 
 If multiple GPUs are detected, pass `--gpu-index` to choose the GPU shown by
 `whichllm hardware`:
 
 ```bash
-whichllm --gpu-index 1 --vram 8 --ram-bandwidth 68
+whichllm --gpu-index 1 --vram 8 --bandwidth 68
 ```
 
 By default, whichllm applies a small automatic VRAM headroom before fit checks.
@@ -187,6 +251,35 @@ whichllm --gpu "RTX 4090, RTX 3090"
 simulation, use known GPU names so whichllm can resolve each card's VRAM from
 the GPU database.
 
+## System RAM bandwidth
+
+`whichllm hardware` shows the RAM bandwidth it assumed and where it came from:
+
+| Source | How |
+| --- | --- |
+| detected | Windows: memory modules' transfer rate times bus width (`Win32_PhysicalMemory`), capped at the CPU family's channel count |
+| unified | Apple Silicon: the chip's unified-memory bandwidth |
+| estimated | The CPU family's typical memory, e.g. DDR5-5600 dual channel for Core Ultra 200S or AM5 Ryzen |
+| assumed | Nothing known: dual-channel DDR4-3200, 51.2 GB/s |
+
+On Linux the modules come from systemd's udev, which exports the DMI memory
+table without root (`/run/udev/data/+dmi:id`, systemd 248 and later). WSL has
+no DMI table, so whichllm asks Windows through `powershell.exe`. Windows and
+WSL cache the module list for a week, since reading it starts PowerShell.
+Elsewhere, or in a container, the CPU-family estimate applies. Pass the real
+figure with `--ram-bandwidth` (transfer rate in MT/s x 8 bytes x channels /
+1000, e.g. DDR5-6000 dual channel = 96).
+
+`whichllm hardware` also measures the bandwidth and prints it beside that
+figure, as in `BW: 90 GB/s (DDR5-5600, 128-bit, measured 77 GB/s)`. Threads
+copy 256 MB between two buffers at the same time, the way STREAM's Copy test
+does, and the count grows until more threads stop helping; bytes read and
+written both count. It takes about a second and moves with whatever else
+the machine is doing, so estimates keep the figure above, which the CPU
+speed model is calibrated on. A measurement far above an `assumed` or
+`estimated` figure is a reason to pass `--ram-bandwidth`. Unified memory is
+not measured: the CPU cannot read it as fast as the GPU does.
+
 ## Fit types
 
 Compatibility checks classify a candidate into one of three fit types:
@@ -200,6 +293,21 @@ Compatibility checks classify a candidate into one of three fit types:
 If neither GPU memory nor usable RAM can hold the model, the candidate is not
 ranked.
 
+A partial offload on a discrete GPU is placed one of two ways, shown in the
+JSON `placement` field:
+
+- **Expert offload** (`expert_offload`): for a mixture-of-experts model whose
+  attention, shared weights and KV cache fit in VRAM, the routed experts of
+  the first N layers stay in RAM, as llama.cpp's `--n-cpu-moe N` does. Each
+  token reads only its few active experts from RAM, so gpt-oss-120b runs at
+  interactive speed on a 16 GB card with 64 GB of RAM. The table shows these
+  as `GPU+RAM`, and the warning names the `--n-cpu-moe` value.
+- **Layer offload** (`layer_offload`): whole layers run on the CPU and read
+  every weight from RAM, so speed falls to roughly what RAM bandwidth allows.
+
+Unified-memory systems have no separate RAM pool to move experts to and keep
+the old shared-memory estimate.
+
 whichllm keeps a bounded system-RAM reserve for the OS and other processes.
 Use `--ram-budget available` to cap partial-offload planning to the current
 available RAM reported by the OS, or pass a fixed budget such as
@@ -207,30 +315,54 @@ available RAM reported by the OS, or pass a fixed budget such as
 
 ## Multiple GPUs
 
-For fit checks, whichllm uses a conservative multi-GPU budget rather than
-pretending all VRAM is one perfect device. It starts from raw total VRAM, applies
-a small per-GPU overhead, and then applies a utilization factor. Homogeneous
-sets receive a less severe reduction than heterogeneous sets.
+For fit checks, whichllm plans a layer split instead of pretending all VRAM is
+one perfect device. Each device first pays its own runtime buffer (driver
+context, graph buffers, allocator slack). The budget left on each device is what
+the plan can use, and weights and KV cache are assigned in proportion to it.
+The runtime-only part of the estimate — activation buffers and framework
+overhead — cannot be split by a layer split, so it is reserved on the device
+with the most capacity. A utilization factor is applied last: homogeneous sets
+receive a less severe reduction than heterogeneous sets.
+
+A device that cannot pay its own runtime buffer stays out of the pool before any
+of that is decided: two identical cards beside a card with 256 MiB free keep the
+homogeneous 0.95 budget, the speed estimate ignores the card that holds nothing,
+and one remaining card is treated as a plain single-GPU fit at its full
+available memory. Because the shares are proportional to what each device has
+left, the only way a split fails is the runtime-only part: when it does not fit
+a device after that device's runtime buffer, the placement is rejected even
+though the pooled budget would have covered the estimate, the GPU part runs on
+the largest card alone, and the pooled budget then only carries the partial
+offload. The plan also describes the GPU-resident part of an expert or layer
+offload, which is what the devices hold once the rest is in system RAM.
 
 If a dedicated GPU is present, low-aperture shared-memory integrated GPUs are
 not added to the fit pool. This avoids treating unrelated system RAM and
 dedicated VRAM as one full-GPU target.
 
-For speed estimates, whichllm uses the largest detected GPU as the
-representative device and marks multi-GPU speed as low-confidence. This avoids
-claiming ideal scaling when real performance depends on backend split mode,
-PCIe/NVLink bandwidth, NCCL/RCCL support, batch size, and model architecture.
+A model that fits on the largest card alone is treated as a single-GPU run:
+no split budget, no split overhead and no multi-GPU speed discount.
+
+When a model does need the split, the speed estimate follows how llama.cpp
+splits layers: in proportion to each card's free memory, with each token
+reading every card's share in turn. The decode time is the sum of share /
+bandwidth over the cards, plus a 5% allowance for handing activations between
+them. Two identical cards run about as fast as one would if the model fit;
+a slower second card slows the split in proportion to its share. When a card's
+bandwidth is unknown, a flat 0.7x factor applies. Multi-GPU speed stays
+low-confidence, because real performance also depends on the split mode,
+PCIe/NVLink, and the backend.
 
 This is a practical fit approximation. It does not model every tensor-parallel
 or pipeline-parallel runtime configuration.
 
-The fit check compares a combined memory estimate with the effective GPU budget;
-it does not assign weights and KV cache separately to individual GPUs. LM Studio
-can use a different placement, so its per-GPU memory usage can differ even when
-the model runs within the estimated speed range. To compare a real run, record
-the model and quantization, context length, runtime version, GPU layer split,
-per-GPU memory use, KV-cache placement, and generation speed. See [#104](https://github.com/Andyyyy64/whichllm/issues/104)
-for the reported multi-GPU case.
+The estimated per-GPU memory use can still differ from a real run: LM Studio and
+llama.cpp choose their own layer split. To compare a real run, record the model
+and quantization, context length, runtime version, GPU layer split, per-GPU
+memory use, KV-cache placement, and generation speed. See
+[#104](https://github.com/Andyyyy64/whichllm/issues/104) and
+[#189](https://github.com/Andyyyy64/whichllm/issues/189) for the reported
+multi-GPU cases.
 
 ## Disk checks
 
@@ -244,7 +376,8 @@ disk space. If the model cannot be downloaded, it is marked unrunnable.
   as `speed_confidence` and `speed_range_tok_per_sec` show uncertainty.
 - Driver, runtime, batch size, prompt length, and thermal limits can change real
   performance.
-- Multi-GPU runtime behavior depends on the inference backend and is only
-  approximated.
+- Multi-GPU runtime behavior depends on the inference backend. Published layer
+  splits across identical cards stay close to the estimate; mixed cards have no
+  measurement yet.
 - Apple and shared-memory APU behavior is modeled as unified-memory style, but
   real results still depend on OS pressure and memory bandwidth.

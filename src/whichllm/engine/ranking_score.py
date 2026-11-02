@@ -52,8 +52,22 @@ def _family_selection_key(
     return (result.quality_score + direct_bonus + cpu_penalty + ctx_penalty,)
 
 
-def _partial_offload_quality_factor(model: ModelInfo, offload_ratio: float) -> float:
-    """Discount partial-offload candidates by how much leaves VRAM."""
+# Experts in RAM cost speed, not quality, and the speed term already scores
+# that; the small discount covers the extra setup the user has to get right.
+_EXPERT_OFFLOAD_QUALITY_FACTOR = 0.9
+
+
+def _partial_offload_quality_factor(
+    model: ModelInfo, offload_ratio: float, placement: str | None = None
+) -> float:
+    """Discount partial-offload candidates by how much leaves VRAM.
+
+    Whole-layer offload is discounted by the spilled share. Expert offload
+    keeps a near-full-GPU factor, since only the active experts are read
+    from RAM and the speed estimate already reflects that.
+    """
+    if placement == "expert_offload":
+        return _EXPERT_OFFLOAD_QUALITY_FACTOR
     ratio = max(0.0, min(1.0, offload_ratio))
     if ratio >= 0.75:
         factor = 0.42
@@ -65,34 +79,15 @@ def _partial_offload_quality_factor(model: ModelInfo, offload_ratio: float) -> f
         factor = 0.76
     else:
         factor = 0.86
-
-    # MoE offload is more nuanced: inactive experts and router/runtime
-    # placement do not hurt equally. If the GPU can plausibly hold the
-    # active expert working set, do not treat inactive-expert spill like
-    # dense-layer spill.
-    if model.is_moe and model.parameter_count_active:
-        active_ratio = (
-            model.parameter_count_active / model.parameter_count
-            if model.parameter_count > 0
-            else 1.0
-        )
-        active_ratio = max(0.0, min(1.0, active_ratio))
-        active_set_fits = ratio <= max(0.0, 1.0 - active_ratio)
-        if active_set_fits:
-            if ratio >= 0.75:
-                factor = max(factor, 0.66)
-            elif ratio >= 0.60:
-                factor = max(factor, 0.70)
-            elif ratio >= 0.40:
-                factor = max(factor, 0.76)
-            elif ratio >= 0.25:
-                factor = max(factor, 0.82)
-            else:
-                factor = max(factor, 0.88)
-        else:
-            factor = min(0.76, factor + 0.08)
-
     return factor
+
+
+# Generation fast enough not to wait on in a chat or a coding loop. Every
+# placement is held to it. Below it the model's quality is scaled down by
+# (speed / bar) ** _SLOW_QUALITY_EXPONENT, so a large benchmark lead cannot
+# carry a model that answers at 3 tok/s past one that answers at 25.
+USABLE_SPEED_TOK_S = 8.0
+_SLOW_QUALITY_EXPONENT = 0.5
 
 
 def _compute_quality_score(
@@ -105,6 +100,7 @@ def _compute_quality_score(
     family_likes: int = 0,
     benchmark_avg: float | None = None,
     benchmark_source: str = "none",
+    placement: str | None = None,
 ) -> float:
     """Compute a quality score (0-100) for ranking."""
     params_b = model.parameter_count / 1e9
@@ -152,19 +148,18 @@ def _compute_quality_score(
 
     # Runtime form factor penalty
     if fit_type == "partial_offload":
-        quality_core *= _partial_offload_quality_factor(model, offload_ratio)
+        quality_core *= _partial_offload_quality_factor(model, offload_ratio, placement)
     elif fit_type == "cpu_only":
         quality_core *= 0.50
 
-    # Speed acts as a usability gate rather than a ranking primary.
-    required_speed = (
-        8.0
-        if fit_type == "full_gpu"
-        else (4.0 if fit_type == "partial_offload" else 1.5)
-    )
+    # Speed acts as a usability gate rather than a ranking primary: above the
+    # bar it adds a small bonus, below it it scales the quality down.
+    required_speed = USABLE_SPEED_TOK_S
     if tok_per_sec > 0:
         if tok_per_sec < required_speed:
-            speed_score = -8.0 * (1 - (tok_per_sec / required_speed))
+            ratio = tok_per_sec / required_speed
+            quality_core *= ratio**_SLOW_QUALITY_EXPONENT
+            speed_score = -8.0 * (1 - ratio)
         else:
             speed_score = min(8.0, math.log2(tok_per_sec / required_speed + 1.0) * 3.2)
     else:
@@ -252,6 +247,7 @@ def _compute_quality_score(
 
 
 __all__ = [
+    "USABLE_SPEED_TOK_S",
     "_SOURCE_WEIGHTS",
     "_compute_quality_score",
     "_family_selection_key",

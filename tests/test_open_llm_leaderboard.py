@@ -156,7 +156,6 @@ def test_partial_leaderboard_survives_aggregation_and_cache(
     for source in (
         "fetch_arena_scores",
         "fetch_aa_index_scores",
-        "fetch_aider_polyglot_scores",
         "fetch_vision_scores",
     ):
         monkeypatch.setattr(benchmark_sources, source, empty_source)

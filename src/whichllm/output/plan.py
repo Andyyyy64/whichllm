@@ -18,6 +18,7 @@ def display_plan(
     """Display hardware requirements for a specific model."""
     from whichllm.constants import (
         GPU_BANDWIDTH,
+        DEFAULT_BYTES_PER_WEIGHT,
         QUANT_BYTES_PER_WEIGHT,
         QUANT_QUALITY_PENALTY,
     )
@@ -75,7 +76,7 @@ def display_plan(
     _console.console.print(vram_table)
 
     if target_vram == 0:
-        bpw = QUANT_BYTES_PER_WEIGHT.get(target_quant.upper(), 0.5625)
+        bpw = QUANT_BYTES_PER_WEIGHT.get(target_quant.upper(), DEFAULT_BYTES_PER_WEIGHT)
         fake_size = int(model.parameter_count * bpw)
         fake_variant = GGUFVariant(
             filename="", quant_type=target_quant, file_size_bytes=fake_size
@@ -107,7 +108,7 @@ def display_plan(
     gpu_table.add_column("Fit", justify="center", width=12)
     gpu_table.add_column("Est. Speed", justify="right", width=10)
 
-    bpw = QUANT_BYTES_PER_WEIGHT.get(target_quant.upper(), 0.5625)
+    bpw = QUANT_BYTES_PER_WEIGHT.get(target_quant.upper(), DEFAULT_BYTES_PER_WEIGHT)
     fake_size = int(model.parameter_count * bpw)
     fake_variant = GGUFVariant(
         filename="", quant_type=target_quant, file_size_bytes=fake_size

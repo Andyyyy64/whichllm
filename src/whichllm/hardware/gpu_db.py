@@ -17,7 +17,8 @@ So this resolver is deliberately strict:
   hit or a name plus a VRAM-size suffix (``"RTX 4060 Ti 16 GB"``). It never
   falls back to fuzzy matching, so a variant qualifier (Ti / SUPER / Mobile /
   Max-Q / XT) can never be silently dropped onto the wrong card.
-* ``"Laptop GPU"`` in a driver name is normalised to dbgpu's ``"Mobile"``.
+* ``"Laptop GPU"`` in a driver name (``"Laptop"`` in a name typed for
+  ``--gpu``) is normalised to dbgpu's ``"Mobile"``.
 
 The change is purely additive: cards already covered by ``GPU_BANDWIDTH`` keep
 their exact value, and cards that previously resolved to ``None`` now get a
@@ -36,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 _TRADEMARK_RE = re.compile(r"\((?:tm|r)\)", re.IGNORECASE)
 _VENDOR_WORD_RE = re.compile(r"\b(?:nvidia|amd|ati|intel|corporation)\b", re.IGNORECASE)
-_LAPTOP_GPU_RE = re.compile(r"\blaptop gpu\b", re.IGNORECASE)
+_LAPTOP_GPU_RE = re.compile(r"\blaptop(?: gpu)?\b", re.IGNORECASE)
 _TRAILING_GRAPHICS_RE = re.compile(r"\bgraphics\s*$", re.IGNORECASE)
 _WHITESPACE_RE = re.compile(r"\s+")
 _MOBILE_MARKER_RE = re.compile(r"\b(?:laptop|mobile|max-?q)\b", re.IGNORECASE)

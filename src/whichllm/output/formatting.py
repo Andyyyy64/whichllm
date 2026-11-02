@@ -6,6 +6,7 @@ from datetime import datetime
 from math import log10
 
 from whichllm.engine.quantization import estimate_weight_bytes
+from whichllm.engine.ranking_score import USABLE_SPEED_TOK_S
 from whichllm.engine.types import CompatibilityResult
 
 
@@ -54,7 +55,7 @@ def _format_speed(result: CompatibilityResult) -> str:
     base = f"{speed:.1f} tok/s"
     if speed < 4.0:
         style = "red"
-    elif speed < 10.0:
+    elif speed < USABLE_SPEED_TOK_S:
         style = "yellow"
     elif speed < 30.0:
         style = "green"

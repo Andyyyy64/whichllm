@@ -32,6 +32,23 @@ def test_format_speed_colors_by_runtime_speed_not_confidence():
     )
 
 
+def test_display_ranking_keeps_the_speed_marker_on_fast_rows():
+    from io import StringIO
+    from rich.console import Console
+    import whichllm.output._console as console_mod
+    from whichllm.output.ranking import display_ranking
+
+    buf = StringIO()
+    orig_console = console_mod.console
+    console_mod.console = Console(file=buf, force_terminal=False, width=120)
+    try:
+        display_ranking([_result(1234.5, "low")], has_gpu=True, show_status=True)
+    finally:
+        console_mod.console = orig_console
+
+    assert "1234.5 tok/s ?" in buf.getvalue()
+
+
 def test_display_ranking_includes_weights_column():
     from io import StringIO
     from rich.console import Console
@@ -87,7 +104,7 @@ def test_display_ranking_includes_weights_column():
         assert "Fit" in output
         assert "VRAM" in output
         assert "15.0 GB" in output
-        assert "~3.3 GB" in output
+        assert "~4.7 GB" in output
         assert "Weights:  ~ = estimated size" in output
     finally:
         console_mod.console = orig_console
@@ -174,7 +191,7 @@ def test_format_weights():
         vram_available_bytes=16 * 1024**3,
     )
     text, is_est = _format_weights(res_non_gguf)
-    assert text == "~3.3 GB"
+    assert text == "~4.7 GB"
     assert is_est is True
 
 
@@ -331,3 +348,37 @@ def test_split_gguf_with_missing_size_is_estimated():
 
     assert variants[0].is_estimated is True
     assert variants[0].file_size_bytes > 2_000_000_000
+
+
+def test_gguf_variant_sizes_count_only_their_own_file():
+    from whichllm.models.gguf import _extract_gguf_variants
+
+    data = {
+        "siblings": [
+            # Split parts of one file add up.
+            {"rfilename": "Q8_0/m-Q8_0-00002-of-00002.gguf", "size": 4_000_000_000},
+            {"rfilename": "Q8_0/m-Q8_0-00001-of-00002.gguf", "size": 6_000_000_000},
+            # Another build with the same quant is a separate download.
+            {"rfilename": "m-Q4_K_M.gguf", "size": 6_000_000_000},
+            {"rfilename": "m-Q4_K_M-mtp.gguf", "size": 6_500_000_000},
+            # Q4_0's ARM repacks parse as Q4_0 too.
+            {"rfilename": "m-Q4_0.gguf", "size": 5_500_000_000},
+            {"rfilename": "m-Q4_0_4_4.gguf", "size": 5_500_000_000},
+            # Not model weights.
+            {"rfilename": "mmproj-F16.gguf", "size": 900_000_000},
+            {"rfilename": "m-mmproj-BF16.gguf", "size": 900_000_000},
+            {"rfilename": "m-DFlash2-Q6_K.gguf", "size": 1_500_000_000},
+            {"rfilename": "m-MTP-head-Q8_0.gguf", "size": 400_000_000},
+        ]
+    }
+
+    variants = {
+        v.quant_type: (v.filename, v.file_size_bytes)
+        for v in _extract_gguf_variants(data, 10_000_000_000)
+    }
+
+    assert variants == {
+        "Q8_0": ("Q8_0/m-Q8_0-00001-of-00002.gguf", 10_000_000_000),
+        "Q4_K_M": ("m-Q4_K_M.gguf", 6_000_000_000),
+        "Q4_0": ("m-Q4_0.gguf", 5_500_000_000),
+    }

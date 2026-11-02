@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from whichllm.engine.context import context_cell
 from whichllm.engine.quantization import effective_quant_type
+from whichllm.engine.recipe import build_recipe
 from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.types import HardwareInfo
 from whichllm.output import _console
@@ -42,7 +44,9 @@ def _format_markdown_score(result: CompatibilityResult) -> str:
     return score
 
 
-def _format_markdown_fit(fit_type: str) -> str:
+def _format_markdown_fit(fit_type: str, placement: str | None = None) -> str:
+    if placement == "expert_offload":
+        return "GPU+RAM"
     labels = {
         "full_gpu": "Full GPU",
         "partial_offload": "Partial",
@@ -93,6 +97,7 @@ def display_markdown(
     *,
     show_status: bool = False,
     empty_message: str | None = None,
+    context_length: int | None = None,
 ) -> None:
     """Emit ranking results as a pasteable GitHub-Flavored Markdown table."""
     lines = ["## Recommended Models", ""]
@@ -112,6 +117,7 @@ def display_markdown(
             "Fit",
             mem_label,
             "Speed",
+            "Context",
             "Published",
             "Score",
             "License",
@@ -122,9 +128,13 @@ def display_markdown(
                 _format_markdown_model(result),
                 _format_markdown_params(result),
                 effective_quant_type(result.model, result.gguf_variant),
-                _format_markdown_fit(result.fit_type),
+                _format_markdown_fit(
+                    result.fit_type,
+                    result.placement.kind if result.placement else None,
+                ),
                 _format_bytes(result.vram_required_bytes),
                 _format_markdown_speed(result),
+                context_cell(result),
                 _format_published_at(result.model.published_at),
                 _format_markdown_score(result),
                 result.model.license or "-",
@@ -157,4 +167,9 @@ def display_markdown(
         ]
 
     lines.append(_markdown_table(headers, rows))
+    recipe = (
+        build_recipe(results[0], context_length) if context_length is not None else None
+    )
+    if recipe is not None:
+        lines += ["", "Run #1 with llama.cpp:", "", "```bash", recipe.llama_cpp, "```"]
     _write_markdown("\n".join(lines))

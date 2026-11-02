@@ -1,7 +1,9 @@
 """Tests for ranking behavior."""
 
+import pytest
+
 from whichllm.engine.quantization import effective_quant_type
-from whichllm.engine.ranker import _partial_offload_quality_factor, rank_models
+from whichllm.engine.ranker import rank_models
 from whichllm.hardware.types import GPUInfo, HardwareInfo
 from whichllm.models.types import GGUFVariant, ModelInfo
 
@@ -532,7 +534,10 @@ def test_full_gpu_estimated_ranks_above_partial_direct():
     assert results[0].model.id == "Qwen/Qwen3-8B-AWQ"
 
 
-def test_strong_partial_offload_not_buried_below_weaker_full_gpu():
+def test_dense_model_spilling_to_ram_ranks_below_usable_models():
+    # #104: on an RTX 3060 a strong 27B that spills to RAM runs at ~6 tok/s,
+    # which follows RAM bandwidth. Every placement is held to 8 tok/s, so the
+    # current full-GPU models rank above it, but it is still listed.
     strong_partial = ModelInfo(
         id="Qwen/Qwen3.6-27B",
         family_id="qwen3.6-27b",
@@ -625,34 +630,13 @@ def test_strong_partial_offload_not_buried_below_weaker_full_gpu():
     )
 
     ids = [r.model.id for r in results]
-    assert ids.index("Qwen/Qwen3.6-27B") < ids.index("Qwen/Qwen3-8B")
-    assert ids.index("Qwen/Qwen3.6-27B") < ids.index("google/gemma-2-9b-it")
+    assert ids.index("Qwen/Qwen3.6-27B") > ids.index("Qwen/Qwen3-14B")
+    assert ids.index("Qwen/Qwen3.6-27B") > ids.index("Qwen/Qwen3-8B")
     strong = next(r for r in results if r.model.id == "Qwen/Qwen3.6-27B")
     assert strong.fit_type == "partial_offload"
-    assert (
-        strong.quality_score
-        > next(r for r in results if r.model.id == "Qwen/Qwen3-8B").quality_score
-    )
-
-
-def test_moe_partial_offload_penalty_uses_active_working_set():
-    dense = ModelInfo(
-        id="example/Dense-30B",
-        family_id="dense-30b",
-        name="Dense-30B",
-        parameter_count=30_000_000_000,
-    )
-    moe = ModelInfo(
-        id="example/MoE-30B-A3B",
-        family_id="moe-30b-a3b",
-        name="MoE-30B-A3B",
-        parameter_count=30_000_000_000,
-        parameter_count_active=3_000_000_000,
-        is_moe=True,
-    )
-
-    assert _partial_offload_quality_factor(dense, 0.80) == 0.42
-    assert _partial_offload_quality_factor(moe, 0.80) >= 0.66
+    assert strong.placement is not None
+    assert strong.placement.kind == "layer_offload"
+    assert strong.estimated_tok_per_sec < 8.0
 
 
 def test_evidence_strict_filters_out_estimated_models():
@@ -913,7 +897,7 @@ def test_fit_filter_full_gpu_returns_empty_when_no_full_gpu_candidate():
     assert results == []
 
 
-def test_multi_gpu_speed_confidence_is_low():
+def test_identical_multi_gpu_speed_is_medium_confidence():
     from whichllm.engine.performance import estimate_tok_per_sec
 
     model = ModelInfo(
@@ -927,7 +911,7 @@ def test_multi_gpu_speed_confidence_is_low():
             GGUFVariant(
                 filename="test-34b-Q4_K_M.gguf",
                 quant_type="Q4_K_M",
-                file_size_bytes=22 * 1024**3,
+                file_size_bytes=23 * 1024**3,
             )
         ],
     )
@@ -966,14 +950,69 @@ def test_multi_gpu_speed_confidence_is_low():
     assert results
     assert results[0].fit_type == "full_gpu"
     assert results[0].uses_multi_gpu is True
-    assert results[0].speed_confidence == "low"
+    assert results[0].speed_confidence == "medium"
     single_gpu_speed = estimate_tok_per_sec(
         model,
         model.gguf_variants[0],
         hw.gpus[0],
         "full_gpu",
     )
-    assert results[0].estimated_tok_per_sec == single_gpu_speed * 0.70
+    # Two identical cards split the layers evenly: about the speed of one card
+    # reading everything, less the 5% hand-off allowance.
+    assert results[0].estimated_tok_per_sec == pytest.approx(single_gpu_speed * 0.95)
+    assert any("identical cards" in note for note in results[0].speed_notes)
+
+
+def test_mixed_multi_gpu_speed_confidence_is_low():
+    model = ModelInfo(
+        id="org/Test-34B-GGUF",
+        family_id="org/Test-34B-GGUF",
+        name="Test-34B-GGUF",
+        parameter_count=34_000_000_000,
+        downloads=1000,
+        likes=100,
+        gguf_variants=[
+            GGUFVariant(
+                filename="test-34b-Q4_K_M.gguf",
+                quant_type="Q4_K_M",
+                file_size_bytes=23 * 1024**3,
+            )
+        ],
+    )
+    hw = HardwareInfo(
+        gpus=[
+            GPUInfo(
+                name="NVIDIA GeForce RTX 4090",
+                vendor="nvidia",
+                vram_bytes=24 * 1024**3,
+                compute_capability=(8, 9),
+                memory_bandwidth_gbps=1008.0,
+            ),
+            GPUInfo(
+                name="NVIDIA GeForce RTX 3090",
+                vendor="nvidia",
+                vram_bytes=24 * 1024**3,
+                compute_capability=(8, 6),
+                memory_bandwidth_gbps=936.0,
+            ),
+        ],
+        cpu_name="Test CPU",
+        cpu_cores=16,
+        has_avx2=True,
+        ram_bytes=128 * 1024**3,
+        disk_free_bytes=500 * 1024**3,
+        os="linux",
+    )
+
+    results = rank_models(
+        [model],
+        hw,
+        top_n=1,
+        benchmark_scores={"org/Test-34B-GGUF": 70.0},
+    )
+
+    assert results[0].uses_multi_gpu is True
+    assert results[0].speed_confidence == "low"
     assert any("Multi-GPU speed depends" in note for note in results[0].speed_notes)
 
 
@@ -1153,3 +1192,89 @@ def test_ctx_penalty_demotes_non_fitting():
     assert results[0].model.family_id == "longctx-8b"
     assert results[0].context_fits is True
     assert results[1].context_fits is False
+
+
+def test_synthetic_variant_takes_the_real_size_of_its_upload():
+    from whichllm.engine.ranking_variants import _iter_candidate_variants
+
+    official = ModelInfo(
+        id="Qwen/Test-35B-A3B",
+        family_id="qwen/test-35b-a3b",
+        name="Test-35B-A3B",
+        parameter_count=36_000_000_000,
+    )
+    upload = ModelInfo(
+        id="unsloth/Test-35B-A3B-GGUF",
+        family_id="qwen/test-35b-a3b",
+        name="Test-35B-A3B-GGUF",
+        parameter_count=36_000_000_000,
+        base_model="Qwen/Test-35B-A3B",
+        base_model_relation="quantized",
+        tags=("base_model:quantized:Qwen/Test-35B-A3B",),
+        gguf_variants=[
+            GGUFVariant("Test-35B-A3B-UD-Q4_K_M.gguf", "Q4_K_M", 22_134_528_992),
+            GGUFVariant(
+                "Test-35B-A3B-Q8_0.gguf", "Q8_0", 38_000_000_000, is_estimated=True
+            ),
+        ],
+    )
+
+    variants = {
+        v.quant_type: v for v in _iter_candidate_variants(official, None, [upload])
+    }
+
+    assert variants["Q4_K_M"].file_size_bytes == 22_134_528_992
+    assert variants["Q4_K_M"].is_estimated is False
+    # An estimated upload size is no better than the parameter count.
+    assert variants["Q8_0"].is_estimated is True
+    # Q5_K_M has no upload, so it is not offered.
+    assert set(variants) == {"Q4_K_M", "Q8_0"}
+
+
+def _official_with_upload(quants: dict[str, int | None]) -> tuple[ModelInfo, ModelInfo]:
+    official = ModelInfo(
+        id="Qwen/Test-180B",
+        family_id="qwen/test-180b",
+        name="Test-180B",
+        parameter_count=180_000_000_000,
+    )
+    upload = ModelInfo(
+        id="AtomicChat/Test-180B-GGUF",
+        family_id="qwen/test-180b",
+        name="Test-180B-GGUF",
+        parameter_count=180_000_000_000,
+        base_model="Qwen/Test-180B",
+        base_model_relation="quantized",
+        tags=("base_model:quantized:Qwen/Test-180B",),
+        gguf_variants=[
+            GGUFVariant(f"Test-180B-{q}.gguf", q, size or 1, is_estimated=size is None)
+            for q, size in quants.items()
+        ],
+    )
+    return official, upload
+
+
+def test_synthetic_variants_stop_at_the_quants_uploads_carry():
+    from whichllm.engine.ranking_variants import _iter_candidate_variants
+
+    official, upload = _official_with_upload({"Q4_K_M": 110 * 10**9, "Q5_K_M": None})
+
+    variants = _iter_candidate_variants(official, None, [upload])
+
+    assert [v.quant_type for v in variants] == ["Q4_K_M", "Q5_K_M"]
+
+
+def test_uploads_without_a_synthetic_quant_keep_the_estimates():
+    from whichllm.engine.ranking_variants import _iter_candidate_variants
+
+    official, upload = _official_with_upload({"IQ4_XS": 90 * 10**9})
+
+    variants = _iter_candidate_variants(official, None, [upload])
+
+    assert {v.quant_type for v in variants} == {
+        "Q3_K_M",
+        "Q4_K_M",
+        "Q5_K_M",
+        "Q6_K",
+        "Q8_0",
+    }

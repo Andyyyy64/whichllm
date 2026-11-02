@@ -9,7 +9,9 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from whichllm.engine.context import context_cell
 from whichllm.engine.quantization import effective_quant_type
+from whichllm.engine.recipe import build_recipe
 from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.types import HardwareInfo
 from whichllm.output import _console
@@ -50,7 +52,9 @@ def _top_pick_confidence(results: list[CompatibilityResult]) -> tuple[str, str]:
     top = results[0]
     gap = (top.quality_score - results[1].quality_score) if len(results) > 1 else 999.0
     notes: list[str] = []
-    if top.fit_type == "partial_offload":
+    if top.placement is not None and top.placement.kind == "expert_offload":
+        notes.append("MoE experts in RAM")
+    elif top.fit_type == "partial_offload":
         notes.append("partial offload")
     elif top.fit_type == "cpu_only":
         notes.append("CPU-only")
@@ -128,6 +132,8 @@ def display_hardware(hw: HardwareInfo) -> None:
                 extra.append(f"CUDA {gpu.cuda_version}")
             if gpu.rocm_version:
                 extra.append(f"ROCm {gpu.rocm_version}")
+            if gpu.pcie_generation and gpu.pcie_lanes:
+                extra.append(f"PCIe {gpu.pcie_generation}.0 x{gpu.pcie_lanes}")
             extra_str = f" ({', '.join(extra)})" if extra else ""
             lines.append(
                 f"[bold green]GPU {i}:[/] {gpu.name} — {vram}{extra_str} — BW: {bw}"
@@ -144,8 +150,31 @@ def display_hardware(hw: HardwareInfo) -> None:
     lines.append(f"[bold blue]CPU:[/] {hw.cpu_name} — {hw.cpu_cores} cores{avx_str}")
 
     ram = _format_bytes(hw.ram_bytes)
+    ram_notes = []
+    if hw.ram_available_bytes is not None:
+        ram_notes.append(f"{_format_bytes(hw.ram_available_bytes)} free")
     if hw.ram_budget_bytes is not None and hw.ram_budget_bytes < hw.ram_bytes:
-        ram += f" (budget {_format_bytes(hw.ram_budget_bytes)})"
+        ram_notes.append(f"budget {_format_bytes(hw.ram_budget_bytes)}")
+    if ram_notes:
+        ram += f" ({', '.join(ram_notes)})"
+    if hw.ram_bandwidth_gbps:
+        how = {
+            "detected": "",
+            "unified": "",
+            "override": "set",
+            "estimated": "estimated",
+        }.get(hw.ram_bandwidth_source, "assumed")
+        measured = (
+            f"measured {hw.ram_bandwidth_measured_gbps:.0f} GB/s"
+            if hw.ram_bandwidth_measured_gbps
+            else None
+        )
+        detail = ", ".join(
+            part for part in (hw.ram_bandwidth_detail, how, measured) if part
+        )
+        ram += f" — BW: {hw.ram_bandwidth_gbps:.0f} GB/s"
+        if detail:
+            ram += f" [dim]({detail})[/dim]"
     lines.append(f"[bold blue]RAM:[/] {ram}")
     lines.append(f"[bold blue]Disk free:[/] {_format_bytes(hw.disk_free_bytes)}")
     lines.append(f"[bold blue]OS:[/] {hw.os}")
@@ -156,12 +185,24 @@ def display_hardware(hw: HardwareInfo) -> None:
     _console.console.print(panel)
 
 
+def _min_table_width(table: Table) -> int:
+    """Width the table needs with every column at its fixed or minimum width."""
+    cells = sum((column.width or column.min_width or 0) + 2 for column in table.columns)
+    return cells + len(table.columns) + 1
+
+
+def _context_text(result: CompatibilityResult) -> str:
+    """The model's limit, then the longest context this placement still holds."""
+    return context_cell(result).replace("→", "\n→")
+
+
 def display_ranking(
     results: list[CompatibilityResult],
     *,
     has_gpu: bool = True,
     show_status: bool = False,
     empty_message: str | None = None,
+    context_length: int | None = None,
 ) -> None:
     """Display ranked model table."""
     if not results:
@@ -179,13 +220,20 @@ def display_ranking(
     if show_status:
         table.add_column("Weights", justify="right", width=8)
         table.add_column(f"Fit / {mem_label}", justify="center", width=8)
-        table.add_column("Speed", justify="right", width=12)
+        table.add_column("Speed", justify="right", width=14)
+        table.add_column("Context", justify="right", width=9)
+        context_column = table.columns[-1]
         table.add_column("Published", justify="center", width=10)
     else:
         table.add_column("Params", justify="right", width=6)
         table.add_column("Published", justify="center", width=10)
         table.add_column("Downloads", justify="right", width=9)
     table.add_column("Score", justify="right", width=5)
+    # Past the terminal's width Rich squeezes the model name to nothing, so a
+    # narrow terminal goes without Context instead.
+    show_context = show_status and _min_table_width(table) <= _console.console.width
+    if show_status and not show_context:
+        table.columns.remove(context_column)
 
     download_logs = [
         log10(max(r.model.downloads, 1)) for r in results if r.model.downloads > 0
@@ -218,6 +266,8 @@ def display_ranking(
             "cpu_only": "[red]CPU only[/]",
         }
         fit_str = fit_style.get(r.fit_type, r.fit_type)
+        if r.placement is not None and r.placement.kind == "expert_offload":
+            fit_str = "[green]GPU+RAM[/]"
         published_dt = _parse_published_at(r.model.published_at)
         published_str = Text(
             _format_published_at(r.model.published_at),
@@ -253,6 +303,7 @@ def display_ranking(
                     weights_str,
                     f"{fit_str}\n[dim]{vram_str}[/dim]",
                     speed_str,
+                    *([_context_text(r)] if show_context else []),
                     published_str,
                 ]
             )
@@ -296,6 +347,13 @@ def display_ranking(
             if has_speed_low:
                 parts.append("[red]?[/red] = low-confidence/backend-sensitive tok/s")
             _console.console.print(f"  [dim]Speed:[/dim]  {',  '.join(parts)}")
+        if show_context and any(
+            r.max_context_tokens is not None and "→" in context_cell(r) for r in results
+        ):
+            _console.console.print(
+                "  [dim]Context:[/dim]  the model's limit (? if unknown) → the longest "
+                "context this fit holds on your hardware"
+            )
 
     has_direct = any(r.benchmark_status == "direct" for r in results)
     if not has_direct:
@@ -317,7 +375,7 @@ def display_ranking(
 
     _console.console.print(
         f"  [dim]Benchmark reference: {BENCHMARK_SNAPSHOT} curated snapshot; "
-        "live AA / LiveBench / Aider merged when reachable.[/dim]"
+        "live AA results merged when reachable.[/dim]"
     )
 
     # 上位が僅差なら「断定しすぎない」ための注意を表示する
@@ -363,3 +421,35 @@ def display_ranking(
         if r.warnings:
             for w in r.warnings:
                 _console.console.print(f"  [yellow]Warning #{i} {r.model.name}:[/] {w}")
+    for i, r in enumerate(results[:5], 1):
+        if r.older_generations:
+            _console.console.print(
+                f"  [dim]#{i} {r.model.name} also stands in for older "
+                f"generations of its line: {_older_names(r)}[/dim]"
+            )
+
+    if context_length is not None:
+        _print_recipe(results[0], context_length)
+
+
+def _older_names(result: CompatibilityResult, limit: int = 3) -> str:
+    """The publisher's own older releases first, then uploads and finetunes."""
+    org = result.model.id.split("/", 1)[0]
+    own = [i for i in result.older_generations if i.split("/", 1)[0] == org]
+    others = [i for i in result.older_generations if i not in own]
+    names = [i.rsplit("/", 1)[-1] for i in (own + others)[:limit]]
+    extra = len(result.older_generations) - len(names)
+    return ", ".join(names) + (f" and {extra} more" if extra > 0 else "")
+
+
+def _print_recipe(result: CompatibilityResult, context_length: int) -> None:
+    recipe = build_recipe(result, context_length)
+    if recipe is None:
+        return
+    console = _console.console
+    console.print()
+    console.print("  [bold]Run #1 with llama.cpp:[/]")
+    console.print(Text(f"    {recipe.llama_cpp}", style="bold cyan"))
+    console.print(Text(f"  LM Studio: {recipe.lm_studio}", style="dim"))
+    for note in recipe.notes:
+        console.print(Text(f"  {note}", style="dim"))

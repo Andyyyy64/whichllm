@@ -1,17 +1,26 @@
-"""Convert a LiveBench leaderboard CSV into the inlined Python dict.
+"""Refresh ``src/whichllm/data/livebench.json`` from a LiveBench leaderboard CSV.
 
 LiveBench publishes their leaderboard as a dated CSV (e.g.
-``https://livebench.ai/table_2026_01_08.csv``).
+``https://livebench.ai/table_2026_01_08.csv``). The CSV's rows replace the
+snapshot's models; the hand-estimated carryover is kept.
 
 Usage:
-    curl https://livebench.ai/table_2026_01_08.csv | python scripts/import_livebench_csv.py
+    curl https://livebench.ai/table_2026_01_08.csv | python scripts/import_livebench_csv.py 2026-01-08
 
+Then refit ``_LB_MIN`` / ``_LB_MAX`` in ``livebench.py``; a test checks the fit.
 """
 
 from __future__ import annotations
 
 import csv
+import json
+import re
 import sys
+from pathlib import Path
+
+SNAPSHOT_PATH = (
+    Path(__file__).resolve().parents[1] / "src" / "whichllm" / "data" / "livebench.json"
+)
 
 # LiveBench CSV model name -> list of HuggingFace ids that share the score.
 # When several CSV rows map onto the same HF id (e.g. thinking vs. base),
@@ -64,6 +73,14 @@ def row_average(row: dict[str, str]) -> float | None:
 
 
 def main(argv: list[str]) -> int:
+    if len(argv) != 2 or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", argv[1]):
+        print(
+            "usage: ... | python scripts/import_livebench_csv.py YYYY-MM-DD "
+            "(the date in the CSV's name)",
+            file=sys.stderr,
+        )
+        return 2
+    read_at = argv[1]
     rows = list(csv.DictReader(sys.stdin))
 
     best: dict[str, float] = {}
@@ -105,10 +122,14 @@ def main(argv: list[str]) -> int:
             file=sys.stderr,
         )
 
-    print("{")
-    for hf_id in sorted(best):
-        print(f'    "{hf_id}": {best[hf_id]:.1f},')
-    print("}")
+    snapshot = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
+    snapshot["source"] = f"https://livebench.ai/table_{read_at.replace('-', '_')}.csv"
+    snapshot["read_at"] = read_at
+    snapshot["models"] = {hf_id: round(best[hf_id], 1) for hf_id in sorted(best)}
+    SNAPSHOT_PATH.write_text(
+        json.dumps(snapshot, indent=1, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    print(f"Wrote {len(best)} models to {SNAPSHOT_PATH}")
     return 0
 
 

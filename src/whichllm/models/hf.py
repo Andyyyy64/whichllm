@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from urllib.parse import urlsplit
 from dataclasses import dataclass, field
 
 import httpx
@@ -40,8 +41,11 @@ class ModelFetchReport:
 
 
 _DEFAULT_HF_ENDPOINT = "https://huggingface.co"
+# Concurrent per-model detail requests (publish-date backfill).
+_DETAIL_CONCURRENCY = 8
 
 _MODEL_EXPANDS = [
+    "sha",
     "config",
     "safetensors",
     "gguf",
@@ -52,6 +56,7 @@ _MODEL_EXPANDS = [
 ]
 
 _MODEL_DETAIL_EXPANDS = [
+    "sha",
     "config",
     "safetensors",
     "gguf",
@@ -146,15 +151,69 @@ _FRONTIER_MODEL_IDS = (
 )
 
 
-def _hf_api_url(path: str) -> str:
+def _hf_endpoint() -> str:
     raw_endpoint = os.environ.get("HF_ENDPOINT")
     endpoint = _DEFAULT_HF_ENDPOINT if raw_endpoint is None else raw_endpoint.strip()
     if not endpoint:
         raise ValueError("HF_ENDPOINT must not be empty")
     if not endpoint.startswith(("http://", "https://")):
         raise ValueError("HF_ENDPOINT must start with http:// or https://")
-    endpoint = endpoint.rstrip("/")
-    return f"{endpoint}/api/{path.lstrip('/')}"
+    return endpoint.rstrip("/")
+
+
+def _hf_api_url(path: str) -> str:
+    return f"{_hf_endpoint()}/api/{path.lstrip('/')}"
+
+
+# HF_TOKEN goes to Hugging Face itself. A mirror set in HF_ENDPOINT gets it
+# only over https and only when WHICHLLM_HF_TOKEN_TO_ENDPOINT=1 says so.
+_HF_TOKEN_HOSTS = ("huggingface.co", "hf.co")
+_OPT_IN = {"1", "true", "yes", "on"}
+_token_warning_shown = False
+
+
+def _token_allowed(endpoint: str) -> bool:
+    parsed = urlsplit(endpoint)
+    if parsed.scheme != "https":
+        return False
+    host = (parsed.hostname or "").lower()
+    if host in _HF_TOKEN_HOSTS or host.endswith(".huggingface.co"):
+        return True
+    opt_in = os.environ.get("WHICHLLM_HF_TOKEN_TO_ENDPOINT", "").strip().lower()
+    return opt_in in _OPT_IN
+
+
+def _hf_headers() -> dict[str, str]:
+    """Request headers for Hugging Face calls.
+
+    HF_TOKEN (as used by huggingface_hub) raises rate limits and unlocks
+    configs of gated repositories the token has accepted. It is sent to
+    huggingface.co over https; a mirror in HF_ENDPOINT gets it only when
+    WHICHLLM_HF_TOKEN_TO_ENDPOINT=1, and never over plain http.
+    """
+    global _token_warning_shown
+    headers = {"Accept-Encoding": DEFAULT_ACCEPT_ENCODING}
+    token = os.environ.get("HF_TOKEN", "").strip()
+    if not token:
+        return headers
+    endpoint = _hf_endpoint()
+    if _token_allowed(endpoint):
+        headers["Authorization"] = f"Bearer {token}"
+    elif not _token_warning_shown:
+        _token_warning_shown = True
+        logger.warning(
+            f"HF_TOKEN is not sent to {endpoint}: set "
+            "WHICHLLM_HF_TOKEN_TO_ENDPOINT=1 to send it to this mirror "
+            "(https only)"
+        )
+    return headers
+
+
+def _hf_file_url(repo_id: str, filename: str, revision: str = "main") -> str:
+    """URL of a file in a model repository, honouring HF_ENDPOINT."""
+    api_url = _hf_api_url("")
+    endpoint = api_url[: -len("/api/")]
+    return f"{endpoint}/{repo_id}/resolve/{revision}/{filename}"
 
 
 def _model_list_params(limit: int, sort: str, filter_value: str | None = None) -> dict:
@@ -242,7 +301,7 @@ async def fetch_model_by_id(model_id: str) -> ModelInfo | None:
     async with httpx.AsyncClient(
         timeout=30.0,
         follow_redirects=True,
-        headers={"Accept-Encoding": DEFAULT_ACCEPT_ENCODING},
+        headers=_hf_headers(),
     ) as client:
         resp = await get_with_retries(
             client,
@@ -269,7 +328,7 @@ async def fetch_models(
     async with httpx.AsyncClient(
         timeout=30.0,
         follow_redirects=True,
-        headers={"Accept-Encoding": DEFAULT_ACCEPT_ENCODING},
+        headers=_hf_headers(),
     ) as client:
         logger.debug(f"Fetching models from HF API (limit={limit})")
         data_list = await _fetch_model_list(
@@ -338,16 +397,21 @@ async def fetch_model_published_at(model_ids: list[str]) -> dict[str, str]:
     async with httpx.AsyncClient(
         timeout=20.0,
         follow_redirects=True,
-        headers={"Accept-Encoding": DEFAULT_ACCEPT_ENCODING},
+        headers=_hf_headers(),
     ) as client:
-        tasks = [
-            client.get(
-                _hf_api_url(f"models/{model_id}"),
-                params={"expand[]": ["createdAt", "lastModified"]},
-            )
-            for model_id in unique_ids
-        ]
-        responses = await asyncio.gather(*tasks, return_exceptions=True)
+        semaphore = asyncio.Semaphore(_DETAIL_CONCURRENCY)
+
+        async def detail(model_id: str) -> httpx.Response:
+            async with semaphore:
+                return await get_with_retries(
+                    client,
+                    _hf_api_url(f"models/{model_id}"),
+                    params={"expand[]": ["createdAt", "lastModified"]},
+                )
+
+        responses = await asyncio.gather(
+            *(detail(model_id) for model_id in unique_ids), return_exceptions=True
+        )
 
     result: dict[str, str] = {}
     for model_id, resp in zip(unique_ids, responses, strict=False):

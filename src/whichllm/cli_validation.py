@@ -5,6 +5,7 @@ from whichllm.cli_options import (
     _validate_output_flags,
     _validate_ranking_flags,
     _validate_profile,
+    _validate_quant,
     _validate_evidence,
     _resolve_evidence_mode,
     _resolve_fit_filter,
@@ -18,6 +19,7 @@ from whichllm.cli_hardware import (
     _apply_memory_budgets,
     _format_budget_bytes,
     _apply_gpu_overrides,
+    _apply_ram_bandwidth,
     _auto_min_params_for_profile,
 )
 from whichllm.cli_metadata import (
@@ -31,6 +33,7 @@ __all__ = [
     "_validate_output_flags",
     "_validate_ranking_flags",
     "_validate_profile",
+    "_validate_quant",
     "_validate_evidence",
     "_resolve_evidence_mode",
     "_resolve_fit_filter",
@@ -42,6 +45,7 @@ __all__ = [
     "_apply_memory_budgets",
     "_format_budget_bytes",
     "_apply_gpu_overrides",
+    "_apply_ram_bandwidth",
     "_auto_min_params_for_profile",
     "_include_vision_candidates",
     "_fill_missing_published_at",

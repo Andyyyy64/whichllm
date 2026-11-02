@@ -101,12 +101,12 @@ def test_display_markdown_runtime_table_top_three():
 
     assert output.startswith("## Recommended Models")
     assert (
-        "| # | Model | Params | Quant | Fit | VRAM | Speed | Published | Score | License |"
-        in output
+        "| # | Model | Params | Quant | Fit | VRAM | Speed | Context | Published | Score "
+        "| License |" in output
     )
     assert (
-        "| 1 | org/Test-1\\|Model | 7.0B | Q4_K_M | Full GPU | 5.0 GB | 10.0 tok/s ~ | 2026-01-01 | 79.0 | apache-2.0 |"
-        in output
+        "| 1 | org/Test-1\\|Model | 7.0B | Q4_K_M | Full GPU | 5.0 GB | 10.0 tok/s ~ | - "
+        "| 2026-01-01 | 79.0 | apache-2.0 |" in output
     )
     assert "20.0 tok/s ?" in output
     assert "78.0 ~" in output

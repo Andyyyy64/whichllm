@@ -45,12 +45,20 @@ def _make_gpu(
     *,
     vram_bytes: int = 0,
     rocm_version: str | None = None,
+    gtt_bytes: int = 0,
 ) -> GPUInfo:
     shared_memory = _is_shared_memory_apu(name)
+    gpu_memory = _normalize_apu_vram(name, vram_bytes)
+    if shared_memory and gtt_bytes > 0:
+        # An APU's GPU can use its BIOS carve-out plus the GTT, the system RAM
+        # the amdgpu driver lets it map (half of RAM by default; raised with
+        # amdgpu.gttsize or ttm.pages_limit). That, not all of RAM, is what
+        # llama.cpp's ROCm and Vulkan backends can allocate.
+        gpu_memory = vram_bytes + gtt_bytes
     return GPUInfo(
         name=name,
         vendor="amd",
-        vram_bytes=_normalize_apu_vram(name, vram_bytes),
+        vram_bytes=gpu_memory,
         rocm_version=rocm_version,
         memory_bandwidth_gbps=resolve_detected_bandwidth(name, vram_bytes),
         shared_memory=shared_memory,
@@ -169,16 +177,26 @@ def _detect_from_sysfs(drm_path: Path = Path("/sys/class/drm")) -> list[GPUInfo]
             pass
 
         vram_bytes = _read_int(device / "mem_info_vram_total")
+        gtt_bytes = _read_int(device / "mem_info_gtt_total")
         key = f"{name}:{vram_bytes}"
         if key in seen:
             continue
         seen.add(key)
-        gpus.append(_make_gpu(name, vram_bytes=vram_bytes))
+        gpus.append(_make_gpu(name, vram_bytes=vram_bytes, gtt_bytes=gtt_bytes))
     return gpus
 
 
 def _read_sysfs_amd_vram(drm_path: Path = Path("/sys/class/drm")) -> list[int]:
     """Read VRAM for each AMD GPU from sysfs, in card order."""
+    return _read_sysfs_amd_values("mem_info_vram_total", drm_path)
+
+
+def _read_sysfs_amd_gtt(drm_path: Path = Path("/sys/class/drm")) -> list[int]:
+    """Read the GTT size for each AMD GPU from sysfs, in card order."""
+    return _read_sysfs_amd_values("mem_info_gtt_total", drm_path)
+
+
+def _read_sysfs_amd_values(attribute: str, drm_path: Path) -> list[int]:
     result: list[int] = []
     try:
         cards = sorted(drm_path.glob("card[0-9]*"))
@@ -192,7 +210,7 @@ def _read_sysfs_amd_vram(drm_path: Path = Path("/sys/class/drm")) -> list[int]:
             continue
         if vendor != "0x1002":
             continue
-        result.append(_read_int(device / "mem_info_vram_total"))
+        result.append(_read_int(device / attribute))
     return result
 
 
@@ -220,8 +238,13 @@ def _detect_amd_gpus_fallback() -> list[GPUInfo]:
     names = _detect_from_lspci()
     if names:
         vram_list = _read_sysfs_amd_vram()
+        gtt_list = _read_sysfs_amd_gtt()
         return [
-            _make_gpu(name, vram_bytes=vram_list[i] if i < len(vram_list) else 0)
+            _make_gpu(
+                name,
+                vram_bytes=vram_list[i] if i < len(vram_list) else 0,
+                gtt_bytes=gtt_list[i] if i < len(gtt_list) else 0,
+            )
             for i, name in enumerate(names)
         ]
     return []
@@ -280,10 +303,13 @@ def detect_amd_gpus() -> list[GPUInfo]:
     except Exception:
         pass
 
+    # GTT comes from sysfs; rocm-smi lists the cards in the same order.
+    gtt_list = _read_sysfs_amd_gtt()
+
     # Parse GPU info - rocm-smi JSON keys are like "card0", "card1"
-    for key in sorted(product_data.keys()):
-        if not key.startswith("card"):
-            continue
+    for index, key in enumerate(
+        sorted(k for k in product_data if k.startswith("card"))
+    ):
         card_info = product_data[key]
         # rocm-smi JSON uses "Card Series" (capital S) for the human-readable name.
         # Fall back through SKU only as a last resort.
@@ -304,7 +330,12 @@ def detect_amd_gpus() -> list[GPUInfo]:
 
         sku = card_info.get("Card SKU")
         identity = sku if isinstance(sku, str) and _is_shared_memory_apu(sku) else name
-        gpu = _make_gpu(identity, vram_bytes=vram_total, rocm_version=rocm_version)
+        gpu = _make_gpu(
+            identity,
+            vram_bytes=vram_total,
+            rocm_version=rocm_version,
+            gtt_bytes=gtt_list[index] if index < len(gtt_list) else 0,
+        )
         gpu.name = name
         gpus.append(gpu)
 

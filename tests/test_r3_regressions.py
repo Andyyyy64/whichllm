@@ -21,9 +21,9 @@ from whichllm.engine.ranker import rank_models
 from whichllm.hardware.gpu_simulator import create_synthetic_gpu
 from whichllm.hardware.types import GPUInfo, HardwareInfo
 from whichllm.models.benchmark import _params_compatible
-from whichllm.models.benchmark_sources.aa_index import AA_INDEX_FALLBACK_2026_10_27
+from whichllm.models.benchmark_sources.aa_index import AA_INDEX_SNAPSHOT
 from whichllm.models.benchmark_sources.livebench import LIVEBENCH_RAW_DATA
-from whichllm.models.benchmark_sources.vision import VISION_FALLBACK_2026_05
+from whichllm.models.benchmark_sources.vision import VISION_SNAPSHOT
 from whichllm.models.grouper import group_models
 from whichllm.models.types import GGUFVariant, ModelInfo
 
@@ -81,7 +81,8 @@ class TestAppleSiliconSimulator:
         )
         assert "rage" not in gpu.name.lower()
         # Default unified memory for the base M1 is 8 GB.
-        assert gpu.vram_bytes == 8 * 1024**3
+        assert gpu.unified_memory_bytes == 8 * 1024**3
+        assert gpu.vram_bytes == int(8 * 1024**3 * 2 / 3)
         assert gpu.memory_bandwidth_gbps == 68.25
 
     def test_m3_max_vram_override_apple_400gbps(self):
@@ -90,13 +91,15 @@ class TestAppleSiliconSimulator:
             f"M3 Max must be Apple, got vendor={gpu.vendor!r} "
             "(regression: fell through to nvidia default)"
         )
-        assert gpu.vram_bytes == 64 * 1024**3
+        assert gpu.unified_memory_bytes == 64 * 1024**3
+        assert gpu.vram_bytes == int(64 * 1024**3 * 0.75)
         assert gpu.memory_bandwidth_gbps == 400.0
 
     def test_m2_ultra_192gb_apple_800gbps(self):
         gpu = create_synthetic_gpu("M2 Ultra", vram_override_gb=192)
         assert gpu.vendor == "apple"
-        assert gpu.vram_bytes == 192 * 1024**3
+        assert gpu.unified_memory_bytes == 192 * 1024**3
+        assert gpu.vram_bytes == int(192 * 1024**3 * 0.75)
         assert gpu.memory_bandwidth_gbps == 800.0
 
     def test_apple_chip_compact_form_is_recognized(self):
@@ -159,7 +162,6 @@ class TestFamilySizeInheritance:
             parameter_count=6_600_000_000,
             downloads=0,
             likes=0,
-            base_model="org/DeepSeek-Vx-Flash",
             gguf_variants=[_gguf("Q8_0", 7.0)],
         )
         # External leaderboard only knows the 158B base.
@@ -188,6 +190,33 @@ class TestFamilySizeInheritance:
             "tiny fork's score reflects inherited 158B evidence "
             f"(got {tiny_res.quality_score:.1f}, expected <30)"
         )
+
+    def test_tiny_fork_naming_its_huge_base_is_not_listed(self):
+        base = ModelInfo(
+            id="org/DeepSeek-Vx-Flash",
+            family_id="deepseek-vx-flash",
+            name="DeepSeek-Vx-Flash",
+            parameter_count=158_000_000_000,
+            downloads=1_000_000,
+            likes=1000,
+        )
+        tiny_fork = ModelInfo(
+            id="fork/DeepSeek-Vx-Flash-mtp-aligned",
+            family_id="deepseek-vx-flash",
+            name="DeepSeek-Vx-Flash-mtp-aligned",
+            parameter_count=6_600_000_000,
+            base_model="org/DeepSeek-Vx-Flash",
+            gguf_variants=[_gguf("Q8_0", 7.0)],
+        )
+
+        ranked = rank_models(
+            [base, tiny_fork],
+            _hw(vram_gb=12),
+            benchmark_scores={"org/DeepSeek-Vx-Flash": 92.0},
+            require_direct_top=False,
+        )
+
+        assert tiny_fork.id not in [r.model.id for r in ranked]
 
 
 # ------------------------------------------------------------------ R3-3
@@ -270,7 +299,7 @@ class TestReasoningSurface:
 
     def test_qwq32b_has_curated_benchmarks(self):
         assert "Qwen/QwQ-32B" in LIVEBENCH_RAW_DATA
-        assert "Qwen/QwQ-32B" in AA_INDEX_FALLBACK_2026_10_27
+        assert "Qwen/QwQ-32B" in AA_INDEX_SNAPSHOT
 
     def test_r1_distill_family_has_curated_benchmarks(self):
         for mid in (
@@ -279,7 +308,7 @@ class TestReasoningSurface:
             "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
         ):
             assert mid in LIVEBENCH_RAW_DATA, f"{mid} missing in LB"
-            assert mid in AA_INDEX_FALLBACK_2026_10_27, f"{mid} missing in AA"
+            assert mid in AA_INDEX_SNAPSHOT, f"{mid} missing in AA"
 
     def test_qwq32b_surfaces_with_curated_score(self):
         qwq = ModelInfo(
@@ -319,7 +348,7 @@ class TestVisionGenerationOrder:
     current Qwen3-VL-32B even on an 80 GB GPU."""
 
     def test_curated_vision_scores_respect_generation(self):
-        v = VISION_FALLBACK_2026_05
+        v = VISION_SNAPSHOT
         # The whole point: newest generation must outscore the oldest.
         assert (
             v["Qwen/Qwen3-VL-32B-Instruct"]
@@ -349,12 +378,8 @@ class TestVisionGenerationOrder:
         )
         # Feed the curated vision scores exactly as the merge would.
         scores = {
-            "Qwen/Qwen3-VL-32B-Instruct": VISION_FALLBACK_2026_05[
-                "Qwen/Qwen3-VL-32B-Instruct"
-            ],
-            "Qwen/Qwen2-VL-7B-Instruct": VISION_FALLBACK_2026_05[
-                "Qwen/Qwen2-VL-7B-Instruct"
-            ],
+            "Qwen/Qwen3-VL-32B-Instruct": VISION_SNAPSHOT["Qwen/Qwen3-VL-32B-Instruct"],
+            "Qwen/Qwen2-VL-7B-Instruct": VISION_SNAPSHOT["Qwen/Qwen2-VL-7B-Instruct"],
         }
         hw = _hw(vram_gb=80)
         ranked = rank_models(

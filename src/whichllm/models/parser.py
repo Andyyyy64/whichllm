@@ -320,4 +320,5 @@ def _parse_model(data: dict) -> ModelInfo | None:
         tags=tags,
         sliding_window=sliding_window,
         sliding_window_global_ratio=swa_global_ratio,
+        sha=data["sha"] if isinstance(data.get("sha"), str) else None,
     )

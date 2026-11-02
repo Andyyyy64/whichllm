@@ -15,7 +15,11 @@ from __future__ import annotations
 
 from whichllm.models import benchmark_cache as _cache_module
 from whichllm.models.benchmark_cache import DEFAULT_TTL_SECONDS
-from whichllm.models.benchmark_fetch import fetch_benchmark_scores
+from whichllm.models.benchmark_fetch import (
+    BenchmarkData,
+    fetch_benchmark_data,
+    fetch_benchmark_scores,
+)
 from whichllm.models.benchmark_index import (
     _extract_model_lines,
     _extract_params_b_from_id,
@@ -57,16 +61,25 @@ def load_benchmark_cache() -> dict[str, float] | None:
     return _cache_module.load_benchmark_cache()
 
 
-def save_benchmark_cache(scores: dict[str, float]) -> None:
+def load_task_cache() -> dict[str, dict[str, float]]:
+    """Load cached task scores through the legacy shim globals."""
+    _sync_cache_module_globals()
+    return _cache_module.load_task_cache()
+
+
+def save_benchmark_cache(
+    scores: dict[str, float], task_scores: dict[str, dict[str, float]] | None = None
+) -> None:
     """Save cached benchmark scores through the legacy shim globals."""
     _sync_cache_module_globals()
-    _cache_module.save_benchmark_cache(scores)
+    _cache_module.save_benchmark_cache(scores, task_scores)
 
 
 __all__ = [
     "BENCHMARK_CACHE",
     "CACHE_DIR",
     "DEFAULT_TTL_SECONDS",
+    "BenchmarkData",
     "BenchmarkEvidence",
     "_REPO_SUFFIXES",
     "_append_unique",
@@ -84,8 +97,10 @@ __all__ = [
     "build_line_bucket_index",
     "build_score_index",
     "build_score_name_index",
+    "fetch_benchmark_data",
     "fetch_benchmark_scores",
     "load_benchmark_cache",
+    "load_task_cache",
     "lookup_benchmark",
     "lookup_benchmark_evidence",
     "save_benchmark_cache",

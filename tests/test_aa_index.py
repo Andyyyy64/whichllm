@@ -335,7 +335,6 @@ def test_other_index_version_uses_snapshot_end_to_end(monkeypatch):
     for name in (
         "fetch_leaderboard_with_fallback",
         "fetch_arena_scores",
-        "fetch_aider_polyglot_scores",
         "fetch_vision_scores",
     ):
         monkeypatch.setattr(benchmark_sources, name, empty_source)

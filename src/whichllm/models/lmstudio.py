@@ -152,33 +152,195 @@ def discover_lmstudio_ggufs(
     return sorted(discovered, key=lambda item: os.path.normcase(str(item.path)))
 
 
+def _split_parts(name: str) -> tuple[str, int] | None:
+    """Return the filename prefix and part count of a split GGUF name."""
+    match = _GGUF_SPLIT_RE.search(name)
+    if match is None:
+        return None
+    return name[: match.start()], int(match.group(2))
+
+
+def _split_entry_filename(name: str) -> str | None:
+    """Return the first part filename of a split GGUF name, if it is one."""
+    parts = _split_parts(name)
+    if parts is None:
+        return None
+    prefix, total = parts
+    if total < 1:
+        return None
+    return f"{prefix}-00001-of-{total:05d}.gguf"
+
+
+def _missing_split_parts(
+    local: LocalGGUF,
+    artifact_path: str,
+    local_models: Sequence[LocalGGUF],
+) -> tuple[list[int], int]:
+    """Return the split parts missing beside this candidate's entry file.
+
+    llama.cpp resolves the remaining parts relative to the file it opens, so
+    parts that only exist in another library directory cannot complete the set.
+    Only files in the candidate's own directory are counted. A plain artifact
+    returns no missing parts and a total of zero.
+    """
+    artifact = PurePosixPath(artifact_path)
+    parts = _split_parts(artifact.name)
+    if parts is None:
+        return [], 0
+
+    prefix, total = parts
+    if total < 1:
+        return [1], 1
+    directory = os.path.normcase(os.path.abspath(local.path.parent))
+    available = {
+        PurePosixPath(candidate.artifact_path).name
+        for candidate in local_models
+        if candidate.artifact_path is not None
+        and os.path.normcase(os.path.abspath(candidate.path.parent)) == directory
+        and _is_readable_file(candidate.path)
+    }
+    expected = {
+        part: f"{prefix}-{part:05d}-of-{total:05d}.gguf" for part in range(1, total + 1)
+    }
+    missing = sorted(part for part, name in expected.items() if name not in available)
+    return missing, total
+
+
 def _has_all_split_parts(
-    repo_id: str,
+    local: LocalGGUF,
     artifact_path: str,
     local_models: Sequence[LocalGGUF],
 ) -> bool:
-    artifact = PurePosixPath(artifact_path)
-    match = _GGUF_SPLIT_RE.search(artifact.name)
-    if match is None:
+    """Return whether every split part sits beside this candidate's entry file."""
+    if _split_parts(PurePosixPath(artifact_path).name) is None:
         return True
+    missing, total = _missing_split_parts(local, artifact_path, local_models)
+    return total >= 1 and not missing
 
-    total = int(match.group(2))
+
+def _expected_parts(artifact_path: str) -> dict[int, str] | None:
+    """Part number and filename of every part, or None for a plain artifact."""
+    parts = _split_parts(PurePosixPath(artifact_path).name)
+    if parts is None:
+        return None
+    prefix, total = parts
     if total < 1:
-        return False
-    prefix = artifact.name[: match.start()]
-    expected = {
-        artifact.with_name(f"{prefix}-{part:05d}-of-{total:05d}.gguf").as_posix()
-        for part in range(1, total + 1)
+        return None
+    return {
+        part: f"{prefix}-{part:05d}-of-{total:05d}.gguf" for part in range(1, total + 1)
     }
-    available = {
-        local.artifact_path
-        for local in local_models
-        if local.repo_id is not None
+
+
+def _is_readable_entry(local: LocalGGUF, repo_id: str, artifact_path: str) -> bool:
+    """Whether this file is the readable entry of the requested artifact.
+
+    The one predicate the lookup, the re-check and the incomplete-set report
+    share, so they cannot drift apart.
+    """
+    return (
+        local.repo_id is not None
         and local.repo_id.casefold() == repo_id.casefold()
         and local.artifact_path is not None
+        and local.artifact_path == PurePosixPath(artifact_path).as_posix()
         and _is_readable_file(local.path)
-    }
-    return expected <= available
+    )
+
+
+def find_local_artifact(
+    repo_id: str,
+    artifact_path: str,
+    local_models: Sequence[LocalGGUF],
+) -> LocalGGUF | None:
+    """Return the readable local file that exactly matches a repository artifact."""
+    for local in local_models:
+        if _is_readable_entry(local, repo_id, artifact_path) and _has_all_split_parts(
+            local, artifact_path, local_models
+        ):
+            return local
+    return None
+
+
+def _find_partial_entry_set(
+    repo_id: str,
+    artifact_path: str,
+    local_models: Sequence[LocalGGUF],
+) -> tuple[LocalGGUF, list[int], int] | None:
+    """Report a split set whose entry part is gone but other parts remain.
+
+    The entry file is what a backend opens, so a library that only kept the
+    later parts cannot be used either, and the download it falls back to
+    deserves the same warning.
+    """
+    expected = _expected_parts(artifact_path)
+    if expected is None:
+        return None
+    readable = {name for part, name in expected.items()}
+    for local in local_models:
+        if (
+            local.repo_id is None
+            or local.repo_id.casefold() != repo_id.casefold()
+            or local.artifact_path is None
+            or PurePosixPath(local.artifact_path).name not in readable
+            or not _is_readable_file(local.path)
+        ):
+            continue
+        missing, total = _missing_split_parts(local, artifact_path, local_models)
+        if missing:
+            return local, missing, total
+    return None
+
+
+def find_incomplete_local_artifact(
+    repo_id: str,
+    artifact_path: str,
+    local_models: Sequence[LocalGGUF],
+) -> tuple[LocalGGUF, list[int], int] | None:
+    """Return a local match that cannot load, with its missing part numbers.
+
+    ``find_local_artifact`` skips such a candidate so the scan can keep looking
+    in other libraries. This reports the first one it skipped, so the caller can
+    say why the artifact is downloaded anyway. It covers both an entry file that
+    lost later parts and a set whose entry file is gone.
+    """
+    for local in local_models:
+        if not _is_readable_entry(local, repo_id, artifact_path):
+            continue
+        missing, total = _missing_split_parts(local, artifact_path, local_models)
+        if missing:
+            return local, missing, total
+    return _find_partial_entry_set(repo_id, artifact_path, local_models)
+
+
+def artifact_part_paths(entry: Path, artifact_path: str) -> tuple[Path, ...]:
+    """Every file llama.cpp opens for this artifact, the entry part first."""
+    expected = _expected_parts(artifact_path)
+    if expected is None or len(expected) < 2:
+        return (entry,)
+    return tuple(entry.with_name(expected[part]) for part in sorted(expected))
+
+
+def verify_local_artifact(
+    local: LocalGGUF,
+    repo_id: str,
+    artifact_path: str,
+    local_models: Sequence[LocalGGUF],
+) -> Path | None:
+    """Re-check a match before launch and return the GGUF path to load.
+
+    A match can go stale between discovery and launch, so the same predicate as
+    the lookup is applied again. The returned path is the entry part a backend
+    expects to open.
+    """
+    if not _is_readable_entry(local, repo_id, artifact_path):
+        return None
+    if not _has_all_split_parts(local, artifact_path, local_models):
+        return None
+
+    entry = _split_entry_filename(PurePosixPath(artifact_path).name)
+    if entry is None:
+        return local.path
+    entry_path = local.path.with_name(entry)
+    return entry_path if _is_readable_file(entry_path) else None
 
 
 def _find_local_match(
@@ -189,19 +351,7 @@ def _find_local_match(
     if model is None or variant is None:
         return None
 
-    repo_id = model.id.casefold()
-    artifact_path = PurePosixPath(variant.filename).as_posix()
-    for local in local_models:
-        if (
-            local.repo_id is not None
-            and local.repo_id.casefold() == repo_id
-            and local.artifact_path is not None
-            and local.artifact_path == artifact_path
-            and _is_readable_file(local.path)
-            and _has_all_split_parts(model.id, variant.filename, local_models)
-        ):
-            return local
-    return None
+    return find_local_artifact(model.id, variant.filename, local_models)
 
 
 def attach_local_matches(

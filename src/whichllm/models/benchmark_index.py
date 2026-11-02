@@ -10,7 +10,7 @@ import statistics
 def _extract_params_b_from_id(model_id: str) -> float | None:
     """Extract parameter size in billions from model ID text."""
     lower = model_id.lower()
-    matches = re.findall(r"(\d+(?:\.\d+)?)b(?:-a\d+(?:\.\d+)?b)?", lower)
+    matches = re.findall(r"(\d+(?:\.\d+)?)b(?![a-z])(?:-a\d+(?:\.\d+)?b)?", lower)
     if not matches:
         return None
     try:

@@ -101,6 +101,15 @@ def _apply_memory_budgets(
         if reserved > 0:
             reserved_values.append(reserved)
 
+    for gpu in hardware.gpus:
+        if gpu.unified_memory_bytes and gpu.vram_bytes < gpu.unified_memory_bytes:
+            hardware.budget_notes.append(
+                f"{gpu.name}: Metal lets the GPU use "
+                f"{_format_budget_bytes(gpu.vram_bytes)} of "
+                f"{_format_budget_bytes(gpu.unified_memory_bytes)} by default; "
+                "raise it with `sudo sysctl iogpu.wired_limit_mb=<MB>`"
+            )
+
     if reserved_values:
         unique_reserved = sorted(set(reserved_values))
         if len(unique_reserved) == 1:
@@ -187,11 +196,56 @@ def _apply_gpu_overrides(
             target_gpu = hardware.gpus[gpu_index]
 
         if vram is not None:
+            # On a detected Mac, --vram states the GPU's limit directly (for
+            # example after raising iogpu.wired_limit_mb).
             target_gpu.vram_bytes = int(vram * _GiB)
             target_gpu.usable_vram_bytes = None
             target_gpu.vram_overridden = True
+            target_gpu.unified_memory_bytes = None
         if bandwidth is not None:
             target_gpu.memory_bandwidth_gbps = bandwidth
+    return hardware
+
+
+def _apply_ram_bandwidth(
+    hardware: HardwareInfo,
+    ram_bandwidth: float | None,
+    *,
+    gpu_bandwidth_set: bool = False,
+) -> HardwareInfo:
+    """Apply --ram-bandwidth and keep unified memory consistent.
+
+    An iGPU or unified-memory GPU reads from system RAM, so the flag sets its
+    bandwidth too unless --bandwidth was given for it. Without the flag, an
+    Apple GPU (detected or simulated) defines the RAM bandwidth.
+    """
+    if ram_bandwidth is not None:
+        hardware.ram_bandwidth_gbps = ram_bandwidth
+        hardware.ram_bandwidth_source = "override"
+        hardware.ram_bandwidth_detail = None
+        if not gpu_bandwidth_set:
+            for gpu in hardware.gpus:
+                if gpu.shared_memory or gpu.vendor == "apple":
+                    gpu.memory_bandwidth_gbps = ram_bandwidth
+            discrete = [
+                g for g in hardware.gpus if not (g.shared_memory or g.vendor == "apple")
+            ]
+            if discrete:
+                # Before 0.6 the flag also set a discrete GPU's bandwidth.
+                hardware.budget_notes.append(
+                    "--ram-bandwidth sets system RAM bandwidth (CPU-side reads); "
+                    f"{discrete[0].name} keeps its VRAM bandwidth. Use "
+                    "--bandwidth to change that."
+                )
+        return hardware
+
+    from whichllm.hardware.ram_bandwidth import unified_bandwidth
+
+    unified = unified_bandwidth([g for g in hardware.gpus if g.vendor == "apple"])
+    if unified is not None:
+        hardware.ram_bandwidth_gbps = unified.gbps
+        hardware.ram_bandwidth_source = unified.source
+        hardware.ram_bandwidth_detail = unified.detail
     return hardware
 
 

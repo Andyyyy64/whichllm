@@ -22,16 +22,56 @@ The default `whichllm` command follows this path:
 
 1. Validate CLI flags.
 2. Detect hardware.
-3. Load model cache or fetch from HuggingFace.
-4. Load benchmark cache or fetch benchmark sources.
-5. Group related model repos into families.
-6. Flatten families back into rankable candidates.
-7. Rank every candidate variant.
-8. Backfill missing published dates for top results.
-9. Print a Rich table or JSON.
+3. Load the whichllm index: models, shapes and benchmark scores in one file.
+   With `--live`, or when no index is reachable or cached, load the model and
+   benchmark caches or fetch from HuggingFace and the benchmark sources.
+4. Group related model repos into families.
+5. Flatten families back into rankable candidates.
+6. Rank every candidate variant. On the live path, read `config.json` for the
+   top families and rank again.
+7. On the live path, backfill missing published dates for top results.
+8. Print a Rich table or JSON.
 
 The `plan`, `upgrade`, `run`, `snippet`, and `hardware` subcommands reuse parts
 of the same pipeline.
+
+## The whichllm index
+
+A scheduled GitHub Actions job builds the index once a day and publishes it at
+`https://andyyyy64.github.io/whichllm/index/v1/index.json.gz` (about 300 KB).
+The build runs the same fetchers as a live run, plus `config.json` for every
+family and published dates for every repo. It refuses to publish when a
+quality gate fails: failed catalog requests, too few models or benchmark ids,
+missing curated recent models, low shape coverage, or a large drop from the
+previous index. A failed build leaves the last good index online.
+
+GGUF repositories and pre-quantized checkpoints get their real file sizes.
+The Hub's model list names the files but not their sizes, so a live run
+estimates them from the parameter count, at the median bytes per parameter of
+each quant across the real files in the index. One repo can still be far off:
+up to 2.8x for mixed-precision quants (UD-Q8_K_XL) and small models with large
+vocabularies. NVFP4 repos ran 2x low, because they report only part of their
+parameters.
+The build reads the sizes from each repository's detail page. It reuses the
+previous index's sizes while the repository's commit is unchanged, and asks
+about at most 300 repositories per build, most downloaded first, stopping at
+the Hub's rate limit. A variant's size counts its own file, or the parts of
+one split file. Vision projectors, draft models and files too small to hold
+the model are not variants.
+
+Each index records its benchmark sources (name, the version or snapshot read,
+entry count) and the popular releases of the last 45 days that have no
+benchmark score. Original releases are listed by id; a finetune or
+abliteration is listed by its base, and only when nothing up its lineage has a
+score. The build log prints both, so a source that silently fell
+back to its snapshot, or a new model the sources do not cover yet, is visible
+the day it happens. `--json` output carries the build time and sources in its
+`data` object.
+
+The client revalidates the index with its ETag every 6 hours. Offline, it
+uses the cached copy of any age, and says how old it is when that is more than
+three days. `--refresh` revalidates immediately. `WHICHLLM_INDEX_URL` points
+at a mirror, and `WHICHLLM_INDEX_URL=off` always uses the live path.
 
 ## Hardware detection
 
@@ -81,15 +121,52 @@ Parameter counts can come from safetensors metadata, GGUF metadata, config
 estimation, name hints, or a curated fallback table for important models with
 missing metadata.
 
+## Model shapes and KV cache
+
+The Hub API's model listing only includes `architectures` and `model_type`
+from each config, not layer counts or attention heads. After a first ranking
+pass, whichllm reads `config.json` for the families near the top (up to 25 per
+run), then ranks again. A quantized upload uses its base model's config, and a
+gated official repository borrows the shape of a same-size upload in its
+family. `plan` reads the config of the model it shows.
+
+With a shape, the KV cache is computed per layer, as llama.cpp allocates it by
+default:
+
+- FP16 K/V for attention layers: layers × KV heads × head dim × 2 × context
+- sliding-window layers sized to their window, for architectures that honour
+  it (Gemma 2/3/4, gpt-oss, Cohere 2, and configs that declare sliding layers)
+- the compressed latent for multi-head latent attention (DeepSeek, GLM)
+- a fixed per-sequence state for recurrent layers (Gated DeltaNet in
+  Qwen3-Next and Qwen3.5/3.6, LFM2 convolution, Mamba2 in Granite 4.0),
+  counted for llama-server's 4 default slots: they share one K/V pool but
+  each keeps its own state
+
+On top of the K/V cache come a compute buffer (150 MB plus 0.01 byte per
+parameter and 10 MB per 4K tokens) and 500 MB for the runtime. Against
+llama-server on an RTX 5080 at 4K tokens, that is two to three times the
+compute buffer it allocated (56 MiB for Qwen3.5-2B, 146 MiB for Qwen3.8-27B,
+316 MiB for Qwen3.6-35B-A3B). The weights also count the token embeddings,
+which llama.cpp keeps in system RAM (682 MiB for Qwen3.8-27B), so the estimate
+stays on the safe side: Qwen3.8-27B at Q3_K_M is estimated at 14.2 GiB and
+used 12.8 GiB.
+
+Without a shape (no readable config, or a layout whichllm does not
+recognise) the estimate falls back to a parameter-count heuristic. That
+heuristic undercounts GQA models at long context, so use `whichllm plan` for
+the exact figure.
+
 ## Caches
 
-Both caches normally live under `~/.cache/whichllm/`. If `XDG_CACHE_HOME` is
+These caches normally live under `~/.cache/whichllm/`. If `XDG_CACHE_HOME` is
 set to an absolute path, whichllm uses `$XDG_CACHE_HOME/whichllm/` instead.
 
 | File | TTL | Contents |
 | --- | --- | --- |
-| `models.json` | 6 hours | Serialized `ModelInfo` data |
+| `index.json.gz`, `index-state.json` | Revalidated every 6 hours | The whichllm index and its ETag |
+| `models.json` | 6 hours (30 minutes if the fetch was incomplete) | Serialized `ModelInfo` data |
 | `benchmark.json` | 24 hours | Combined benchmark score map |
+| `shapes.json` | 7 days (1 day for missing configs) | Model shapes parsed from `config.json` |
 
 `--refresh` bypasses the relevant cache and writes a new one after fetching.
 
@@ -102,11 +179,50 @@ whichllm separates sources into two tiers:
 
 | Tier | Sources | Treatment |
 | --- | --- | --- |
-| Current | LiveBench, Artificial Analysis, Aider, Vision | Overrides frozen scores for the same model |
+| Current | LiveBench, Artificial Analysis | Overrides frozen scores for the same model |
 | Frozen | Open LLM Leaderboard v2, Chatbot Arena ELO | Kept for older coverage, capped and recency-demoted |
 
 Current sources can use live scrapes when reachable and curated snapshots when
-the upstream page shape changes. The snapshot month is printed below rankings.
+the upstream page shape changes. The snapshots are JSON files in
+`src/whichllm/data/`, each with the date it was read:
+
+- `aa_index.json`: the pinned AA index. Each entry is either read from an AA
+  model page (its slug is recorded) or a hand estimate for a model AA does not
+  track.
+- `aa_names.json`: AA display names and the Hugging Face repos that carry
+  their score.
+- `livebench.json`: LiveBench averages, refreshed with
+  `scripts/import_livebench_csv.py`, plus hand-estimated carryovers.
+- `vision.json`: the curated vision index.
+
+The month printed below rankings is the newest of their read dates.
+
+LiveBench and Artificial Analysis both measure general ability, so they are
+combined, not ranked against each other. LiveBench is mapped onto AA's
+normalized scale with a fit over the models both sources measured (residual
+spread about 3 points), and a model's score is the mean of the values that
+measured it. Hand-estimated entries (LiveBench carryovers for models it no
+longer lists, AA "peer" entries for models AA does not track) count only when
+neither source measured the model.
+
+AA's leaderboard also lists, for each model, its results on the individual
+benchmarks AA runs. Each benchmark is mapped onto the general scale by
+matching its mean and spread over the models it shares with the general
+index. Two things come out of that:
+
+- **Task scores** for `--profile coding` (SciCode, Terminal-Bench,
+  LiveCodeBench, FrontierCode), `math` (AIME 2025) and `vision` (MMMU-Pro and
+  a curated vision index for older VLMs). A model with one such benchmark has
+  it averaged with its general score.
+- **A general score for new releases** that neither LiveBench nor the pinned
+  AA index covers yet, from at least three broad benchmarks (GPQA Diamond,
+  Humanity's Last Exam, IFBench, AA-LCR, tau2-bench, Terminal-Bench, SciCode).
+  On the models that have both, it lands within about 4 points of the general
+  score on average and runs a few points low on the strongest models.
+
+The per-benchmark results are read live and fall back to a committed
+snapshot, `src/whichllm/data/aa_evals.json` (refresh it with
+`scripts/update_aa_evals.py`).
 
 Within Artificial Analysis, mapped live scores replace stored AA scores even
 when lower or zero. The stored snapshot supplies models absent from the live
@@ -162,6 +278,12 @@ For each `ModelInfo`, `engine/ranker.py` builds candidate variants:
   `--quant`.
 - Official safetensors-only repos can receive synthetic GGUF estimates for
   common community conversions such as `Q4_K_M`, `Q5_K_M`, `Q6_K`, and `Q8_0`.
+  When the catalog has a GGUF upload of the repo that the recipe would
+  download, and the index knows that file's real size, the variant takes it:
+  unsloth's Qwen3.6-35B-A3B at Q4_K_M is 22.1 GB, not the 20.2 GB the
+  parameter count gives. When uploads exist, only the quants they carry are
+  ranked, so a pick has a file behind it. A repo with no upload in the catalog
+  keeps the estimates, and its row has no recipe.
 - Pre-quantized repos such as AWQ, GPTQ, FP8, and BF16 are not given synthetic
   GGUF variants.
 

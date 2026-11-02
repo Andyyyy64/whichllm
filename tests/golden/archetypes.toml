@@ -3,12 +3,24 @@
 # constraint kind is evaluated and scripts/update_golden.py to refresh.
 #
 # Constraints describe what a good recommendation must (not) look like,
-# never an exact ordering. `draft = true` marks constraints that still need
-# a maintainer's review. `xfail` maps "<archetype>/<profile>" to the reason a
-# constraint is known to fail today; the tests treat those as strict xfails,
+# never an exact ordering. `xfail` maps "<archetype>/<profile>" to the reason
+# a constraint is known to fail today; the tests treat those as strict xfails,
 # so fixing the bug turns them into failures until the entry is removed.
+# `archetypes` and the xfail keys are fnmatch patterns.
+#
+# ram_bandwidth_gbps is system RAM bandwidth (89.6 = dual-channel DDR5-5600).
+# Without it the default dual-channel DDR4-3200 (51.2) applies, and Apple
+# GPUs use their unified-memory bandwidth.
 
 # --- Discrete GPUs ---------------------------------------------------------
+
+[[archetype]]
+id = "gtx1650-4gb-win"
+gpus = ["GTX 1650"]
+ram_gb = 16
+os = "windows"
+cpu_cores = 6
+note = "The smallest card people still ask about: offload or nothing."
 
 [[archetype]]
 id = "rtx2060-6gb-win"
@@ -32,7 +44,7 @@ vram_gb = 12
 ram_gb = 32
 os = "windows"
 cpu_cores = 6
-profiles = ["general", "coding"]
+profiles = ["general", "coding", "vision"]
 note = "The #104 report: 3060 12 GB with 32 GB RAM."
 
 [[archetype]]
@@ -44,11 +56,21 @@ os = "windows"
 cpu_cores = 8
 
 [[archetype]]
+id = "rtx5080-16gb-win"
+gpus = ["RTX 5080"]
+ram_gb = 64
+os = "windows"
+cpu_cores = 24
+ram_bandwidth_gbps = 89.6
+note = "The machine the measured speeds and memory below come from."
+
+[[archetype]]
 id = "rtx5060ti-16gb-64gb-linux"
 gpus = ["RTX 5060 Ti"]
 vram_gb = 16
 ram_gb = 64
 os = "linux"
+ram_bandwidth_gbps = 89.6
 profiles = ["general", "coding"]
 note = "16 GB card with plenty of RAM: the MoE expert-offload sweet spot."
 
@@ -57,14 +79,23 @@ id = "rtx4090-24gb-linux"
 gpus = ["RTX 4090"]
 ram_gb = 64
 os = "linux"
-profiles = ["general", "coding", "vision"]
+ram_bandwidth_gbps = 89.6
+profiles = ["general", "coding", "vision", "math", "any"]
 
 [[archetype]]
 id = "rtx5090-32gb-linux"
 gpus = ["RTX 5090"]
 ram_gb = 96
 os = "linux"
+ram_bandwidth_gbps = 89.6
 profiles = ["general", "coding"]
+
+[[archetype]]
+id = "rtx5090-laptop-24gb-win"
+gpus = ["RTX 5090 Laptop"]
+ram_gb = 64
+os = "windows"
+note = "Half the desktop card's bandwidth, the #74 report."
 
 [[archetype]]
 id = "2x-rtx3090-48gb-linux"
@@ -73,7 +104,75 @@ ram_gb = 128
 os = "linux"
 cpu_cores = 24
 
+[[archetype]]
+id = "mixed-1660s-5060ti-win"
+gpus = ["GTX 1660 SUPER", "RTX 5060 Ti"]
+vram_gb = [6, 16]
+ram_gb = 32
+os = "windows"
+note = "The 6 GB + 16 GB pair from #189."
+
+[[archetype]]
+id = "rx7600-8gb-win"
+gpus = ["RX 7600"]
+ram_gb = 32
+os = "windows"
+cpu_cores = 8
+
+[[archetype]]
+id = "rx7900xtx-24gb-linux"
+gpus = ["RX 7900 XTX"]
+ram_gb = 64
+os = "linux"
+ram_bandwidth_gbps = 89.6
+
+[[archetype]]
+id = "arc-a770-16gb-win"
+gpus = ["Arc A770"]
+vram_gb = 16
+ram_gb = 32
+os = "windows"
+cpu_cores = 8
+
+[[archetype]]
+id = "arc-b580-12gb-linux"
+gpus = ["Arc B580"]
+ram_gb = 32
+os = "linux"
+cpu_cores = 8
+
+# --- Long context -------------------------------------------------------------
+# KV cache dominates here, so these cases show whether exact per-layer sizes
+# from config.json reach the ranking (agentic coding wants 32K-128K, #76).
+
+[[archetype]]
+id = "rtx3060-12gb-win-32k"
+gpus = ["RTX 3060"]
+vram_gb = 12
+ram_gb = 32
+os = "windows"
+cpu_cores = 6
+context_length = 32768
+profiles = ["general", "coding"]
+
+[[archetype]]
+id = "rtx4090-24gb-linux-128k"
+gpus = ["RTX 4090"]
+ram_gb = 64
+os = "linux"
+ram_bandwidth_gbps = 89.6
+context_length = 131072
+profiles = ["general", "coding"]
+
 # --- Unified memory ----------------------------------------------------------
+
+[[archetype]]
+id = "m1-8gb-mac"
+gpus = ["M1"]
+vram_gb = 8
+ram_gb = 8
+os = "darwin"
+cpu_cores = 8
 
 [[archetype]]
 id = "m4-16gb-mac"
@@ -97,7 +196,7 @@ gpus = ["M4 Max"]
 vram_gb = 64
 ram_gb = 64
 os = "darwin"
-profiles = ["general", "coding"]
+profiles = ["general", "coding", "vision"]
 
 [[archetype]]
 id = "m4max-128gb-mac"
@@ -112,9 +211,24 @@ gpus = ["Ryzen AI MAX+ 395"]
 vram_gb = 96
 ram_gb = 128
 os = "linux"
+ram_bandwidth_gbps = 256.0
 note = "96 GB of the 128 GB assigned to the iGPU in BIOS."
 
+[[archetype]]
+id = "dgx-spark-128gb-linux"
+gpus = ["DGX Spark"]
+vram_gb = 128
+ram_gb = 128
+os = "linux"
+cpu_cores = 20
+
 # --- CPU only ----------------------------------------------------------------
+
+[[archetype]]
+id = "cpu-16gb-win"
+ram_gb = 16
+os = "windows"
+cpu_cores = 8
 
 [[archetype]]
 id = "cpu-32gb-linux"
@@ -127,25 +241,33 @@ id = "cpu-64gb-win"
 ram_gb = 64
 os = "windows"
 
+[[archetype]]
+id = "cpu-64gb-ddr5-win"
+ram_gb = 64
+os = "windows"
+cpu_cores = 24
+ram_bandwidth_gbps = 89.6
+note = "The measured machine with the GPU left out."
+
 # --- Constraints -------------------------------------------------------------
 
 [[constraint]]
 id = "nonempty"
 kind = "nonempty"
-draft = false
-profiles = ["general", "coding", "vision"]
+profiles = ["general", "coding", "vision", "math", "any"]
 rationale = "Every archetype gets runnable recommendations."
 
 [[constraint]]
 id = "no-pretrain-only"
 kind = "never_in_top"
 top = 10
-profiles = ["general", "coding", "vision"]
-rationale = """Pretrain-only checkpoints (Base, -pt, base Llama/Qwen2.5/Mistral)
-are not chat models and must never be recommended. The patterns are the known
-base checkpoints in the frozen catalog."""
+profiles = ["general", "coding", "vision", "math", "any"]
+rationale = """Pretrain-only checkpoints (Base, -pt, base Llama/Qwen2.5/Mistral/
+Gemma) are not chat models and must never be recommended. The patterns are the
+known base checkpoints in the frozen catalog, kept apart from the code that
+detects them."""
 patterns = [
-    '-Base(-GGUF)?$',
+    '(?i)-base(-\d+)?(-GGUF)?$',
     '-pt$',
     '^meta-llama/Llama-3\.\d-\d+B$',
     '^allenai/Olmo-3-1025-7B$',
@@ -153,8 +275,49 @@ patterns = [
     '^Qwen/Qwen2\.5-\d+(\.\d+)?B$',
     'Qwen2\.5-Coder-\d+(\.\d+)?B(-GGUF)?$',
     '^google/gemma-2b$',
+    '^HuggingFaceTB/SmolLM2-135M$',
 ]
-xfail = { "*/coding" = "6-4 roles: the base Qwen2.5-Coder-7B and its GGUF reach the coding top 10" }
+
+[[constraint]]
+id = "no-auxiliary-models"
+kind = "never_in_top"
+top = 10
+profiles = ["general", "coding", "vision", "math", "any"]
+rationale = """Speculative-decoding draft heads run only next to their target
+model, and diffusion language models need their own sampler. Neither is
+something to chat with."""
+patterns = ['(?i)diffusion', '(?i)dflash']
+
+[[constraint]]
+id = "no-test-fixtures"
+kind = "never_in_top"
+top = 50
+profiles = ["general", "coding", "vision", "math", "any"]
+rationale = """CI fixtures have huge download counts and no use, so they must not
+appear anywhere in the list."""
+patterns = ['(?i)tiny-random', '-internal-testing/']
+
+[[constraint]]
+id = "tiny-is-a-size"
+kind = "any_in_top"
+top = 50
+archetypes = ["m1-8gb-mac", "cpu-16gb-win"]
+rationale = """Ling-3.0-tiny is a real 8B model with direct benchmarks. A name
+rule meant for fixtures must not hide it from the list."""
+patterns = ['(?i)ling-3\.0-tiny']
+
+[[constraint]]
+id = "no-fragment-of-a-base"
+kind = "never_in_top"
+top = 50
+rationale = """A derivative that claims under a tenth of its base cannot be that
+model: no quant shrinks one tenfold. These three are a head and broken counts.
+Rows like them listed at up to 14,000 tok/s on an 8 GB Mac."""
+patterns = [
+    '^kaushikvira/DeepSeek-V4\.1-Flash-1017-GSQ-agentic-strata$',
+    '^AtomicChat/Qwen3\.8-Flash-Next-Uncensored-GGUF$',
+    '^AtomicChat/DeepSeek-V4\.1-Flash-1017-Uncensored-GGUF$',
+]
 
 [[constraint]]
 id = "qwen25-not-top1"
@@ -166,29 +329,204 @@ fits, so Qwen2.5 must not be the #1 pick (HN launch thread, #104)."""
 patterns = ['(?i)qwen2\.5']
 
 [[constraint]]
-id = "no-stale-generation-top3"
+id = "no-stale-generation"
 kind = "stale_generation"
-top = 3
-profiles = ["general", "coding"]
-rationale = """When a newer official generation of the same family is runnable,
-an older generation must not sit in the top 3. "Newer" only counts official
-releases, so a renamed community fine-tune cannot satisfy it."""
+top = 5
+profiles = ["general", "coding", "any"]
+rationale = """When a newer official generation of the same line is runnable,
+an older generation must not sit near the top. "Newer" only counts official
+releases, so a renamed community fine-tune cannot satisfy it (andy's decision
+of 2026-10-29)."""
 pairs = [
     { old = '(?i)qwen2\.5-(?!coder)', new = '^Qwen/Qwen3\.[568]-' },
     { old = '(?i)qwen2\.5-coder', new = '^Qwen/Qwen3-Coder-' },
     { old = '(?i)gemma-2-', new = '^google/gemma-[34]-' },
     { old = '(?i)phi-3', new = '(?i)^microsoft/phi-4' },
+    { old = '(?i)qwen3\.[56]-27b', new = '^Qwen/Qwen3\.8-27B$' },
+    { old = '(?i)qwen3\.5-35b-a3b', new = '^Qwen/Qwen3\.6-35B-A3B$' },
+    { old = '(?i)qwen3-30b-a3b', new = '^Qwen/Qwen3\.[56]-35B-A3B$' },
+    { old = '(?i)gemma-3-', new = '^google/gemma-4-' },
 ]
-xfail = { "*/coding" = "6-4: Qwen2.5-Coder keeps carryover LiveBench / peer AA scores that escape recency demotion, so it outranks runnable Qwen3-Coder" }
 
 [[constraint]]
-id = "top1-offload-usable"
-kind = "top1_offload_speed"
-min_tok_per_sec = 4.0
+id = "older-generation-noted"
+kind = "older_noted"
 gpu = true
 profiles = ["general", "coding"]
-rationale = """A #1 pick that needs CPU offload must still be usable: at
-least 4 tok/s by whichllm's own estimate (#76, #104)."""
+rationale = """Only the newest generation of a line gets a row, and that row
+names what it replaced (andy's decision of 2026-10-29). Without a GPU the older
+27B falls under the junk floor before generations are compared, so there is
+nothing to name."""
+pairs = [
+    { old = '^Qwen/Qwen3\.6-27B$', new = '^Qwen/Qwen3\.8-27B$' },
+    { old = '^Qwen/Qwen3\.5-35B-A3B$', new = '^Qwen/Qwen3\.6-35B-A3B$' },
+]
+
+[[constraint]]
+id = "top3-usable-speed"
+kind = "top_speed"
+top = 3
+min_tok_per_sec = 7.0
+profiles = ["general", "coding", "vision", "math", "any"]
+rationale = """The top 3 must be usable, whatever the placement. The bar is
+8 tok/s (#76, #104; andy's decision of 2026-10-29), as far as the machine has
+that many candidates that fast. The check allows 1 tok/s because the bar is soft
+in the score and the estimates are not that exact: on real file sizes the
+strongest CPU picks land at 7.5-7.7 tok/s, and so does the #2 on a 128 GB M4 Max
+at 7.6. A hard 8 would drop the #1 on 16 GB of RAM from a 20B model to a 4B one."""
+
+[[constraint]]
+id = "measured-qwen36-35b-expert-offload"
+kind = "row_within"
+archetypes = ["rtx5080-16gb-win"]
+quant = "Q4_K_M"
+patterns = ['^Qwen/Qwen3\.6-35B-A3B$']
+min_tok_per_sec = 52.0
+max_tok_per_sec = 95.0
+rationale = """Measured on an RTX 5080 with llama-server b11977: 79 tok/s at
+--n-cpu-moe 15, the command whichllm prints. The estimate may stay 35% under
+that and 20% over it, which is how far a change can move the speed model before
+someone has to measure again."""
+
+[[constraint]]
+id = "measured-qwen38-27b-full-gpu"
+kind = "row_within"
+archetypes = ["rtx5080-16gb-win"]
+quant = "Q3_K_M"
+patterns = ['^Qwen/Qwen3\.8-27B$']
+min_tok_per_sec = 36.0
+max_tok_per_sec = 66.0
+min_required_gb = 12.0
+max_required_gb = 15.0
+rationale = """Measured on an RTX 5080: 55.4 tok/s on the GPU, 12.8 GiB of
+VRAM. The speed bound allows 35% under the run and 20% over it. The estimate is
+14.2 GiB with the real file, since it keeps 500 MB of overhead and a wider
+activation margin than this run needed."""
+
+[[constraint]]
+id = "measured-qwen35-2b-cpu"
+kind = "row_within"
+archetypes = ["cpu-64gb-ddr5-win"]
+quant = "Q4_K_M"
+patterns = ['^Qwen/Qwen3\.5-2B$']
+min_tok_per_sec = 23.0
+max_tok_per_sec = 42.0
+rationale = """Measured on the same machine with llama-server -ngl 0: 34.7
+tok/s on 24 cores and dual-channel DDR5-5600. The bound allows 35% under the run
+and 20% over it."""
+
+[[constraint]]
+id = "memory-bandwidth-caps-speed"
+kind = "bandwidth_ceiling"
+gpu = true
+profiles = ["general", "coding", "vision", "math", "any"]
+rationale = """A dense model reads all its weights for every token, so a full-GPU
+estimate cannot pass memory bandwidth divided by the file size. Real runs stay
+under it too: 349 of 738 tok/s for a 2B and 55 of 85 for a 27B on an RTX 5080.
+This holds on the machines nobody here has measured, such as Macs."""
+
+[[constraint]]
+id = "kv-grows-with-context"
+kind = "row_within"
+archetypes = ["rtx4090-24gb-linux-128k"]
+quant = "Q3_K_M"
+patterns = ['^Qwen/Qwen3\.8-27B$']
+min_required_gb = 18.0
+max_required_gb = 25.0
+rationale = """At 128K the KV cache from config.json is about 8.6 GB on top of
+the 11.3 GB of weights, so the same GGUF needs far more than at 4K (#76, #104)."""
+
+[[constraint]]
+id = "full-gpu-keeps-headroom"
+kind = "full_gpu_budget"
+archetypes = ["gtx*", "rtx*", "rx*", "arc-*", "2x-*", "mixed-*"]
+max_gpu_fraction = 0.95
+profiles = ["general", "coding", "vision", "math", "any"]
+rationale = """A full-GPU row leaves the driver and the desktop their share: at
+least 5% of VRAM stays free, so a near-edge fit is not promised."""
+
+[[constraint]]
+id = "metal-working-set"
+kind = "full_gpu_budget"
+archetypes = ["*-mac"]
+max_gpu_fraction = 0.75
+profiles = ["general", "coding"]
+rationale = """Metal gives the GPU at most about 3/4 of unified memory by
+default, so a Mac full-GPU row must fit that, not the size on the box (#152)."""
+
+[[constraint]]
+id = "offload-keeps-ram-free"
+kind = "ram_budget"
+archetypes = ["gtx*", "rtx*", "rx*", "arc-*", "2x-*", "mixed-*", "cpu-*"]
+max_ram_fraction = 0.85
+rationale = """What does not fit the GPU goes to system RAM, and the OS keeps at
+least 15% of that for itself (#51)."""
+
+[[constraint]]
+id = "gguf-only-backends"
+kind = "gguf_only"
+archetypes = ["*-win", "*-win-32k", "*-mac", "cpu-*", "rx*", "arc-*"]
+profiles = ["general", "coding", "vision", "math", "any"]
+rationale = """AWQ, GPTQ and NVFP4 checkpoints run through vLLM, which needs
+Linux and NVIDIA. Everywhere else every row must be a GGUF."""
+
+[[constraint]]
+id = "top-picks-launch"
+kind = "runnable"
+top = 3
+profiles = ["general", "coding", "vision", "math", "any"]
+rationale = """`whichllm run` launches the first row it can resolve to a real
+file, so the top rows must resolve for `run` to agree with the table."""
+
+[[constraint]]
+id = "memory-buys-quality"
+kind = "quant_in"
+top = 1
+archetypes = [
+    "rtx4090-24gb-linux",
+    "rtx5090-32gb-linux",
+    "2x-rtx3090-48gb-linux",
+    "m3max-36gb-mac",
+    "m4max-*",
+]
+quants = ["Q5_K_M", "Q6_K", "Q8_0"]
+profiles = ["general", "coding"]
+rationale = """With memory and speed to spare the #1 pick must not sit at Q3
+for extra tokens per second nobody needs."""
+
+[[constraint]]
+id = "task-scores-rank-the-profile"
+kind = "task_evidence"
+top = 5
+min_rows = 3
+profiles = ["coding", "vision"]
+rationale = """A task profile ranks on that task's benchmarks, not on the
+general score (#217)."""
+
+[[constraint]]
+id = "vision-needs-vision-models"
+kind = "never_in_top"
+top = 10
+profiles = ["vision"]
+rationale = """--profile vision must not fill up with text-only models, however
+strong they are in general."""
+patterns = [
+    '(?i)gpt-oss',
+    '(?i)glm-\d\.\d-flash',
+    '(?i)phi-4',
+    '(?i)qwen3-(next|coder|\d)',
+    '(?i)deepseek-(v4|r1)',
+]
+
+[[constraint]]
+id = "no-tiny-models-12gb"
+kind = "min_params"
+min_gpu_memory_gb = 12
+min_params_b = 5.0
+rationale = """On 12 GB and up the general list has room for real models, so
+3-4B toys stay out of the top 10. The line sits at 5B because that is the size
+floor on a 12 GB card or a 16 GB Mac once headroom is taken off. K2-Horizon-3.7B
+counts 5.06B parameters and has a direct benchmark, so it may stay."""
 
 [[constraint]]
 id = "coding-modern-top5"
@@ -212,28 +550,46 @@ top = 10
 profiles = ["coding"]
 min_gpu_memory_gb = 12
 rationale = """Strong general models that code well (gpt-oss, Devstral,
-Qwen3.6/3.8-27B) belong in the coding top 10. Today --profile coding only
-admits repos whose names contain "coder" and similar words (#76)."""
+Qwen3.6/3.8-27B) belong in the coding top 10, whatever their names say. The
+profile used to admit only repos with "coder" and similar words in them (#76)."""
 patterns = ['(?i)gpt-oss', '(?i)devstral', '^Qwen/Qwen3\.[68]-27B$']
-xfail = { "*" = "6-4: --profile coding only admits ids matching coder/codegen/starcoder/program/coding" }
 
 [[constraint]]
 id = "qwen38-top3-24gb"
 kind = "any_in_top"
 top = 3
 min_gpu_memory_gb = 24
-rationale = """Qwen3.8-27B is the newest dense 27B and fits 24 GB+. It must be
-in the top 3 there."""
+rationale = """Qwen3.8-27B is the newest dense 27B and fits 24 GB+, at 128K too.
+It must be in the top 3 there."""
 patterns = ['^Qwen/Qwen3\.8-27B$']
-xfail = { "*" = "#194: the AA fallback mixes scales; Qwen3.8-27B was added on AA's new scale (59.0) while Qwen3.6-27B keeps an old-scale 83.5" }
 
 [[constraint]]
 id = "moe-offload-16gb"
 kind = "any_in_top"
 top = 5
 archetypes = ["rtx5060ti-16gb-64gb-linux"]
+placement = "expert_offload"
 rationale = """With 16 GB VRAM and 64 GB RAM a large MoE with experts in RAM
 (gpt-oss-120b, Qwen3.6-35B-A3B) is the strongest practical option and should
 reach the top 5."""
 patterns = ['(?i)gpt-oss-120b', '(?i)qwen3\.[68]-35b-a3b']
-xfail = { "*" = "6-5: partial offload is scored as a whole model; routed experts in RAM are not modelled (gpt-oss-120b ranks #21, Qwen3.6-35B-A3B #11)" }
+
+[[constraint]]
+id = "expert-offload-small-gpu"
+kind = "any_in_top"
+top = 3
+archetypes = ["rtx2060-6gb-win", "rtx4060-8gb-win", "rtx3060-12gb-win"]
+placement = "expert_offload"
+rationale = """On a small card a 26-35B MoE with experts in RAM still runs fast
+and beats anything that fits the card, so it must not lose to a full-GPU
+bonus or a partial-offload penalty (#76, #105, #208)."""
+
+[[constraint]]
+id = "multi-gpu-pools-memory"
+kind = "any_in_top"
+top = 5
+archetypes = ["2x-rtx3090-48gb-linux"]
+fit_type = "full_gpu"
+min_required_gb = 25.0
+rationale = """Two 24 GB cards pool for a layer split, so a model no single card
+holds can still run fully on the GPUs (#112)."""

@@ -20,7 +20,7 @@ Common options:
 | `--context-length`, `-c` | Context length used for KV cache estimation. Accepts integers or `k` shorthand such as `64k`. Default: `4096` |
 | `--quant`, `-q` | Keep only a quantization type such as `Q4_K_M` |
 | `--min-speed` | Keep only models above an exact tok/s estimate |
-| `--speed` | Named speed floor: `any`, `usable` (`10 tok/s`), or `fast` (`30 tok/s`) |
+| `--speed` | Named speed floor: `any`, `usable` (`8 tok/s`, the speed the ranking holds every placement to), or `fast` (`30 tok/s`) |
 | `--fit` | Runtime fit filter: `any`, `gpu`, or `full-gpu` |
 | `--gpu-only` | Alias for `--fit full-gpu`; excludes partial offload and CPU-only candidates |
 | `--profile` | Ranking profile: `general`, `coding`, `vision`, `math`, `any` |
@@ -31,11 +31,13 @@ Common options:
 | `--min-params` | Minimum model knowledge capacity in billions of parameters |
 | `--json` | Print machine-readable JSON |
 | `--markdown`, `-m` | Print a pasteable GitHub-Flavored Markdown table |
-| `--refresh` | Ignore caches and fetch models/benchmarks again |
+| `--refresh` | Revalidate the whichllm index now; with `--live`, ignore caches and fetch models/benchmarks again |
+| `--live` | Fetch from HuggingFace and the benchmark sources instead of the daily whichllm index |
 | `--cpu-only` | Ignore GPUs and rank for CPU-only use |
 | `--gpu` | Simulate GPU(s) by name. Accepts repeated flags, comma-separated values, and count shorthand |
 | `--vram` | Override simulated GPU VRAM or detected GPU usable VRAM in GB |
-| `--bandwidth`, `--ram-bandwidth` | Override the selected GPU's memory bandwidth in GB/s (system RAM bandwidth for an iGPU or unified memory) |
+| `--bandwidth` | Override the selected GPU's memory bandwidth in GB/s |
+| `--ram-bandwidth` | Override system RAM bandwidth in GB/s. It bounds CPU-only runs, MoE experts in RAM and offloaded layers; for an iGPU or unified memory it also sets the GPU's bandwidth |
 | `--gpu-index` | Detected GPU index to override when multiple GPUs are present |
 | `--vram-headroom` | Reserve per-GPU memory for runtime overhead. Default: `auto`. Accepts `none`, byte values like `1.5GB`, or percentages like `10%` |
 | `--ram-budget` | Cap RAM available for partial offload. Accepts `available`, byte values like `8GB`, or percentages like `50%` |
@@ -46,6 +48,9 @@ Environment variables:
 
 | Variable | Meaning |
 | --- | --- |
+| `WHICHLLM_INDEX_URL` | Location of the whichllm index (default: GitHub Pages). Set to `off` to always fetch live |
+| `HF_TOKEN` | Hugging Face token for higher rate limits and gated configs on the live path. Sent to huggingface.co over https; a mirror in `HF_ENDPOINT` gets it only with `WHICHLLM_HF_TOKEN_TO_ENDPOINT=1`, never over http |
+| `WHICHLLM_HF_TOKEN_TO_ENDPOINT` | `1` sends `HF_TOKEN` to the `HF_ENDPOINT` mirror (https only) |
 | `HF_ENDPOINT` | Hugging Face endpoint root used for whichllm's own model metadata API calls. Example: `https://huggingface.co` or a compatible mirror root |
 
 `--fit any` is the default. It can include full-GPU, partial-offload, and
@@ -55,24 +60,34 @@ CPU-only candidates when they are runnable. `--fit gpu`, `--fit full-gpu`, and
 The default table shows memory required, estimated generation speed, fit type,
 and published date. Use `--details` when you want download counts instead.
 Speed colors are absolute usability hints: red is under `4 tok/s`, yellow is
-`4-10 tok/s`, green is `10-30 tok/s`, and bright green is `30+ tok/s`. The `~`
+`4-8 tok/s`, green is `8-30 tok/s`, and bright green is `30+ tok/s`. The `~`
 and `?` markers still refer to estimate confidence, not speed quality.
+
+Context shows the model's own limit and, after the arrow, the longest
+context that keeps the row's fit on your hardware: `256k→127k` stays fully on
+the GPU up to 127k tokens. One number means the whole limit fits. The limit
+comes from the Hub metadata or the model's `config.json`; where neither has
+it, `?→18k` gives the edge alone and `128k+` says only that 128k fits. A
+terminal narrower than 105 columns leaves the column out, since Rich would
+otherwise squeeze the model name away. JSON rows carry the two numbers as
+`context_length` and `max_context_tokens`.
 
 `--vram-headroom auto` subtracts a small budget from each GPU before fit
 checks, so near-edge recommendations are less likely to overflow in tools such
 as LM Studio. Use `--vram-headroom none` to restore the raw detected VRAM.
 `--ram-budget available` caps offload planning to current available RAM.
 For detected iGPU or unified-memory systems, use `--vram` and
-`--bandwidth` / `--ram-bandwidth` to override the automatically detected
-usable memory and bandwidth. If multiple GPUs are detected, add `--gpu-index`
+`--ram-bandwidth` to override the automatically detected usable memory and
+bandwidth. If multiple GPUs are detected, add `--gpu-index`
 with the GPU number from `whichllm hardware`.
 
 whichllm scans `~/.lmstudio/models` for GGUF files. A recommendation is marked
 `Installed` only when its resolved Hugging Face repository and exact artifact
-path match a readable local file. Every part of a split GGUF must be present.
-Libraries are only read; whichllm does not move, modify, or delete LM Studio
-files. Use `--lm-studio-path` for legacy or custom model libraries; an explicit
-path that cannot be read is reported as an error.
+path match a readable local file. Every part of a split GGUF must be present
+beside the entry file in the same library, because that is where llama.cpp
+looks for it. Libraries are only read; whichllm does not move, modify, or
+delete LM Studio files. Use `--lm-studio-path` for legacy or custom model
+libraries; an explicit path that cannot be read is reported as an error.
 
 Examples:
 
@@ -101,14 +116,40 @@ whichllm --evidence strict
 whichllm --json | jq '.models[0]'
 ```
 
+`--json` output has a `data` object that says where the scores came from:
+`{"source": "index", "built_at": ..., "benchmark_sources": [...]}`, or
+`{"source": "live"}` with `--live`.
+
 `--markdown` is mutually exclusive with `--json`. It prints a plain Markdown
 table without the Rich hardware panel, colors, or box-drawing characters.
+
+Below the table, whichllm prints how to run the top pick the way it was
+estimated, when a GGUF build of it is known:
+
+```text
+  Run #1 with llama.cpp:
+    llama-server -hf ggml-org/gpt-oss-120b-GGUF:MXFP4 -c 4096 -ngl 99 --n-cpu-moe 29 -fa on
+  LM Studio: GPU Offload: max, Number of layers for which to force MoE weights onto CPU: 29
+```
+
+The flags follow the placement: `-ngl 99` for a full-GPU fit,
+`--n-cpu-moe N` (or `--cpu-moe`) when MoE experts stay in RAM, `-ngl N` for
+layer offload and `-ngl 0` for CPU-only. `--markdown` prints the command as a
+code block, and `--json` adds a `recipe` object to every row.
+
+The LM Studio line names the settings in its model loader (checked against
+LM Studio 0.4.26). When every expert stays in RAM, the MoE layer count is set
+to the model's layer count. Ollama picks its own GPU/CPU split, so for a split
+model the recipe says its speed can differ from the estimate. On an RTX 5080,
+Ollama 0.40 ran Qwen3.6-35B-A3B at about 100 tok/s, against 88 for
+llama-server with `--n-cpu-moe 12`.
 
 Ranking JSON model rows include:
 
 | Field | Meaning |
 | --- | --- |
 | `fit_type` | Runtime fit classification: `full_gpu`, `partial_offload`, or `cpu_only` |
+| `placement` | Where the weights live: `kind` (`gpu`, `expert_offload`, `layer_offload`, `cpu`), `gpu_weight_bytes`, `cpu_weight_bytes`, `n_cpu_moe` (llama.cpp `--n-cpu-moe`; `null` with expert offload means every expert, `--cpu-moe`), `n_gpu_layers`, `num_layers`, and `devices` — the per-device share of the GPU-resident part on a pooled multi-GPU fit: `name`, `available_bytes`, `budget_bytes` (after that device's runtime buffer), `weight_bytes`, `kv_bytes`, `nonsplittable_bytes` (activation buffers and framework overhead, reserved on one device), `required_bytes`, `fits` |
 | `vram_required_bytes` | Estimated runtime memory requirement for the candidate |
 | `vram_available_bytes` | GPU memory budget used for the fit check |
 | `uses_multi_gpu` | Whether the fit check used more than one GPU |
@@ -122,9 +163,14 @@ Ranking JSON model rows include:
 | `benchmark_confidence` | Confidence in the benchmark match, `0.0`–`1.0` |
 | `local_match` | Whether a matching GGUF was found in an LM Studio library |
 | `local_path` | Absolute path to the matching local GGUF, or `null` |
+| `recipe` | How to run this row: `gguf_repo`, `quant`, `llama_cpp` (a `llama-server` command), `lm_studio` (load settings), `ollama` (command) and `notes`; `null` when no GGUF build is known |
 
 The top-level `hardware` object also includes `usable_vram_bytes` per GPU,
-`ram_budget_bytes`, and `budget_notes` when memory budgets are active.
+`ram_budget_bytes`, and `budget_notes` when memory budgets are active, plus
+`ram_bandwidth_gbps` and `ram_bandwidth_source` (`detected`, `unified`,
+`estimated`, `override` or `default`), `ram_available_bytes` (RAM free at
+start), and `pcie_generation` and `pcie_lanes` per GPU when NVML reports
+them.
 
 ## `hardware`
 
@@ -132,8 +178,9 @@ The top-level `hardware` object also includes `usable_vram_bytes` per GPU,
 whichllm hardware [OPTIONS]
 ```
 
-Prints detected hardware without ranking models. The same simulation flags are
-available here:
+Prints detected hardware without ranking models, with the RAM free now, each
+NVIDIA card's PCIe link, and a measured RAM bandwidth beside the figure the
+estimates use. The same simulation flags are available here:
 
 ```bash
 whichllm hardware
@@ -206,9 +253,10 @@ whichllm upgrade "RTX 4090" --context-length 128k
 whichllm run [MODEL_NAME] [OPTIONS]
 ```
 
-Creates a temporary Python script, launches it through `uv run --no-project`,
-installs the needed inference packages into that isolated run, and starts an
-interactive chat.
+Downloads a model and starts an interactive chat. A GGUF model runs in
+llama.cpp's `llama-cli` when it is in `PATH`; otherwise `run` creates a
+temporary Python script, launches it through `uv run --no-project` and
+installs the needed inference packages into that isolated run.
 
 If `MODEL_NAME` is omitted, whichllm ranks models for the current hardware and
 uses the top result.
@@ -220,7 +268,8 @@ Options:
 | `--context-length`, `-c` | Context length for the generated chat script. Accepts integers or `k` shorthand such as `64k` |
 | `--quant`, `-q` | Preferred GGUF quantization |
 | `--refresh` | Ignore model cache and fetch again |
-| `--cpu-only` | Force CPU-only execution in the generated script |
+| `--cpu-only` | Force CPU-only execution (`-ngl 0` for llama-cli) |
+| `--lm-studio-path` | Scan an additional LM Studio model library. Repeat the option for legacy or multiple custom locations |
 
 Examples:
 
@@ -229,9 +278,139 @@ whichllm run
 whichllm run "qwen 2.5 1.5b gguf"
 whichllm run "phi 3 mini gguf" --cpu-only
 whichllm run "mistral 7b gguf" --context-length 64k
+whichllm run "qwen 2.5 1.5b gguf" --lm-studio-path /mnt/models/lm-studio
 ```
 
-`run` requires `uv` in `PATH`.
+If the resolved model has an exact local match in an LM Studio library, `run`
+opens that file instead of downloading a second copy from Hugging Face. A match
+requires the resolved repository, the exact artifact path, and every part of a
+split GGUF beside the entry file; for a split artifact `run` opens the first
+part. With llama-cli installed the recipe's `-hf <repo>:<quant>` becomes
+`-m <entry part>` and the flags stay the same. Otherwise the generated script
+opens the local files and keeps `huggingface-hub` only as the fallback below.
+
+The files are checked again when they are actually opened: with llama-cli right
+before the process starts, and on the isolated path inside the generated script,
+because the `uv` build runs first and can take minutes. If a file disappeared in
+between, `run` prints a warning and downloads the artifact instead. A local set
+that was already incomplete names the missing part, including a set whose first
+part is gone; a library without the artifact stays quiet. LM Studio libraries
+are only read.
+
+`run` needs llama.cpp's `llama-cli` (GGUF models) or `uv` in `PATH`.
+
+With llama-cli, a pick that `run` makes itself runs with the flags of the
+printed recipe (`-ngl`, `--n-cpu-moe`, `-fa`), and a named model is left to
+llama.cpp's `--fit`, which sizes the GPU layers to the free memory.
+
+Without it, GGUF models run on llama-cpp-python. PyPI ships it only as source,
+so the first run compiles it (22 minutes on a Core Ultra 9) into a CPU-only
+build, and `run` says so before it starts. The generated script asks for as
+many layers on the GPU as the ranking's fit allows (`n_gpu_layers`), which
+only matters for a GPU build you installed yourself. llama-cpp-python cannot
+keep only MoE experts in RAM, so for an expert-offload pick `run` uses the
+equivalent layer split and prints the `llama-server` command that matches the
+estimate.
+
+## `bench`
+
+```bash
+whichllm bench [MODEL_NAME] [OPTIONS]
+```
+
+Measures a model's real decode speed, prints it next to the estimate and saves
+the result under `~/.cache/whichllm/reports/`. Nothing leaves your machine.
+
+If `MODEL_NAME` is omitted, `bench` measures the top pick for this hardware.
+Whichever model it measures runs with the placement the estimate assumed. Each
+run generates from the same fixed text, after one warm-up that is not counted.
+
+Options:
+
+| Option | Meaning |
+| --- | --- |
+| `--backend` | `auto` (default), `llama-server`, `ollama`, `lm-studio` or `openai` |
+| `--url` | Base URL of the server for `--backend openai` |
+| `--model` | The name that server knows the model by |
+| `--engine` | The engine behind that server, such as `vllm` or `sglang` |
+| `--runs` | Measured runs (default 3) |
+| `--tokens` | Tokens to generate per run (default 128) |
+| `--context-length`, `-c` | Context length |
+| `--quant`, `-q` | Preferred GGUF quantization |
+| `--yes`, `-y` | Skip the download prompt |
+| `--refresh` | Ignore model cache and fetch again |
+| `--cpu-only` | Force CPU-only execution |
+| `--lm-studio-path` | Scan an additional LM Studio model library |
+
+Examples:
+
+```bash
+whichllm bench
+whichllm bench "qwen 3.5 2b gguf"
+whichllm bench --backend ollama
+whichllm bench --backend lm-studio
+whichllm bench --backend openai --url http://localhost:8000/v1 --engine vllm --model my-model
+```
+
+`auto` uses `llama-server` when it is in `PATH`, then a running Ollama, then
+LM Studio's `lms`. Each runtime reports the speed it measured itself, except
+`openai`, which is timed from the first to the last token of the stream.
+
+| Backend | What `bench` does | Speed comes from |
+| --- | --- | --- |
+| `llama-server` | Starts it on a free local port with the flags of the recipe, and stops it afterwards | `timings.predicted_per_second` |
+| `ollama` | Uses the running server and unloads the model afterwards | `eval_count / eval_duration` |
+| `lm-studio` | Loads the model with `lms load` and unloads it afterwards | `stats.tokens_per_second` |
+| `openai` | Uses a server you started | Stream timing |
+
+`bench` asks before a download and names the file and its size. `lm-studio` only
+measures a model that is already in LM Studio's library. The estimate describes
+llama.cpp, so Ollama and LM Studio can land elsewhere with their own GPU/CPU
+split. GPU memory use is recorded on NVIDIA GPUs.
+
+A saved report holds your hardware, the runtime, the model file, the placement,
+the measured speeds and the estimate. It holds no username, hostname, file path,
+serial number, IP address or generated text.
+
+## `report`
+
+```bash
+whichllm report [OPTIONS]
+```
+
+Shares a measurement. `report` prints the whole report, asks, and then opens a
+prefilled GitHub issue in your browser. whichllm sends nothing itself: you read
+the issue and submit it there, and it is public from then on.
+
+There is no option to skip the question. A report that holds a field whichllm
+does not know, as an edited file might, is refused.
+
+Options:
+
+| Option | Meaning |
+| --- | --- |
+| `--file` | Report to share (default: the latest from `bench`) |
+| `--print` | Show the text and open nothing |
+| `--manual` | Report a speed you measured yourself |
+| `--engine` | Engine for `--manual`, such as `mlx` or `vllm` |
+| `--model` | Model for `--manual` |
+| `--tok-per-sec` | Measured speed for `--manual` |
+| `--quant`, `-q` | Quantization for `--manual` |
+| `--context-length`, `-c` | Context length for `--manual` |
+
+Examples:
+
+```bash
+whichllm report
+whichllm report --print
+whichllm report --file ~/.cache/whichllm/reports/20261101-123000.json
+whichllm report --manual --engine mlx --model mlx-community/Qwen3.5-9B-4bit --tok-per-sec 42
+```
+
+A maintainer checks each issue. Once three verified `bench` runs on plain
+llama.cpp agree with the estimate for a GPU, that GPU's estimates count as high
+confidence. Results from Ollama, LM Studio, MLX and vLLM are kept as reference
+values for that runtime, and `--manual` results stay reference values too.
 
 ## `snippet`
 
@@ -270,12 +449,33 @@ whichllm snippet "llama 3 8b gguf" --quant Q5_K_M
 
 ## Profiles
 
-The ranker detects specialization from repository names.
+The ranker detects specialization from repository names, and image support
+from the Hub's `image-text-to-text` tag. A profile decides which models are
+eligible, and `coding`, `math` and `vision` also rank on benchmarks for that
+task: Artificial Analysis's SciCode, Terminal-Bench, LiveCodeBench and
+FrontierCode for coding, AIME 2025 for math, and MMMU-Pro plus a curated
+vision index for vision. Those results are put on the same 0-100 scale as the
+general score, so a model without them keeps its general score. JSON rows
+say which one was used in `benchmark_basis`.
 
 | Profile | Behavior |
 | --- | --- |
 | `general` | Excludes coding, vision, and math-specialized names |
-| `coding` | Keeps coding-specialized names |
-| `vision` | Keeps vision or multimodal names and includes VLM candidates |
-| `math` | Keeps math-specialized names plus general reasoning models (excludes coding and vision names) |
+| `coding` | General models plus coding-specialized names (excludes vision and math names), ranked on coding benchmarks where they exist. A code-tuned model without coding results gets a 2-point edge over an otherwise equal general one |
+| `vision` | Models that accept images: vision or multimodal names, and natively multimodal models tagged `image-text-to-text` (Gemma 3/4, Qwen3.5/3.6) |
+| `math` | General reasoning models plus math-specialized names (excludes coding and vision names) |
 | `any` | Keeps all recognized model types and includes VLM candidates |
+
+Pretrain-only (base) checkpoints are never recommended in any profile: names
+ending in `-Base` or `-pt`, checkpoints whose publisher ships an instruct
+version derived from them (`Qwen2.5-7B` for `Qwen2.5-7B-Instruct`), and
+quantized uploads of those. Neither are speculative-decoding draft heads
+(DFlash, `-draft` uploads), which only run next to their target model, or
+diffusion language models such as DiffusionGemma, which llama.cpp, LM Studio
+and Ollama do not run as chat models.
+
+Non-GGUF checkpoints are only considered on Linux with an NVIDIA GPU. NVFP4
+and FP8 checkpoints also need compute capability 8.0 or newer (Ampere), since
+vLLM serves them through its Marlin kernels there. An NVFP4 pick on a GPU
+older than Blackwell carries a note that it runs through weight-only FP4
+kernels rather than native FP4.

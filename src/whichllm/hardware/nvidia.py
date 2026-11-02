@@ -8,6 +8,7 @@ import subprocess
 
 from whichllm.constants import NVIDIA_COMPUTE_CAPABILITY, _GiB
 from whichllm.hardware.gpu_db import _static_bandwidth, resolve_detected_bandwidth
+from whichllm.hardware.jetson import detect_jetson_module, is_tegra_gpu_name
 from whichllm.hardware.types import GPUInfo
 
 logger = logging.getLogger(__name__)
@@ -15,8 +16,7 @@ logger = logging.getLogger(__name__)
 _NVIDIA_UNIFIED_MEMORY_MARKERS = (
     "GB10",
     "DGX SPARK",
-    "JETSON AGX XAVIER",
-    "JETSON XAVIER NX",
+    "JETSON",
     "XAVIER",
 )
 
@@ -37,7 +37,13 @@ def _lookup_bandwidth(name: str) -> float | None:
 
 def _is_unified_memory_nvidia_gpu(name: str) -> bool:
     name_upper = name.upper()
-    return any(marker in name_upper for marker in _NVIDIA_UNIFIED_MEMORY_MARKERS)
+    if any(marker in name_upper for marker in _NVIDIA_UNIFIED_MEMORY_MARKERS):
+        return True
+    # Tegra is a unified-memory SoC: the integrated GPU has no dedicated VRAM,
+    # so the driver reports NVML_ERROR_NOT_SUPPORTED for the memory queries and
+    # "[N/A]" through nvidia-smi. The "(nvgpu)" suffix identifies that GPU from
+    # the driver name alone.
+    return is_tegra_gpu_name(name)
 
 
 def _system_memory_bytes() -> int:
@@ -55,7 +61,19 @@ def _make_nvidia_gpu(
     cuda_version: str | None = None,
     mem_clock_mhz: float | None = None,
 ) -> GPUInfo:
+    # Computed from the driver-reported name, before the substitution below.
     shared_memory = _is_unified_memory_nvidia_gpu(name)
+
+    # NVML reports one generic name per Tegra generation ("Orin (nvgpu)") that
+    # cannot distinguish a 4 GB Orin Nano from a 64 GB AGX Orin — a 6x
+    # bandwidth spread. Substitute the module name resolved from the device
+    # tree so the curated tables can identify the actual board. An
+    # unrecognised module keeps the generic name and resolves no bandwidth.
+    if shared_memory and is_tegra_gpu_name(name):
+        module = detect_jetson_module()
+        if module is not None:
+            name = module.name
+
     if shared_memory and (vram_bytes is None or vram_bytes <= 0):
         vram_bytes = _system_memory_bytes()
     elif vram_bytes is None:
@@ -72,6 +90,23 @@ def _make_nvidia_gpu(
         ),
         shared_memory=shared_memory,
     )
+
+
+def _pcie_link(pynvml, handle) -> tuple[int | None, int | None]:
+    """PCIe generation and lane count the GPU and its slot support together.
+
+    The current link drops to Gen 1 while the GPU idles, so this reads the
+    maximum instead. It is shown only; no estimate uses it.
+    """
+    try:
+        generation = int(pynvml.nvmlDeviceGetMaxPcieLinkGeneration(handle))
+        lanes = int(pynvml.nvmlDeviceGetMaxPcieLinkWidth(handle))
+    except Exception as error:
+        logger.debug(f"PCIe link unavailable ({error})")
+        return None, None
+    if generation <= 0 or lanes <= 0:
+        return None, None
+    return generation, lanes
 
 
 def _run_smi_query(fields: str) -> str:
@@ -93,10 +128,12 @@ def _detect_nvidia_gpus_via_smi() -> list[GPUInfo]:
     fails on a driver/card that rejects ``clocks.max.memory``, we retry the
     original 2-field query so a missing optional field never wipes out detection.
     """
+    fields = 3
     try:
         stdout = _run_smi_query("name,memory.total,clocks.max.memory")
     except (FileNotFoundError, subprocess.SubprocessError, OSError) as e:
         logger.debug(f"nvidia-smi 3-field query failed ({e}); retrying without clock")
+        fields = 2
         try:
             stdout = _run_smi_query("name,memory.total")
         except (FileNotFoundError, subprocess.SubprocessError, OSError) as e2:
@@ -105,8 +142,10 @@ def _detect_nvidia_gpus_via_smi() -> list[GPUInfo]:
 
     gpus: list[GPUInfo] = []
     for line in stdout.splitlines():
-        parts = [part.strip() for part in line.split(",", maxsplit=2)]
-        if len(parts) < 2 or not parts[0]:
+        parts = [part.strip() for part in line.split(",")]
+        # A tool that ignores --query-gpu (a wrapper or shim named nvidia-smi)
+        # exits 0 with its own table; one such row became a 1 MB GPU (#190).
+        if not 2 <= len(parts) <= fields or not parts[0] or "|" in parts[0]:
             continue
 
         name, memory_mib_text = parts[0], parts[1]
@@ -117,7 +156,7 @@ def _detect_nvidia_gpus_via_smi() -> list[GPUInfo]:
             if clock_match:
                 mem_clock_mhz = float(clock_match.group(0))
 
-        match = re.search(r"\d+", memory_mib_text)
+        match = re.fullmatch(r"(\d+)(?:\s*MiB)?", memory_mib_text)
         if not match:
             if not _is_unified_memory_nvidia_gpu(name):
                 logger.debug(f"Could not parse nvidia-smi memory value: {line!r}")
@@ -125,7 +164,7 @@ def _detect_nvidia_gpus_via_smi() -> list[GPUInfo]:
             gpus.append(_make_nvidia_gpu(name, None, mem_clock_mhz=mem_clock_mhz))
             continue
 
-        memory_mib = int(match.group(0))
+        memory_mib = int(match.group(1))
         gpus.append(
             _make_nvidia_gpu(name, memory_mib * 1024**2, mem_clock_mhz=mem_clock_mhz)
         )
@@ -188,7 +227,10 @@ def detect_nvidia_gpus() -> list[GPUInfo]:
                 )
                 mem_clock_mhz = None
 
-            gpus.append(_make_nvidia_gpu(name, vram_bytes, cuda_str, mem_clock_mhz))
+            gpu = _make_nvidia_gpu(name, vram_bytes, cuda_str, mem_clock_mhz)
+            if not gpu.shared_memory:
+                gpu.pcie_generation, gpu.pcie_lanes = _pcie_link(pynvml, handle)
+            gpus.append(gpu)
     except pynvml.NVMLError as e:
         logger.debug(f"Error enumerating NVIDIA GPUs: {e}")
     finally:

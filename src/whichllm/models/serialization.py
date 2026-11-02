@@ -6,6 +6,8 @@ from whichllm.models.parameters import (
     _normalize_param_count,
     _resolve_moe_active_params,
 )
+from whichllm.models.moe_fields import fill_moe_from_shape
+from whichllm.models.shape import ModelShape
 from whichllm.models.types import GGUFVariant, ModelInfo
 
 
@@ -42,8 +44,14 @@ def models_to_dicts(models: list[ModelInfo]) -> list[dict]:
                 "tags": list(m.tags),
                 "sliding_window": m.sliding_window,
                 "sliding_window_global_ratio": m.sliding_window_global_ratio,
+                "shape": m.shape.to_dict() if m.shape else None,
             }
         )
+        # Only repositories with file sizes need their commit, to reuse them.
+        if m.weight_bytes:
+            result[-1]["weight_bytes"] = m.weight_bytes
+        if m.sha and (m.gguf_variants or m.weight_bytes):
+            result[-1]["sha"] = m.sha
     return result
 
 
@@ -95,6 +103,10 @@ def dicts_to_models(data: list[dict]) -> list[ModelInfo]:
                 tags=tuple(d.get("tags", [])),
                 sliding_window=d.get("sliding_window"),
                 sliding_window_global_ratio=d.get("sliding_window_global_ratio"),
+                shape=ModelShape.from_dict(d.get("shape")),
+                sha=d.get("sha"),
+                weight_bytes=d.get("weight_bytes"),
             )
         )
+        fill_moe_from_shape(models[-1])
     return models

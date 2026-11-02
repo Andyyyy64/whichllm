@@ -18,15 +18,19 @@ from typing import Optional
 import typer
 
 from whichllm.cli_commands import (
+    bench_command,
     hardware_command,
     main_command,
     plan_command,
+    report_command,
     run_command,
     snippet_command,
     upgrade_command,
 )
-from whichllm.cli_shared import _print_version
+from whichllm.cli_shared import _print_version, _tolerate_narrow_encodings
 from whichllm.utils import CONTEXT_LENGTH
+
+_tolerate_narrow_encodings()
 
 app = typer.Typer(
     name="llm-checker",
@@ -132,10 +136,14 @@ def main(
     bandwidth: Optional[float] = typer.Option(
         None,
         "--bandwidth",
+        help="Override the selected GPU's memory bandwidth in GB/s",
+    ),
+    ram_bandwidth: Optional[float] = typer.Option(
+        None,
         "--ram-bandwidth",
         help=(
-            "Override the selected GPU's memory bandwidth in GB/s "
-            "(system RAM bandwidth for an iGPU or unified memory)"
+            "Override system RAM bandwidth in GB/s (CPU-side decode, MoE "
+            "experts in RAM; also an iGPU or unified memory)"
         ),
     ),
     gpu_index: Optional[int] = typer.Option(
@@ -157,6 +165,11 @@ def main(
         None,
         "--lm-studio-path",
         help="Additional LM Studio model library path (repeatable)",
+    ),
+    live: bool = typer.Option(
+        False,
+        "--live",
+        help="Fetch from Hugging Face and benchmark sites instead of the daily index",
     ),
 ):
     """Detect hardware and recommend the best local LLMs."""
@@ -182,10 +195,12 @@ def main(
         gpu=gpu,
         vram=vram,
         bandwidth=bandwidth,
+        ram_bandwidth=ram_bandwidth,
         gpu_index=gpu_index,
         vram_headroom=vram_headroom,
         ram_budget=ram_budget,
         lm_studio_path=lm_studio_path,
+        live=live,
     )
 
 
@@ -274,6 +289,11 @@ def run(
     ),
     refresh: bool = typer.Option(False, "--refresh", help="Ignore cache"),
     cpu_only: bool = typer.Option(False, "--cpu-only", help="CPU-only mode"),
+    lm_studio_path: Optional[list[Path]] = typer.Option(
+        None,
+        "--lm-studio-path",
+        help="Additional LM Studio model library path (repeatable)",
+    ),
 ):
     """Download and chat with a model. Picks the best one if none specified."""
     return run_command(
@@ -282,6 +302,109 @@ def run(
         quant=quant,
         refresh=refresh,
         cpu_only=cpu_only,
+        lm_studio_path=lm_studio_path,
+    )
+
+
+@app.command()
+def bench(
+    model_name: Optional[str] = typer.Argument(
+        None, help="Model to measure (default: auto-pick best)"
+    ),
+    backend: str = typer.Option(
+        "auto",
+        "--backend",
+        help="Runtime: auto | llama-server | ollama | lm-studio | openai",
+    ),
+    url: Optional[str] = typer.Option(
+        None, "--url", help="Base URL of the server for --backend openai"
+    ),
+    engine: Optional[str] = typer.Option(
+        None, "--engine", help="Engine behind --url (e.g. vllm, sglang)"
+    ),
+    served_model: Optional[str] = typer.Option(
+        None, "--model", help="Name the server knows the model by (--backend openai)"
+    ),
+    context_length: int = typer.Option(
+        4096,
+        "--context-length",
+        "-c",
+        click_type=CONTEXT_LENGTH,
+        help="Context length (e.g. 4096, 64k, 128k)",
+    ),
+    quant: Optional[str] = typer.Option(
+        None, "--quant", "-q", help="Quantization type"
+    ),
+    runs: int = typer.Option(3, "--runs", help="Measured runs, after one warm-up"),
+    tokens: int = typer.Option(128, "--tokens", help="Tokens to generate per run"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip the download prompt"),
+    refresh: bool = typer.Option(False, "--refresh", help="Ignore cache"),
+    cpu_only: bool = typer.Option(False, "--cpu-only", help="CPU-only mode"),
+    lm_studio_path: Optional[list[Path]] = typer.Option(
+        None,
+        "--lm-studio-path",
+        help="Additional LM Studio model library path (repeatable)",
+    ),
+):
+    """Measure a model's real speed and save it next to the estimate."""
+    return bench_command(
+        model_name=model_name,
+        backend=backend,
+        url=url,
+        engine=engine,
+        served_model=served_model,
+        quant=quant,
+        context_length=context_length,
+        runs=runs,
+        tokens=tokens,
+        yes=yes,
+        refresh=refresh,
+        cpu_only=cpu_only,
+        lm_studio_path=lm_studio_path,
+    )
+
+
+@app.command()
+def report(
+    file: Optional[Path] = typer.Option(
+        None, "--file", help="Report to share (default: the latest from bench)"
+    ),
+    print_only: bool = typer.Option(
+        False, "--print", help="Show the text and open nothing"
+    ),
+    manual: bool = typer.Option(
+        False, "--manual", help="Report a speed you measured yourself"
+    ),
+    engine: Optional[str] = typer.Option(
+        None, "--engine", help="Engine for --manual (e.g. mlx, vllm)"
+    ),
+    served_model: Optional[str] = typer.Option(
+        None, "--model", help="Model for --manual"
+    ),
+    tok_per_sec: Optional[float] = typer.Option(
+        None, "--tok-per-sec", help="Measured speed for --manual"
+    ),
+    quant: Optional[str] = typer.Option(
+        None, "--quant", "-q", help="Quantization for --manual"
+    ),
+    context_length: int = typer.Option(
+        4096,
+        "--context-length",
+        "-c",
+        click_type=CONTEXT_LENGTH,
+        help="Context length for --manual (e.g. 4096, 64k, 128k)",
+    ),
+):
+    """Share a measurement: show it, then open a prefilled GitHub issue."""
+    return report_command(
+        file=file,
+        print_only=print_only,
+        manual=manual,
+        engine=engine,
+        served_model=served_model,
+        tok_per_sec=tok_per_sec,
+        quant=quant,
+        context_length=context_length,
     )
 
 
@@ -321,10 +444,14 @@ def hardware(
     bandwidth: Optional[float] = typer.Option(
         None,
         "--bandwidth",
+        help="Override the selected GPU's memory bandwidth in GB/s",
+    ),
+    ram_bandwidth: Optional[float] = typer.Option(
+        None,
         "--ram-bandwidth",
         help=(
-            "Override the selected GPU's memory bandwidth in GB/s "
-            "(system RAM bandwidth for an iGPU or unified memory)"
+            "Override system RAM bandwidth in GB/s (CPU-side decode, MoE "
+            "experts in RAM; also an iGPU or unified memory)"
         ),
     ),
     gpu_index: Optional[int] = typer.Option(
@@ -339,8 +466,9 @@ def hardware(
         gpu=gpu,
         vram=vram,
         bandwidth=bandwidth,
+        ram_bandwidth=ram_bandwidth,
         gpu_index=gpu_index,
     )
 
 
-__all__ = ["app", "main", "plan", "upgrade", "run", "snippet", "hardware"]
+__all__ = ["app", "main", "plan", "upgrade", "run", "bench", "snippet", "hardware"]

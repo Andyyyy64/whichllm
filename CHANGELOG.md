@@ -6,8 +6,345 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-03
+
+### Added
+
+- A Context column shows the model's own limit and the longest context that
+  keeps the row's fit on your hardware, such as `256k→127k` for a model that
+  stays fully on the GPU up to 127k tokens. The limit comes from the Hub or
+  `config.json`, and `?` marks a limit neither gives. Terminals narrower
+  than 105 columns leave the column out. JSON rows carry `context_length`
+  and `max_context_tokens`. (#34)
+- `whichllm bench` measures a model's real decode speed, prints it next to the
+  estimate and saves the result in `~/.cache/whichllm/reports/`. It runs on
+  `llama-server`, Ollama, LM Studio or any OpenAI-compatible server through
+  `--backend`, with the placement the estimate assumed. It asks before a
+  download, stops what it started even after Ctrl+C, and saves nothing that
+  identifies you.
+- `whichllm report` shares a measurement. It prints the whole report, asks, and
+  opens a prefilled GitHub issue that you submit yourself; whichllm sends nothing.
+  `--manual` covers runtimes `bench` cannot drive, and `--print` opens nothing.
+- Verified measurements raise confidence. `scripts/collect_measurements.py` turns
+  issues labeled `measurement-verified` into `data/measurements.json`, and three
+  `bench` runs on plain llama.cpp that agree with the estimate make that GPU
+  `high` confidence. Other runtimes and `--manual` results stay reference values.
+- `whichllm run` opens a verified local LM Studio GGUF artifact instead of
+  downloading a second copy, with the repeatable `--lm-studio-path` option. A
+  match needs the resolved repository, the exact artifact path, and every part
+  of a split GGUF beside the entry file in the same library. With llama-cli
+  installed the recipe's `-hf` source becomes `-m <entry part>`, and the printed
+  offload hint shows the same command; otherwise the generated script opens the
+  local files and keeps `huggingface-hub` only as the fallback. The files are
+  checked again when they are opened — right before llama-cli starts, and inside
+  the generated script after the isolated build — so a set that disappeared is
+  reported and downloaded instead of crashing. A set that was already incomplete
+  names the missing part, including a set whose first part is the one that is
+  gone. (#20, #186)
+- The whichllm index: a daily prebuilt file with the model catalog,
+  `config.json` shapes for every family, published dates and merged
+  benchmark scores, published on GitHub Pages. Recommendations, `plan`,
+  `upgrade`, `run` and `snippet` read it instead of making hundreds of
+  Hugging Face requests and scraping leaderboards, so a cold start takes
+  about a second and is unaffected by rate limits. The build refuses to
+  publish when quality gates fail. `--live` keeps the direct fetch, and
+  `WHICHLLM_INDEX_URL` points at a mirror or turns the index off.
+  GGUF repositories in the index carry their real file sizes instead of
+  estimates from the parameter count (unsloth's Qwen3.5-2B Q4_K_M is
+  1.28 GB, not the estimated 1.06), reused while a repository's commit is
+  unchanged and fetched for up to 300 repositories a day.
+- `HF_TOKEN` is sent to huggingface.co when set. A mirror in `HF_ENDPOINT`
+  (hf-mirror.com and the like) gets it only over https and only with
+  `WHICHLLM_HF_TOKEN_TO_ENDPOINT=1`, so a token is not handed to a third
+  party by default.
+- MoE expert offload. When a mixture-of-experts model does not fit in VRAM
+  but its attention, shared weights and KV cache do, whichllm keeps the
+  routed experts of the first N layers in system RAM, as llama.cpp's
+  `--n-cpu-moe N` does, and estimates speed from what each token actually
+  reads: its few active experts from RAM, the rest from VRAM. On an 8 GB
+  RTX 4060 with 32 GB of DDR4, Qwen3.6-35B-A3B is the top pick at an estimated
+  16 tok/s, and a 16 GB card with 64 GB of DDR5 runs gpt-oss-120b at 16 tok/s.
+  On an RTX 5080 with DDR5-5600, Qwen3.6-35B-A3B at `--n-cpu-moe 15` measured
+  79 tok/s against an estimate of 70. The table
+  shows these fits as `GPU+RAM`, the warning names the `--n-cpu-moe` value,
+  and JSON rows carry a `placement` object.
+- Run recipes. Below the ranking, whichllm prints the `llama-server`
+  command and LM Studio settings that run the top pick the way it was
+  estimated (`--n-cpu-moe N` when experts stay in RAM, `-ngl N` for layer
+  offload). `--markdown` prints it as a code block and `--json` adds a
+  `recipe` object to every row. `run` and `snippet` use the ranking's layer
+  split instead of always asking for every layer on the GPU.
+  The LM Studio settings match LM Studio 0.4.26's model loader, and the
+  Ollama note says only that Ollama picks its own split: Ollama 0.40 keeps
+  MoE experts in RAM by itself and ran Qwen3.6-35B-A3B on an RTX 5080 at
+  about 100 tok/s.
+- `run` chats through llama.cpp's `llama-cli` when it is installed, with
+  the same flags as the printed recipe, so it uses the GPU and keeps MoE
+  experts in RAM. A named model is left to llama.cpp's `--fit`. Without
+  llama-cli, `run` keeps using llama-cpp-python and first says that PyPI
+  only ships its source: it compiles for 20 minutes or more and runs on the
+  CPU only (on an RTX 5080, 22.7 minutes to the first reply).
+- System RAM bandwidth is detected (Windows memory modules), estimated from
+  the CPU family, or taken from Apple's unified memory, and shown by
+  `whichllm hardware`.
+- The index records where its scores came from: each benchmark source with
+  the version or snapshot it read (live or the committed snapshot) and how
+  many entries it gave. It also lists popular releases from the last 45 days
+  (5,000+ downloads) that have no benchmark score: original releases by id,
+  and finetunes by their base when nothing up the lineage has a score. A gap
+  in the sources then shows up in the daily build log instead of in a user's
+  ranking. `--json` output gains a
+  `data` object with the index build time and these sources, or
+  `"source": "live"`.
+- The hardware panel shows the RAM free now and each NVIDIA card's PCIe link
+  (`PCIe 5.0 x16`), and `whichllm hardware` measures RAM bandwidth with a
+  multithreaded copy and prints it beside the figure the estimates use. All
+  three are shown only; estimates do not change. `--json` gains
+  `ram_available_bytes` and `pcie_generation` / `pcie_lanes` per GPU.
+
+### Changed
+
+- Multi-GPU fit now plans a layer split per device instead of comparing one
+  combined budget. Each device pays its own runtime buffer first, the weights
+  and KV cache that stay on the GPUs are assigned in proportion to what is
+  left, and the part a split cannot divide (activation buffers and framework
+  overhead) is reserved on the device with the most capacity. A device that
+  cannot pay its own buffer stays out of the pool, so it no longer changes the
+  homogeneous budget or the split speed, and one remaining card is a plain
+  single-GPU fit at its full memory. Because the shares are proportional, the
+  only failing case is the runtime-only part: when it does not fit any device
+  after that device's runtime buffer, the split is rejected even when the pooled
+  budget would have covered the estimate, the GPU part runs on the largest card
+  alone, and an oversized model keeps its pooled partial offload.
+  `--json` reports the per-device share under `placement.devices`. This is the
+  estimator part of #189; the per-device comparison on real hardware is still
+  open. (#104, #189)
+- **Breaking:** `--ram-bandwidth` is now system RAM bandwidth, no longer an
+  alias of `--bandwidth`. It bounds CPU-only runs, experts in RAM and
+  offloaded layers; for an iGPU or unified memory it still sets the GPU's
+  bandwidth, so `--vram 8 --ram-bandwidth 68` keeps working. Use
+  `--bandwidth` to override a discrete GPU's VRAM bandwidth. With a
+  discrete GPU present, the hardware panel says so when the flag is used.
+- CPU-only speed and layers offloaded from a discrete GPU are estimated from
+  RAM bandwidth instead of a size heuristic and a fixed 0.45x factor. Dense
+  models spilling layers on a fast GPU are slower than before, and CPU-only
+  MoE models are faster.
+- `--profile coding` is no longer limited to repositories with "coder" in
+  their names: strong general models such as gpt-oss, Devstral and
+  Qwen3.6-27B are eligible, and a code-tuned model gets a 2-point edge over
+  an otherwise equal general one. `--profile vision` includes natively
+  multimodal models (Gemma 3/4, Qwen3.5/3.6) through the Hub's
+  `image-text-to-text` tag, not only names with "VL".
+- `--profile coding`, `math` and `vision` rank on benchmarks for that task
+  instead of the general score: Artificial Analysis's SciCode,
+  Terminal-Bench, LiveCodeBench and FrontierCode for coding, AIME 2025 for
+  math, and MMMU-Pro plus the curated vision index for vision. Each result is
+  mapped onto the general 0-100 scale through the models it shares with the
+  general index, so a model without task results keeps its general score.
+  The name-based 2-point edge only applies to code-tuned models with no coding
+  results. JSON rows gain `benchmark_basis`, and the index gains an optional
+  `task_scores` map.
+- Every placement is held to one usable speed, 8 tok/s (layer offload and
+  CPU-only used 4). Below it a model's quality is scaled by
+  `(speed / 8) ** 0.5`, where it used to lose at most 8 points, which a
+  benchmark lead easily outweighed. On a 16 GB M4 the #1 is now gemma-4-12b
+  at 12 tok/s instead of Qwen3.8-27B at 4. The golden constraint for a #1
+  that needs offload is replaced by one for the whole top 3.
+- `--speed usable` hides models under 8 tok/s, the same speed the ranking
+  holds every placement to (it was 10), and the speed column turns green
+  from 8 tok/s.
+- A model that fits on the largest GPU alone is no longer treated as a
+  multi-GPU run, and a split's speed follows each card's bandwidth instead
+  of a flat 0.7x. On two RTX 3090s, Qwen3.8-27B at Q5_K_M runs on one card at
+  39 tok/s, and at Q8_0 it splits across both at 28 tok/s.
+- When a newer generation of a model line ranks above an older one of the
+  same size, the older one is left out and named under the table
+  (`older_generations` in JSON). The 4090 top 3 was Qwen3.8-27B, Qwen3.6-27B
+  and Qwen3.5-27B; it is now Qwen3.8-27B, gemma-4-31B and gemma-4-26B-A4B.
+  Gemma ids such as `diffusiongemma-26B` are no longer read as Gemma 2.
+- New releases that neither LiveBench nor the pinned AA index covers get a
+  general score from at least three of AA's broad benchmarks, mapped the same
+  way, so models such as GLM-5.3-Flash, Qwen3.8-Flash-Next and Gemma 4 12B
+  are no longer unscored. On models that have both, the two agree within
+  about 4 points on average.
+- Aider polyglot is no longer used. Its leaderboard stopped at 2025-10 and its
+  display names no longer matched any model, so it contributed nothing. The
+  curated vision index no longer raises general scores (it made
+  Qwen3-VL-235B's general score its vision value).
+- Pretrain-only checkpoints are never recommended: `-Base`/`-pt` names,
+  checkpoints whose publisher ships an instruct version derived from them
+  (`Qwen2.5-7B`, `Qwen2.5-Coder-7B`, `Llama-3.1-8B`) and their quantized
+  uploads. The coding top 10 used to include the base `Qwen2.5-Coder-7B`.
+- The KV cache is computed per layer from each model's `config.json` instead
+  of from its parameter count. whichllm reads the config for the families
+  near the top of a ranking (and for the model `plan` shows), caches it for a
+  week, and ranks again. GQA models were undercounted by 4-5x at long context
+  (Qwen3-8B at 32K: 4.5 GiB, not 0.9 GiB), so at `-c 32k` and above some
+  models no longer claim a full-GPU fit. Hybrid models such as Qwen3.6, whose
+  linear-attention layers keep no K/V, now get their smaller cache. Sliding
+  windows, multi-head latent attention and recurrent state are handled; an
+  unrecognised layout keeps the old estimate.
+- The curated benchmark snapshots (the pinned AA index, AA's name map,
+  LiveBench and the vision index) moved out of Python into JSON files in
+  `src/whichllm/data/`. Each records the date it was read, and every AA
+  entry says whether it came from an AA model page or is a hand estimate.
+  `scripts/import_livebench_csv.py` now writes the LiveBench file itself.
+  Scores are unchanged.
+
 ### Fixed
 
+- On Windows, the llama.cpp commands `whichllm run` prints quote a path the
+  way cmd.exe and PowerShell read it. A local LM Studio file used to show as
+  `-m 'C:\...\model.gguf'`, which cmd.exe passes on with the quotes.
+- Output redirected to a file or a pipe on Windows no longer stops with a
+  `UnicodeEncodeError` in a code page such as cp932 or cp1252. Characters the
+  code page lacks print as `?`.
+- `--quant` with a pattern or a bare family (`Q5*`, `Q5`) is refused with the
+  labels that exist. It used to match nothing and print "No compatible models
+  found".
+- A program named `nvidia-smi` that ignores `--query-gpu`, such as a wrapper on
+  a Jetson, no longer turns into a 1 MB GPU. Only rows shaped like the requested
+  CSV count. (#190)
+- RTX 50 cards show CUDA compute capability 12.0, as the driver reports, instead
+  of 10.0.
+- `--gpu "RTX 5090 Laptop"` works, and so does the name a driver reports.
+  `Laptop` was unknown, `GeForce RTX 5090 Laptop GPU` silently simulated the
+  desktop card at twice the bandwidth, and `RTX 5090 Max-Q` became an RTX A5000.
+- Speed estimates for dense GGUF models on a GPU are fitted to 379 published
+  llama.cpp results on 194 GPUs, from 2 to 131 GiB. They ran about 30% low. With
+  each GPU held out of the fit, the median error is 9% and 90% of runs land
+  within a third, against 33% and 50% before. Decode time is the file read at
+  96% of memory bandwidth plus 2.4 ms per token, with a factor per vendor, lower
+  factors for older designs and Apple's Ultra chips, and a 1,100 GB/s ceiling on
+  HBM cards. The quant makes no measurable difference. MoE and CPU estimates
+  keep their own calibration.
+- The 36 GB M4 Max and M5 Max and the 36 and 96 GB M3 Max use the bandwidth of
+  their cut-down memory bus. They were listed a third too high.
+- Speed confidence follows the published runs instead of being `medium` almost
+  everywhere. A dense GGUF with a known file size, all on an NVIDIA GPU from
+  Pascal on, a desktop RDNA Radeon or Apple Silicon is `high`, with a range of
+  0.75x to 1.30x. On Intel, GCN Radeon, NVIDIA before Pascal, HBM and laptop GPUs
+  it is `low`. A dense GGUF split across identical cards moves from `low` to
+  `medium`. At least 90% of the runs at each level fall inside its range.
+- CPU speed estimates for dense GGUF models are fitted to 255 LocalScore results
+  on 138 CPUs. They ran at about half the real speed. On desktop CPUs the median
+  error is now 12%, with 97% of runs inside the `medium` range. The CPU share of
+  a layer split uses the same rate, which a published `-ngl` sweep backs. Without
+  a GPU, Xeon, EPYC and Threadripper are `low` confidence. MoE estimates on the
+  CPU keep their own calibration.
+- An older generation keeps its own row only when it outscores the newer one by
+  more than 2 points. Any lead at all used to keep it listed.
+- A derivative that claims under a tenth of its base model's parameters no longer
+  ranks. No quant shrinks a model that far, so these are heads, broken counts or
+  misread names, and one listed at 14,000 tok/s on an 8 GB Mac.
+- GGUF files too small for the quant on their label no longer count as the model.
+  A 4.7 GB LoRA named `F16` passed for a 27B model at 7 tok/s on the CPU. Files
+  with `MTP` in the name stay, since most are whole models.
+- `8bit` and `2.9bpw` in a repo name no longer read as a size of 8B and 2.9B.
+- Recipes for unsloth's dynamic quants and Bartowski's XL files work. A label
+  like `UD-Q4_K_XL` lost its suffix, and the Hub answers 400 to
+  `llama-server -hf repo:Q4_K`.
+- Quant rates come from 5,000 real GGUF files instead of nominal bits. A repo
+  the index has not sized yet was estimated too small: Q4_K_M by 9%, Q3_K_M by
+  13%, Q2_K by 22%.
+- Labels with no rate no longer rate as a 4-bit file. IQ2_XS, Q2_K_L and the
+  1-bit IQ1_M_XL lost 5% of their quality like Q4_K_M, which let a much
+  smaller file win. A suffix an uploader adds now rates as its format.
+- Real models with "tiny" in their name are no longer hidden: Ling-3.0-tiny,
+  Granite 4.0 H-Tiny and DeepSeek-VL2-tiny. The rule was meant for CI fixtures,
+  which `tiny-random` and the `-internal-testing` orgs still exclude.
+- `--gpu "DGX Spark"`, `--gpu "Jetson AGX Orin"` and other simulated NVIDIA
+  unified-memory GPUs no longer count as dedicated VRAM with the same amount of
+  system RAM next to it.
+- Pretrain-only checkpoints that the naming rules missed are no longer
+  recommended: Olmo-3-1025-7B, Mistral-7B-v0.1, Gemma 2B and 7B, Gemma 2 2B,
+  Llama-2-7b-hf and PaliGemma's `pt` release. Their chat release has another
+  name or is not in the catalog. They ranked from #13 down on the machines
+  in the golden set.
+- `run`, `snippet` and `upgrade` rank the way `whichllm` does. `run` and
+  `snippet` skipped the VRAM headroom, the size floor and the rule that
+  prefers models with direct benchmarks, so they could pick another model
+  than the one at the top of the table. `upgrade` skipped the headroom and
+  ranked simulated GPUs with the default RAM bandwidth.
+- An official repo is only ranked at quants its GGUF uploads carry. It could
+  be recommended at a quant nobody published: Qwen3.8-Flash-Next at Q3_K_M
+  was #2 on an RTX 5090 and on a 128 GB Mac, with no file to download and no
+  recipe. A repo with no upload in the catalog keeps its estimates.
+- Pre-quantized checkpoints are sized from their real files. NVFP4 repos
+  report only part of their parameters, so they were counted at under half
+  their size: Muse-Glimmer-NVFP4 is 19.7 GB and showed as a 9.5 GB full-GPU
+  fit on a 16 GB card. The index now carries the real size of NVFP4, FP8,
+  AWQ, GPTQ and BNB repos, and the fallback rates for `--live` and repos it
+  has not reached yet are corrected.
+- Fit and speed of an official repo use the real size of the GGUF file its
+  recipe downloads. On a 16 GB RTX 5080, Qwen3.6-35B-A3B at Q4_K_M was
+  sized at 20.2 GB and given `--n-cpu-moe 12`, but unsloth's file is
+  22.1 GB; it now gets `--n-cpu-moe 15`.
+- The runtime memory beyond the weights is closer to what llama-server
+  allocates. The compute buffer was counted at 0.08 byte per parameter
+  (2.6 GB for a 27B); llama-server used 146 MiB. With the real 13.4 GB
+  file, that would have split Qwen3.8-27B at Q3_K_M across a 16 GB card,
+  where it runs fully on the GPU at 55 tok/s using 12.8 GiB. Recurrent
+  state (Qwen3.5 and later, Qwen3-Next, Granite 4.0, LFM2) is counted for
+  llama-server's 4 default slots. Dense models now fit one quant higher
+  in a few places (Qwen3.8-27B at Q5_K_M on a 24 GB card).
+- GGUF variants: `run` downloads part 1 of a split file (it could pick a
+  later part), and vision projectors (`mmproj`) and draft models are no
+  longer listed as a model's F16, BF16 or Q8_0 variant. With real sizes, a
+  variant counts only its own file or split parts: an MTP build next to the
+  plain one, or Q4_0's ARM repacks, would otherwise add up (a 27B Q4_K_M at
+  121 GB).
+- Apple Silicon is budgeted at Metal's default GPU working set, about two
+  thirds of unified memory up to 32 GB and three quarters above, not all of
+  it. On a 16 GB Mac the GPU got 15.2 GB, so the #1 was a 15 GB gemma-4-26B
+  build that llama.cpp would not keep on the GPU; it is now gemma-4-12b. A
+  model past the working set can spill layers to the CPU within unified
+  memory, and a raised `iogpu.wired_limit_mb` is detected.
+- RAM bandwidth is detected on Linux from systemd's udev DMI properties,
+  which need no root, and on WSL by asking Windows through
+  `powershell.exe`; both fell back to a CPU-name estimate. Windows and WSL
+  cache the module list for a week instead of starting PowerShell on every
+  run.
+- AMD shared-memory APUs on Linux (Strix Halo and others) get their BIOS
+  carve-out plus the GTT the driver lets the GPU map, instead of all of
+  system RAM.
+- `--gpu "RTX 3060"` means the 12 GB card (360 GB/s), and `--vram` picks the
+  memory variant it names. The 8 GB card's 240 GB/s was used for both, so
+  the RTX 3060 archetype was a third slower than the real card.
+- `run` without a model name ranks with the index's benchmark scores, as
+  `snippet` does. It read only the `--live` benchmark cache, which the index
+  path never writes, so its pick was ranked without any benchmarks.
+- Speculative-decoding draft heads (DFlash, `-draft`) and diffusion LMs are
+  never ranked. A draft's size is read from its name, so it passed for the
+  full model; `google/diffusiongemma-26B-A4B-it` was recommended at Q3_K_M
+  on CPU-only machines because official repos get assumed GGUF builds,
+  although llama.cpp does not run it.
+- NVFP4 and FP8 checkpoints need an Ampere or newer NVIDIA GPU. vLLM serves
+  them through Marlin kernels there, so a Turing card no longer gets them;
+  an NVFP4 pick before Blackwell notes that it runs weight-only.
+- Models whose config.json keeps the expert counts under `text_config`
+  are recognised as mixture-of-experts. The Hub parser only read the top
+  level, so Qwen3.8-Flash-Next (180B, 10 of 512 experts per token) was
+  estimated as a dense 180B at 2.4 tok/s on an M4 Max and never got its
+  experts placed in RAM. Active parameters come from the config shape.
+- `run`, `snippet` and `plan` resolve a model name to the model you meant.
+  Among repos with the same size label the one whose parameter count was
+  closest to the query used to win, and that count is often parsed from the
+  label itself, so obscure uploads came first: `qwen3 8b` picked a DFlash
+  draft head, `qwen 7b` CodeQwen1.5 and `gemma 3 12b` a Gemma 4 fine-tune.
+  Ties now go to the closest name (a VL, Coder or `-FP8` the query does not
+  mention counts against a repo), then the original over a quantized
+  upload, then downloads. Draft heads and pretrain-only checkpoints come
+  last unless the query names them.
+- LiveBench and Artificial Analysis are combined on one scale. They used to
+  be merged by taking the higher value, but LiveBench's normalization runs
+  about 17 points above AA for the same models, so any model with a
+  LiveBench entry outranked models only AA measures (Qwen3.6-27B scored
+  83.5 from LiveBench against 61.0 on AA, while Qwen3.8-27B kept its AA
+  77.8). LiveBench is now fitted onto AA's scale, the two are averaged, and
+  hand-estimated entries only count for models neither source measured.
+  Qwen3.8-27B now leads on 12 GB+ GPUs at default context, and
+  Qwen3.6-35B-A3B with its experts in RAM is the top pick on 6-8 GB GPUs.
 - Artificial Analysis scores are on one scale again. The snapshot mixed
   values from before and after AA rescaled its Intelligence Index, and
   models AA has deprecated (Kimi K2, GLM-5, ...) kept their old, roughly

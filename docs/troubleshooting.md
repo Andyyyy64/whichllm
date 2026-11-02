@@ -155,7 +155,7 @@ green. The `~` and `?` markers are confidence markers for the estimate.
 Filter slow rows with:
 
 ```bash
-whichllm --speed usable  # >=10 tok/s
+whichllm --speed usable  # >=8 tok/s
 whichllm --speed fast    # >=30 tok/s
 whichllm --min-speed 4   # exact floor, if you want a lower threshold
 ```
@@ -286,8 +286,8 @@ Speed is an estimate based on:
 - model weight size
 - MoE active parameters
 - GPU memory bandwidth
-- quantization efficiency
-- backend factor
+- a factor for the vendor and GPU design
+- quantization efficiency, for MoE and non-GGUF models
 - partial-offload penalty
 
 Real performance depends on the inference runtime, driver, prompt length,
@@ -299,10 +299,11 @@ Use `--details` only when you want download counts instead.
 Speed colors and markers:
 
 - red: slow generation speed, under 4 tok/s
-- yellow: marginal generation speed, 4-10 tok/s
-- green: usable generation speed, 10-30 tok/s
+- yellow: marginal generation speed, 4-8 tok/s
+- green: usable generation speed, 8-30 tok/s
 - bright green: fast local generation speed, 30+ tok/s
-- `~`: estimated speed range is available
+- no marker: published runs on this kind of GPU land close to the estimate
+- `~`: medium confidence; the range is wider
 - `?`: low-confidence estimate; runtime/backend differences can be large
 
 JSON includes the same information as `speed_confidence`,
@@ -326,7 +327,9 @@ GPUs.
 
 ## `run` says `uv is required`
 
-Install `uv` first:
+For GGUF models, installing llama.cpp is enough: `run` uses its `llama-cli`
+(`brew install llama.cpp`, `winget install ggml.llamacpp`). Otherwise install
+`uv`:
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -337,6 +340,33 @@ Then retry:
 ```bash
 whichllm run
 ```
+
+## A local LM Studio file goes away under `run`
+
+`whichllm run` reuses an exact local LM Studio match instead of downloading the
+artifact again. Two things are guaranteed, and they differ by backend:
+
+- With `llama-cli`, the match is verified immediately before the process starts.
+- Without it, the isolated `uv` build runs first and can take minutes, so the
+  generated script checks every part again right before it loads the model.
+
+If the files went away in between, `run` says so and downloads the artifact
+instead of crashing:
+
+```
+Warning: Local LM Studio file for <repo> is missing or incomplete; downloading instead.
+```
+
+A set that was already incomplete when `run` looked it up names the missing
+part instead, including a set whose first part is the one that is gone:
+
+```
+Warning: Local LM Studio set for <repo> in <library> is missing part 1 of 3; downloading instead.
+```
+
+Check the library with `whichllm --lm-studio-path <path>`, or re-download the
+model in LM Studio to restore a complete artifact. A library that does not
+contain the artifact at all prints nothing.
 
 ## `run` cannot download a model
 
@@ -370,6 +400,25 @@ HF_ENDPOINT="https://huggingface.co" whichllm --refresh
 ```
 
 Do not include `/api` in `HF_ENDPOINT`; whichllm adds that path internally.
+
+## `CERTIFICATE_VERIFY_FAILED` behind a company proxy
+
+A proxy that inspects HTTPS signs traffic with its own certificate, which the
+certificate list bundled with Python does not trust. Point `SSL_CERT_FILE` at
+your company's CA bundle in PEM form, and set `HTTPS_PROXY` when the proxy is
+not transparent:
+
+```bash
+SSL_CERT_FILE=/path/to/company-ca.pem whichllm
+```
+
+```powershell
+$env:SSL_CERT_FILE = "C:\path\to\company-ca.pem"
+whichllm
+```
+
+The bundle replaces the default list, so it has to hold the public roots too,
+as company bundles usually do.
 
 ## How much disk space does `run` need?
 

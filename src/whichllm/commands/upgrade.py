@@ -7,7 +7,6 @@ import typer
 
 from whichllm.cli_shared import _format_fetch_error, _run_async, console
 from whichllm.cli_validation import (
-    _auto_min_params_for_profile,
     _validate_profile,
     _validate_ranking_flags,
 )
@@ -33,13 +32,16 @@ def upgrade_command(
     """
     from rich.progress import Progress, SpinnerColumn, TextColumn
 
-    from whichllm.engine.ranker import rank_models
+    from dataclasses import replace
+
+    from whichllm.commands.ranking import apply_default_budgets, rank_for_hardware
     from whichllm.hardware.detector import detect_hardware
     from whichllm.hardware.gpu_simulator import create_synthetic_gpu
     from whichllm.hardware.types import HardwareInfo
     from whichllm.models.benchmark import (
-        fetch_benchmark_scores,
+        fetch_benchmark_data,
         load_benchmark_cache,
+        load_task_cache,
         save_benchmark_cache,
     )
     from whichllm.models.cache import load_cache, save_cache
@@ -50,6 +52,8 @@ def upgrade_command(
         models_to_dicts,
     )
     from whichllm.models.grouper import group_models
+    from whichllm.models.index_client import load_index
+    from whichllm.models.shape_fetch import attach_cached_shapes
     from whichllm.output.display import display_upgrade, display_upgrade_json
 
     profile = _validate_profile(profile)
@@ -65,10 +69,14 @@ def upgrade_command(
         current_hw = detect_hardware()
         if cpu_only:
             current_hw.gpus = []
+        apply_default_budgets(current_hw)
 
         progress.update(task, description="Loading models...")
-        cached_data = None if refresh else load_cache()
-        if cached_data is not None:
+        catalog = load_index(refresh=refresh)
+        cached_data = None if refresh or catalog is not None else load_cache()
+        if catalog is not None:
+            models = catalog.models
+        elif cached_data is not None:
             models = dicts_to_models(cached_data)
         else:
             progress.update(task, description="Fetching models from HuggingFace...")
@@ -83,43 +91,36 @@ def upgrade_command(
                 raise typer.Exit(code=1)
 
         progress.update(task, description="Loading benchmark data...")
-        bench_scores = None if refresh else load_benchmark_cache()
+        if catalog is not None:
+            bench_scores = catalog.benchmark_scores
+            task_scores = catalog.task_scores
+        else:
+            bench_scores = None if refresh else load_benchmark_cache()
+            task_scores = load_task_cache()
         if bench_scores is None:
             try:
-                bench_scores = _run_async(fetch_benchmark_scores())
-                save_benchmark_cache(bench_scores)
+                data = _run_async(fetch_benchmark_data(m.id for m in models))
+                bench_scores, task_scores = data.general, data.tasks
+                save_benchmark_cache(bench_scores, task_scores)
             except Exception:
-                bench_scores = {}
+                bench_scores, task_scores = {}, {}
 
         all_models: list = []
         for family in group_models(models):
             all_models.append(family.base_model)
             all_models.extend(family.variants)
+        attach_cached_shapes(all_models)
 
         def _rank_for(hw: HardwareInfo):
-            min_p = _auto_min_params_for_profile(hw, profile)
-            results = rank_models(
+            return rank_for_hardware(
                 all_models,
                 hw,
                 context_length=context_length,
                 top_n=top,
                 benchmark_scores=bench_scores,
-                task_profile=profile,
-                require_direct_top=True,
-                min_params_b=min_p,
+                task_scores=task_scores.get(profile),
+                profile=profile,
             )
-            if not results and min_p is not None:
-                results = rank_models(
-                    all_models,
-                    hw,
-                    context_length=context_length,
-                    top_n=top,
-                    benchmark_scores=bench_scores,
-                    task_profile=profile,
-                    require_direct_top=True,
-                    min_params_b=None,
-                )
-            return results
 
         progress.update(task, description="Ranking current hardware...")
         current_results = _rank_for(current_hw)
@@ -132,15 +133,8 @@ def upgrade_command(
             except ValueError as e:
                 console.print(f"[yellow]Skipping {raw_name}:[/] {e}")
                 continue
-            sim_hw = HardwareInfo(
-                gpus=[synthetic],
-                cpu_name=current_hw.cpu_name,
-                cpu_cores=current_hw.cpu_cores,
-                has_avx2=current_hw.has_avx2,
-                has_avx512=current_hw.has_avx512,
-                ram_bytes=current_hw.ram_bytes,
-                disk_free_bytes=current_hw.disk_free_bytes,
-                os=current_hw.os,
+            sim_hw = apply_default_budgets(
+                replace(current_hw, gpus=[synthetic], budget_notes=[])
             )
             sim_results = _rank_for(sim_hw)
             target_results.append((raw_name, sim_hw, sim_results))

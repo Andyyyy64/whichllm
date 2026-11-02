@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from dbgpu import GPUSpecification
 
+from whichllm.hardware.apple import apple_bandwidth, default_gpu_working_set_bytes
 from whichllm.constants import (
     AMD_SHARED_MEMORY_APU_MARKERS,
     CURATED_GPU_SPECS,
@@ -21,6 +22,13 @@ from whichllm.constants import (
     CuratedGPUSpec,
     _GiB,
 )
+from whichllm.hardware.gpu_db import (
+    _MOBILE_MARKER_RE,
+    _dbgpu_index,
+    _normalize_detected_name,
+    _static_bandwidth,
+)
+from whichllm.hardware.nvidia import _is_unified_memory_nvidia_gpu
 from whichllm.hardware.types import GPUInfo
 
 logger = logging.getLogger(__name__)
@@ -34,6 +42,8 @@ _MANUFACTURER_TO_VENDOR: dict[str, str] = {
 }
 
 _MANUFACTURER_PREFIXES = ["GeForce ", "Radeon ", "Arc ", "NVIDIA ", "AMD "]
+_MAX_Q_RE = re.compile(r"\bmax-?q\b", re.IGNORECASE)
+_MODEL_NUMBER_RE = re.compile(r"\d{3,}")
 _COMMON_GPU_ALIASES: dict[str, list[str]] = {
     "a10080gb": [
         "NVIDIA A100 PCIe 80 GB",
@@ -43,6 +53,14 @@ _COMMON_GPU_ALIASES: dict[str, list[str]] = {
         "NVIDIA H100 PCIe 80 GB",
         "NVIDIA H100 SXM5 80 GB",
     ],
+}
+
+# Cards sold in several memory sizes where the shortest database name is not
+# the usual one: without --vram, "RTX 3060" means the original 12 GB card,
+# not the later 8 GB cut with a narrower bus.
+_DEFAULT_VARIANTS: dict[str, str] = {
+    "rtx3060": "GeForce RTX 3060 12 GB",
+    "geforcertx3060": "GeForce RTX 3060 12 GB",
 }
 
 # Apple Silicon chips. dbgpu does not include these (it tracks discrete GPUs
@@ -103,14 +121,6 @@ def _is_amd_shared_memory_apu(name: str) -> bool:
     return any(marker in name_upper for marker in AMD_SHARED_MEMORY_APU_MARKERS)
 
 
-def _lookup_static_bandwidth(name: str) -> float | None:
-    name_upper = name.upper()
-    for key in sorted(GPU_BANDWIDTH, key=len, reverse=True):
-        if key.upper() in name_upper:
-            return GPU_BANDWIDTH[key]
-    return None
-
-
 def _lookup_curated_spec(name: str) -> CuratedGPUSpec | None:
     name_upper = name.upper()
     for key in sorted(CURATED_GPU_SPECS, key=len, reverse=True):
@@ -129,10 +139,39 @@ def _normalize_gpu_name(name: str) -> str:
     return re.sub(r"\s+", " ", name).strip()
 
 
-def _substring_search(db, name: str):
+def _laptop_spellings(name: str) -> list[str]:
+    """dbgpu's spellings of a laptop GPU name.
+
+    Drivers write "Laptop GPU" and people write "Laptop" where dbgpu writes
+    "Mobile". A Max-Q card without its own entry is the Mobile chip.
+    """
+    mobile = _normalize_detected_name(name)
+    return list(dict.fromkeys([mobile, _MAX_Q_RE.sub("Mobile", mobile)]))
+
+
+def _same_card(query: str, candidate: str) -> bool:
+    """A fuzzy hit may spell a name differently, but not change the card.
+
+    token_set_ratio ignores extra words, so "RTX 5090 Laptop GPU" scores 100
+    against the desktop card, and "RTX 5090 Max-Q" scores high against
+    "RTX A5000 Max-Q".
+    """
+    numbers = set(_MODEL_NUMBER_RE.findall(query))
+    if not numbers <= set(_MODEL_NUMBER_RE.findall(candidate)):
+        return False
+    return not _MOBILE_MARKER_RE.search(query) or bool(
+        _MOBILE_MARKER_RE.search(candidate)
+    )
+
+
+def _substring_search(db, name: str, vram_gb: float | None = None):
     """Substring match with word-boundary filtering.
 
     e.g. "RTX 3060" should match "GeForce RTX 3060 12 GB" but NOT "GeForce RTX 3060 Ti".
+    When several memory variants match and ``vram_gb`` is given (from
+    ``--vram``), the variant with that memory size wins, so
+    ``--gpu "RTX 3060" --vram 12`` gets the 12 GB card's 360 GB/s rather than
+    the 8 GB card's 240.
     """
     name_upper = name.upper()
     candidates = []
@@ -147,30 +186,47 @@ def _substring_search(db, name: str):
             candidates.append(db_name)
     if candidates:
         candidates.sort(key=len)
+        if vram_gb is not None:
+            sized = [
+                c
+                for c in candidates
+                if db[c].memory_size_gb and abs(db[c].memory_size_gb - vram_gb) < 0.5
+            ]
+            if sized:
+                return db[sized[0]]
         return db[candidates[0]]
     return None
 
 
-def _lookup_dbgpu(name: str) -> GPUSpecification | None:
+def _lookup_dbgpu(name: str, vram_gb: float | None = None) -> GPUSpecification | None:
     """Look up GPU spec from dbgpu database. Returns GPUSpecification or None."""
     from dbgpu import GPUDatabase
 
     db = GPUDatabase.default()
+    _, index = _dbgpu_index()
 
     # Normalize input: "GTX1080" → "GTX 1080"
     normalized = _normalize_gpu_name(name)
     compact = re.sub(r"\s+", "", normalized.lower())
-    names_to_try = [name] if normalized == name else [name, normalized]
+    if _MOBILE_MARKER_RE.search(name):
+        names_to_try = _laptop_spellings(name)
+    else:
+        names_to_try = [name] if normalized == name else [name, normalized]
     alias_hits = _COMMON_GPU_ALIASES.get(compact)
     if alias_hits:
         names_to_try.extend(alias_hits)
+    if vram_gb is None and compact in _DEFAULT_VARIANTS:
+        names_to_try.insert(0, _DEFAULT_VARIANTS[compact])
 
     for n in names_to_try:
-        # 1) Exact key lookup
+        # 1) Exact key lookup, also across spelling and word order
         try:
             return db[n]
         except KeyError:
             pass
+        canonical = (index or {}).get(_normalize_detected_name(n).lower())
+        if canonical is not None:
+            return db[canonical]
 
         # 2) Try with common manufacturer prefixes
         for prefix in _MANUFACTURER_PREFIXES:
@@ -180,7 +236,7 @@ def _lookup_dbgpu(name: str) -> GPUSpecification | None:
                 pass
 
         # 3) Substring match with word-boundary filtering
-        result = _substring_search(db, n)
+        result = _substring_search(db, n, vram_gb)
         if result is not None:
             return result
 
@@ -191,8 +247,9 @@ def _lookup_dbgpu(name: str) -> GPUSpecification | None:
         results = process.extract(
             normalized, db.names, limit=3, scorer=fuzz.token_set_ratio
         )
-        if results and results[0][1] >= 90:
-            return db[results[0][0]]
+        for match, score in results:
+            if score >= 90 and _same_card(name, match):
+                return db[match]
         # Store top suggestions for error messages
         if results:
             _last_suggestions[:] = [(n, s) for n, s in results if s >= 70]
@@ -278,17 +335,21 @@ def create_synthetic_gpu(name: str, vram_override_gb: float | None = None) -> GP
     apple_hit = _lookup_apple_silicon(name)
     if apple_hit is not None:
         canonical, vendor, default_vram_gb, bandwidth = apple_hit
+        # For a Mac, --vram picks the unified memory size; Metal's default
+        # working set decides what the GPU gets of it.
         vram_gb = vram_override_gb if vram_override_gb is not None else default_vram_gb
+        unified = int(vram_gb * _GiB)
         return GPUInfo(
             name=f"{canonical} (simulated)",
             vendor=vendor,
-            vram_bytes=int(vram_gb * _GiB),
-            memory_bandwidth_gbps=bandwidth,
+            vram_bytes=default_gpu_working_set_bytes(unified),
+            memory_bandwidth_gbps=apple_bandwidth(canonical, unified) or bandwidth,
             shared_memory=True,
             vram_overridden=vram_override_gb is not None,
+            unified_memory_bytes=unified,
         )
 
-    spec = _lookup_dbgpu(name)
+    spec = _lookup_dbgpu(name, vram_override_gb)
 
     # VRAM
     if vram_override_gb is not None:
@@ -312,7 +373,7 @@ def create_synthetic_gpu(name: str, vram_override_gb: float | None = None) -> GP
     if bandwidth is None and curated is not None:
         bandwidth = curated.memory_bandwidth_gbps
     if bandwidth is None:
-        bandwidth = _lookup_static_bandwidth(name)
+        bandwidth = _static_bandwidth(name)
 
     # Compute capability (CUDA version in dbgpu = compute capability)
     compute_cap: tuple[int, int] | None = None
@@ -341,6 +402,7 @@ def create_synthetic_gpu(name: str, vram_override_gb: float | None = None) -> GP
         vram_bytes=vram_bytes,
         compute_capability=compute_cap,
         memory_bandwidth_gbps=bandwidth,
-        shared_memory=curated.shared_memory if curated else amd_shared_memory_apu,
+        shared_memory=(curated.shared_memory if curated else amd_shared_memory_apu)
+        or _is_unified_memory_nvidia_gpu(name),
         vram_overridden=vram_override_gb is not None,
     )

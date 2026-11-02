@@ -73,6 +73,9 @@ Examples:
 | `IQ2_XXS` | `0.40` |
 | `Q1_0` | `0.55` |
 
+A label an uploader extended (`Q6_K_L`, `UD-Q4_K_XL`, `IQ1_M_XL`) takes the
+penalty of its format, so a 1-bit file cannot pass for a 4-bit one.
+
 Extreme low-bit variants are excluded by default when better candidates exist.
 They can still be requested explicitly with `--quant`.
 
@@ -99,12 +102,14 @@ The candidate's runtime form matters:
 | Fit | Multiplier |
 | --- | ---: |
 | Full GPU | `1.00` |
-| Partial offload | `0.42`-`0.88`, based on spill ratio |
+| MoE experts in RAM (`expert_offload`) | `0.90` |
+| Layers in RAM (`layer_offload`) | `0.42`-`0.86`, based on spill ratio |
 | CPU-only | `0.50` |
 
-Light partial offload is penalized less than heavy offload. MoE models receive
-a milder penalty when the active parameter working set can plausibly stay on
-GPU while inactive experts spill to CPU RAM.
+Light layer offload is penalized less than heavy offload. Expert offload keeps
+almost the full-GPU multiplier: only the active experts are read from RAM for
+each token, and the speed estimate already accounts for that. The small
+discount covers the extra runtime setup.
 
 The final family selection key does not add a separate full-GPU bonus. Runtime
 fit is already reflected in the quality score through the multiplier above and
@@ -115,35 +120,51 @@ when mixed with GPU-backed candidates.
 
 Speed is treated as a usability gate. It is not the main quality signal.
 
-Required speed depends on fit:
+Every placement (full GPU, experts in RAM, layers in RAM, CPU-only) is held
+to the same bar, `8 tok/s`: fast enough not to wait on in a chat or a coding
+loop.
 
-| Fit | Required speed |
-| --- | ---: |
-| Full GPU | `8 tok/s` |
-| Partial offload | `4 tok/s` |
-| CPU-only | `1.5 tok/s` |
-
-Candidates below the required speed receive up to `-8` points. Candidates above
-it receive up to `+8` points.
+Below the bar, the quality score is multiplied by `(speed / 8) ** 0.5` and
+loses up to another `8` points, so a 4 tok/s model keeps about 70% of its
+quality and a 2 tok/s model about half. A benchmark lead cannot carry a model
+that answers at 3 tok/s past one that answers at 25. Candidates above the bar
+receive up to `+8` points.
 
 After ranking, if any candidate is at least `5 tok/s`, whichllm drops candidates
 below `1.5 tok/s`. This avoids recommending models that technically fit but are
 not practical to use.
 
-The reported speed is a point estimate, not a live benchmark. Ranking also
-exposes speed confidence:
+When a newer generation of a model line ranks above an older one of about
+the same size (total parameters within 25%, dense or MoE alike, and the same
+specialization), the older one is left out of the list and named under the
+table instead (`older_generations` in JSON). Qwen3.8-27B, Qwen3.6-27B and
+Qwen3.5-27B filling the top three said less than three different models
+would. An older generation stays only when it outscores the newer one by more
+than 2 points.
+
+The reported speed is a point estimate, not a live benchmark. On a discrete
+GPU with a partial fit it adds the GPU's reads at VRAM bandwidth to the CPU's
+reads at system RAM bandwidth; with experts in RAM the CPU reads only the
+active experts. CPU-only speed follows RAM bandwidth too, up to a ceiling past
+two memory channels. The CPU constants come from llama.cpp and LocalScore runs
+(see `engine/performance.py`). Ranking also exposes speed confidence:
 
 | Confidence | Range factor | Typical cases |
 | --- | ---: | --- |
-| `medium` | `0.60x`-`1.60x` | Normal GPU estimates, synthetic GGUF estimates, AMD shared-memory APU MoE estimates |
-| `low` | `0.35x`-`2.00x` | CPU-only, partial offload, unknown bandwidth, Apple Silicon MoE |
-| `high` | `0.85x`-`1.20x` | Reserved for future measured-speed data |
+| `high` | `0.75x`-`1.30x` | A dense GGUF with a known file size, all on an NVIDIA GPU from Pascal on, a desktop RDNA Radeon or Apple Silicon, or on any GPU where at least 3 verified reports land inside this range |
+| `medium` | `0.60x`-`1.60x` | Other GPUs, MoE, non-GGUF, Jetson and shared-memory APUs, CPU-only and expert offload with a known RAM bandwidth, synthetic GGUFs and estimated file sizes, a dense GGUF split across identical cards |
+| `low` | `0.35x`-`2.00x` | A dense GGUF on Intel, GCN Radeon, NVIDIA before Pascal, HBM or laptop GPUs; layer offload, unknown GPU or RAM bandwidth, Apple Silicon MoE, any other multi-GPU split, Xeon, EPYC and Threadripper without a GPU |
+
+The ranges come from the published runs in `tests/data/speed_runs.csv` and
+`tests/data/cpu_speed_runs.csv`: at least 90% of the runs at each level fall
+inside them, and a test keeps it that way. The GPU ranges describe llama.cpp with
+every layer on the GPU. Ollama, LM Studio and other runtimes can land elsewhere.
 
 Speed cells are colored by absolute usability: red is under `4 tok/s`, yellow
-is `4-10 tok/s`, green is `10-30 tok/s`, and bright green is `30+ tok/s`. `~`
-marks medium-confidence estimates with a range, and `?` marks low-confidence
-estimates. JSON exposes the same uncertainty data as `speed_confidence`,
-`speed_range_tok_per_sec`, and `speed_notes`.
+is `4-8 tok/s`, green is `8-30 tok/s`, and bright green is `30+ tok/s`. `~`
+marks medium-confidence estimates, `?` marks low-confidence estimates, and
+high-confidence estimates have no marker. JSON exposes the same uncertainty data
+as `speed_confidence`, `speed_range_tok_per_sec`, and `speed_notes`.
 
 ## Source trust
 

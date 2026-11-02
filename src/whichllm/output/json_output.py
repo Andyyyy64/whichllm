@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import json
 
+from dataclasses import asdict
+
+from whichllm.engine.context import model_context_limit
+from whichllm.engine.multi_gpu import DevicePlacement
 from whichllm.engine.quantization import effective_quant_type, estimate_weight_bytes
+from whichllm.engine.recipe import build_recipe
 from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.types import HardwareInfo
 from whichllm.models.types import GGUFVariant, ModelInfo
@@ -12,8 +17,50 @@ from whichllm.output import _console
 from whichllm.output.upgrade import _summarize_row
 
 
-def display_json(results: list[CompatibilityResult], hardware: HardwareInfo) -> None:
-    """Output ranking results as JSON."""
+def _placement_rows(
+    devices: tuple[DevicePlacement, ...] | list[DevicePlacement] | None,
+) -> list[dict[str, object]] | None:
+    """Serialize a per-device layer split for JSON consumers."""
+    if not devices:
+        return None
+    return [asdict(device) for device in devices]
+
+
+def _placement_json(result: CompatibilityResult) -> dict | None:
+    placement = result.placement
+    if placement is None:
+        return None
+    return {
+        "kind": placement.kind,
+        "gpu_weight_bytes": placement.gpu_weight_bytes,
+        "cpu_weight_bytes": placement.cpu_weight_bytes,
+        "n_cpu_moe": placement.n_cpu_moe,
+        "n_gpu_layers": placement.n_gpu_layers,
+        "num_layers": placement.num_layers,
+        "devices": _placement_rows(placement.devices),
+    }
+
+
+def _recipe_json(
+    result: CompatibilityResult, context_length: int | None
+) -> dict | None:
+    if context_length is None:
+        return None
+    recipe = build_recipe(result, context_length)
+    return asdict(recipe) if recipe else None
+
+
+def display_json(
+    results: list[CompatibilityResult],
+    hardware: HardwareInfo,
+    context_length: int | None = None,
+    data: dict | None = None,
+) -> None:
+    """Output ranking results as JSON.
+
+    ``data`` says where the scores came from: the index's build time and its
+    benchmark sources, or a live fetch.
+    """
     output = {
         "hardware": {
             "gpus": [
@@ -24,13 +71,18 @@ def display_json(results: list[CompatibilityResult], hardware: HardwareInfo) -> 
                     "usable_vram_bytes": g.usable_vram_bytes,
                     "memory_bandwidth_gbps": g.memory_bandwidth_gbps,
                     "shared_memory": g.shared_memory,
+                    "pcie_generation": g.pcie_generation,
+                    "pcie_lanes": g.pcie_lanes,
                 }
                 for g in hardware.gpus
             ],
             "cpu": hardware.cpu_name,
             "cpu_cores": hardware.cpu_cores,
             "ram_bytes": hardware.ram_bytes,
+            "ram_available_bytes": hardware.ram_available_bytes,
             "ram_budget_bytes": hardware.ram_budget_bytes,
+            "ram_bandwidth_gbps": hardware.ram_bandwidth_gbps,
+            "ram_bandwidth_source": hardware.ram_bandwidth_source,
             "budget_notes": hardware.budget_notes,
             "os": hardware.os,
         },
@@ -69,7 +121,13 @@ def display_json(results: list[CompatibilityResult], hardware: HardwareInfo) -> 
                 "benchmark_status": r.benchmark_status,
                 "benchmark_source": r.benchmark_source,
                 "benchmark_confidence": round(r.benchmark_confidence, 2),
+                "benchmark_basis": r.benchmark_basis,
+                "older_generations": list(r.older_generations),
                 "fit_type": r.fit_type,
+                "context_length": model_context_limit(r.model),
+                "max_context_tokens": r.max_context_tokens,
+                "placement": _placement_json(r),
+                "recipe": _recipe_json(r, context_length),
                 "can_run": r.can_run,
                 "warnings": r.warnings,
                 "license": r.model.license,
@@ -77,6 +135,8 @@ def display_json(results: list[CompatibilityResult], hardware: HardwareInfo) -> 
             for i, r in enumerate(results, 1)
         ],
     }
+    if data is not None:
+        output["data"] = data
     _console.console.print_json(json.dumps(output, ensure_ascii=False))
 
 
@@ -88,6 +148,7 @@ def display_plan_json(
     """Output plan results as JSON."""
     from whichllm.constants import (
         GPU_BANDWIDTH,
+        DEFAULT_BYTES_PER_WEIGHT,
         QUANT_BYTES_PER_WEIGHT,
         QUANT_QUALITY_PENALTY,
     )
@@ -115,7 +176,7 @@ def display_plan_json(
 
     target_vram = vram_by_quant.get(target_quant.upper(), {}).get("vram_bytes", 0)
     if target_vram == 0:
-        bpw = QUANT_BYTES_PER_WEIGHT.get(target_quant.upper(), 0.5625)
+        bpw = QUANT_BYTES_PER_WEIGHT.get(target_quant.upper(), DEFAULT_BYTES_PER_WEIGHT)
         fake_size = int(model.parameter_count * bpw)
         fake_variant = GGUFVariant(
             filename="", quant_type=target_quant, file_size_bytes=fake_size
@@ -137,7 +198,7 @@ def display_plan_json(
         ("H200", 141),
     ]
 
-    bpw = QUANT_BYTES_PER_WEIGHT.get(target_quant.upper(), 0.5625)
+    bpw = QUANT_BYTES_PER_WEIGHT.get(target_quant.upper(), DEFAULT_BYTES_PER_WEIGHT)
     fake_size = int(model.parameter_count * bpw)
     fake_variant = GGUFVariant(
         filename="", quant_type=target_quant, file_size_bytes=fake_size

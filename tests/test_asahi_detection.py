@@ -94,9 +94,9 @@ def test_cpu_name_lscpu_ignores_dash(monkeypatch):
 # ---- Apple GPU detection on Asahi Linux ----
 
 
-def test_detect_asahi_gpu_from_sysfs(monkeypatch, tmp_path):
+def test_detect_asahi_gpu_from_sysfs(monkeypatch, tmp_path, symlink):
     """Asahi DRM driver should be detected and produce an Apple GPUInfo."""
-    _setup_asahi_sysfs(tmp_path)
+    _setup_asahi_sysfs(tmp_path, symlink)
     monkeypatch.setattr(
         apple,
         "_chip_name_from_devicetree",
@@ -114,9 +114,9 @@ def test_detect_asahi_gpu_from_sysfs(monkeypatch, tmp_path):
     assert gpus[0].memory_bandwidth_gbps == 100.0  # M2 bandwidth
 
 
-def test_detect_asahi_gpu_fallback_name(monkeypatch, tmp_path):
+def test_detect_asahi_gpu_fallback_name(monkeypatch, tmp_path, symlink):
     """When device tree is unavailable, GPU should be named 'Apple Silicon'."""
-    _setup_asahi_sysfs(tmp_path)
+    _setup_asahi_sysfs(tmp_path, symlink)
     monkeypatch.setattr(apple, "_chip_name_from_devicetree", lambda: None)
     monkeypatch.setattr("psutil.virtual_memory", _fake_vmem(8 * 1024**3))
 
@@ -126,7 +126,7 @@ def test_detect_asahi_gpu_fallback_name(monkeypatch, tmp_path):
     assert gpus[0].name == "Apple Silicon"
 
 
-def test_detect_asahi_gpu_ignores_non_apple_drivers(tmp_path):
+def test_detect_asahi_gpu_ignores_non_apple_drivers(tmp_path, symlink):
     """Non-Apple DRM drivers should not be detected as Apple GPUs."""
     card = tmp_path / "card0" / "device" / "driver"
     card.mkdir(parents=True)
@@ -134,7 +134,7 @@ def test_detect_asahi_gpu_ignores_non_apple_drivers(tmp_path):
     target = tmp_path / "drivers" / "amdgpu"
     target.mkdir(parents=True)
     (tmp_path / "card0" / "device" / "driver").rmdir()
-    (tmp_path / "card0" / "device" / "driver").symlink_to(target)
+    symlink(tmp_path / "card0" / "device" / "driver", target)
 
     assert apple.detect_apple_gpu_linux(drm_path=tmp_path) == []
 
@@ -148,14 +148,14 @@ def test_detect_asahi_gpu_no_drm(tmp_path):
 # ---- Helpers ----
 
 
-def _setup_asahi_sysfs(tmp_path: Path) -> None:
+def _setup_asahi_sysfs(tmp_path: Path, symlink) -> None:
     """Create a minimal sysfs tree mimicking the Asahi DRM driver."""
     device_dir = tmp_path / "card0" / "device"
     device_dir.mkdir(parents=True)
     # Symlink driver → .../asahi
     driver_target = tmp_path / "drivers" / "asahi"
     driver_target.mkdir(parents=True)
-    (device_dir / "driver").symlink_to(driver_target)
+    symlink(device_dir / "driver", driver_target)
 
 
 def _fake_open(content: str):

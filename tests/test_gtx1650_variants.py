@@ -90,8 +90,8 @@ def test_gtx1650_super_does_not_fall_through_to_base_1650():
 
 
 def test_gddr6_estimate_scales_with_bandwidth_and_matches_measured():
-    # Bandwidth flows linearly into the tok/s estimate; the GDDR6 estimate must
-    # exceed the GDDR5 one by the bandwidth ratio, and land near the measured
+    # Bandwidth drives the tok/s estimate; the GDDR6 estimate must exceed the
+    # GDDR5 one by nearly the bandwidth ratio, and land near the measured
     # 75.4 tok/s for Qwen3-1.7B Q4_K_M.
     model = ModelInfo(
         id="Qwen/Qwen3-1.7B",
@@ -121,7 +121,7 @@ def test_gddr6_estimate_scales_with_bandwidth_and_matches_measured():
     est6 = estimate_tok_per_sec(model, variant, gpu6)
     est5 = estimate_tok_per_sec(model, variant, gpu5)
     assert est6 > est5
-    assert est6 / est5 == pytest.approx(192.0 / 128.0, rel=1e-3)
+    assert 1.3 < est6 / est5 < 192.0 / 128.0
     # Measured 75.4 tok/s; estimate should be within the "high"-confidence band.
     assert 60.0 <= est6 <= 95.0
 

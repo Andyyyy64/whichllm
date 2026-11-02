@@ -1,6 +1,8 @@
 """Tests for CLI helper logic."""
 
 import ast
+import re
+from pathlib import Path
 
 import httpx
 import pytest
@@ -31,12 +33,13 @@ from whichllm.cli_models import (
     _search_model,
 )
 from whichllm.cli_shared import _format_fetch_error
+from whichllm.models import lmstudio
 from whichllm.models.artifacts import (
     resolve_ranked_gguf_artifact as _resolve_ranked_gguf_for_run,
 )
 from whichllm.cli import app
 from whichllm.utils import _current_version
-from whichllm.engine.types import CompatibilityResult
+from whichllm.engine.types import CompatibilityResult, Placement
 from whichllm.hardware.types import GPUInfo, HardwareInfo
 from whichllm.models.types import GGUFVariant, ModelInfo
 from typer.testing import CliRunner
@@ -361,7 +364,7 @@ def test_resolve_fit_filter_rejects_unknown_mode():
 
 def test_resolve_speed_filter_presets_and_min_speed_override():
     assert _resolve_speed_filter("any", min_speed=None) is None
-    assert _resolve_speed_filter("usable", min_speed=None) == 10.0
+    assert _resolve_speed_filter("usable", min_speed=None) == 8.0
     assert _resolve_speed_filter("fast", min_speed=None) == 30.0
     assert _resolve_speed_filter("fast", min_speed=2.5) == 2.5
 
@@ -499,7 +502,7 @@ def test_main_passes_speed_preset_and_default_runtime_columns(monkeypatch):
     result = CliRunner().invoke(app, ["--speed", "usable"])
 
     assert result.exit_code == 0
-    assert captured["min_speed"] == 10.0
+    assert captured["min_speed"] == 8.0
     assert captured["show_status"] is True
 
 
@@ -1010,6 +1013,7 @@ def _make_model(
     downloads=100,
     gguf_variants=None,
     parameter_count=7_000_000_000,
+    **kwargs,
 ):
     return ModelInfo(
         id=model_id,
@@ -1019,6 +1023,7 @@ def _make_model(
         downloads=downloads,
         likes=10,
         gguf_variants=gguf_variants or [],
+        **kwargs,
     )
 
 
@@ -1209,6 +1214,139 @@ def test_search_model_7b_prefers_id_label_over_param_count():
     ]
     result = _search_model(models, "qwen 7b")
     assert result.id == "org/Qwen3-8B-GGUF"
+
+
+def test_search_model_skips_draft_head_sized_from_its_name():
+    """A draft head whose size was parsed from its name must not beat the model."""
+    models = [
+        _make_model(
+            "AtomicChat/Qwen3-8B-DFlash-GGUF",
+            downloads=0,
+            parameter_count=8_000_000_000,
+        ),
+        _make_model(
+            "Qwen/Qwen3-8B", downloads=8_000_000, parameter_count=8_190_000_000
+        ),
+    ]
+    assert _search_model(models, "qwen3 8b").id == "Qwen/Qwen3-8B"
+    assert (
+        _search_model(models, "qwen3 8b gguf").id == "AtomicChat/Qwen3-8B-DFlash-GGUF"
+    )
+    assert (
+        _search_model(models, "qwen3 8b dflash").id == "AtomicChat/Qwen3-8B-DFlash-GGUF"
+    )
+
+
+def test_search_model_same_size_label_ranks_by_downloads_not_param_count():
+    """The parameter count is often parsed from the label, so it cannot break a tie."""
+    models = [
+        _make_model(
+            "someone/Qwen3-8B-GGUF", downloads=0, parameter_count=8_000_000_000
+        ),
+        _make_model(
+            "Qwen/Qwen3-8B-GGUF", downloads=670_000, parameter_count=8_190_000_000
+        ),
+    ]
+    assert _search_model(models, "qwen3 8b").id == "Qwen/Qwen3-8B-GGUF"
+
+
+def test_search_model_prefers_original_over_quantized_upload():
+    models = [
+        _make_model(
+            "unsloth/Llama-3.3-70B-Instruct",
+            downloads=650_000,
+            parameter_count=70_000_000_000,
+            base_model_relation="quantized",
+        ),
+        _make_model(
+            "meta-llama/Llama-3.3-70B-Instruct",
+            downloads=390_000,
+            parameter_count=70_000_000_000,
+            base_model_relation="finetune",
+        ),
+        _make_model(
+            "unsloth/Llama-3.3-70B-Instruct-GGUF",
+            downloads=300_000,
+            parameter_count=70_000_000_000,
+            base_model_relation="quantized",
+        ),
+        # No base_model tag, so it would pass for an original.
+        _make_model(
+            "someone/Llama-3.3-70B-Instruct-GGUF",
+            downloads=50_000,
+            parameter_count=70_000_000_000,
+        ),
+    ]
+    assert (
+        _search_model(models, "llama 3 70b").id == "meta-llama/Llama-3.3-70B-Instruct"
+    )
+    # A format word asks for an upload, so downloads decide among them.
+    assert (
+        _search_model(models, "llama 70b gguf").id
+        == "unsloth/Llama-3.3-70B-Instruct-GGUF"
+    )
+
+
+def test_search_model_prefers_closest_name():
+    """Tokens the query does not mention (VL, MedGemma, FP8) count against a repo."""
+    models = [
+        _make_model(
+            "Qwen/Qwen3-VL-8B-Instruct-GGUF",
+            downloads=1_200_000,
+            parameter_count=8_000_000_000,
+        ),
+        _make_model(
+            "Qwen/Qwen3-8B-GGUF", downloads=670_000, parameter_count=8_000_000_000
+        ),
+        _make_model(
+            "google/medgemma-4b-it", downloads=900_000, parameter_count=4_000_000_000
+        ),
+        _make_model(
+            "google/gemma-4-31B-it", downloads=500_000, parameter_count=31_000_000_000
+        ),
+        _make_model(
+            "Qwen/Qwen3-Coder-30B-A3B-Instruct-FP8",
+            downloads=1_100_000,
+            parameter_count=30_000_000_000,
+        ),
+        _make_model(
+            "Qwen/Qwen3-Coder-30B-A3B-Instruct",
+            downloads=870_000,
+            parameter_count=30_000_000_000,
+        ),
+    ]
+    assert _search_model(models, "qwen3 8b gguf").id == "Qwen/Qwen3-8B-GGUF"
+    assert _search_model(models, "gemma 4").id == "google/gemma-4-31B-it"
+    assert (
+        _search_model(models, "qwen3 coder").id == "Qwen/Qwen3-Coder-30B-A3B-Instruct"
+    )
+
+
+def test_search_model_ignores_versions_and_org_prefix_in_names():
+    models = [
+        _make_model(
+            "someone/Mistral-Small-24B-Instruct-Jbliterated", downloads=900_000
+        ),
+        _make_model("mistralai/Mistral-Small-3.1-24B-Instruct-2503", downloads=800_000),
+        _make_model("nvidia/NVIDIA-Nemotron-3-Nano-4B-BF16", downloads=1_700_000),
+        _make_model("unsloth/Nemotron-3-Nano-30B-A3B-GGUF", downloads=400_000),
+    ]
+    assert (
+        _search_model(models, "mistral small").id
+        == "mistralai/Mistral-Small-3.1-24B-Instruct-2503"
+    )
+    assert (
+        _search_model(models, "nemotron nano").id
+        == "nvidia/NVIDIA-Nemotron-3-Nano-4B-BF16"
+    )
+
+
+def test_search_model_skips_base_checkpoint():
+    models = [
+        _make_model("Qwen/Qwen2.5-7B", downloads=900_000),
+        _make_model("Qwen/Qwen2.5-7B-Instruct", downloads=800_000),
+    ]
+    assert _search_model(models, "qwen2.5 7b").id == "Qwen/Qwen2.5-7B-Instruct"
 
 
 def test_pick_gguf_variant_by_preference():
@@ -1702,8 +1840,12 @@ def test_run_requires_uv(monkeypatch):
     assert "uv is required" in result.stdout
 
 
+def _uv_only(name):
+    return "/usr/bin/uv" if name == "uv" else None
+
+
 def test_run_no_model_found_exits_gracefully(monkeypatch):
-    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/uv")
+    monkeypatch.setattr("shutil.which", _uv_only)
     monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [])
 
     runner = CliRunner()
@@ -1829,7 +1971,7 @@ def test_run_auto_pick_resolves_ranked_gguf_before_launch(monkeypatch):
             )
         ]
 
-    def fake_generate_chat_script(model, variant, context_length, cpu_only):
+    def fake_generate_chat_script(model, variant, context_length, cpu_only, **kw):
         captured["model_id"] = model.id
         captured["variant"] = variant
         return "print('ok')"
@@ -1841,7 +1983,7 @@ def test_run_auto_pick_resolves_ranked_gguf_before_launch(monkeypatch):
         captured["cmd"] = cmd
         return Completed()
 
-    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/uv")
+    monkeypatch.setattr("shutil.which", _uv_only)
     monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [selected, real_gguf])
     monkeypatch.setattr(
         "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
@@ -1859,6 +2001,844 @@ def test_run_auto_pick_resolves_ranked_gguf_before_launch(monkeypatch):
     assert captured["variant"].filename == "q4.gguf"
     assert "llama-cpp-python" in captured["cmd"]
     assert "transformers" not in captured["cmd"]
+    # Without llama-cli the chat is a CPU-only source build; say so first.
+    assert "runs on the CPU only" in " ".join(result.stdout.split())
+
+
+def test_run_auto_pick_ranks_with_the_index_benchmarks(monkeypatch):
+    """`run` without a name used to rank with the --live benchmark cache only,
+    which is empty on the index path, so it picked without any benchmarks."""
+    from whichllm.models.index_client import IndexCatalog
+
+    model = ModelInfo(
+        id="org/Model-8B-GGUF",
+        family_id="org/model-8b",
+        name="Model-8B-GGUF",
+        parameter_count=8_000_000_000,
+        gguf_variants=[
+            GGUFVariant(
+                filename="m.gguf", quant_type="Q4_K_M", file_size_bytes=5 * 10**9
+            )
+        ],
+    )
+    index_scores = {"org/Model-8B": 61.0}
+    captured: dict[str, object] = {}
+
+    def fake_rank_models(models, hardware, **kwargs):
+        captured["benchmark_scores"] = kwargs.get("benchmark_scores")
+        return [
+            CompatibilityResult(
+                model=model,
+                gguf_variant=model.gguf_variants[0],
+                can_run=True,
+                vram_required_bytes=0,
+                vram_available_bytes=0,
+                quality_score=60.0,
+            )
+        ]
+
+    class Completed:
+        returncode = 0
+
+    monkeypatch.setattr("shutil.which", _uv_only)
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [model])
+    monkeypatch.setattr(
+        "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
+    )
+    monkeypatch.setattr(
+        "whichllm.models.index_client.load_index",
+        lambda refresh=False: IndexCatalog(
+            models=[model],
+            benchmark_scores=index_scores,
+            built_at="2026-10-29T00:00:00Z",
+        ),
+    )
+    monkeypatch.setattr("whichllm.engine.ranker.rank_models", fake_rank_models)
+    monkeypatch.setattr(
+        cli_mod, "_generate_chat_script", lambda *a, **kw: "print('ok')"
+    )
+    monkeypatch.setattr("subprocess.run", lambda cmd: Completed())
+
+    result = CliRunner().invoke(app, ["run"])
+
+    assert result.exit_code == 0
+    assert captured["benchmark_scores"] == index_scores
+
+
+def _run_with_llama_cli(monkeypatch, models, rank_results, argv):
+    captured: dict[str, object] = {}
+
+    class Completed:
+        returncode = 0
+
+    def fake_run(cmd):
+        captured["cmd"] = cmd
+        return Completed()
+
+    monkeypatch.setattr(
+        "shutil.which",
+        lambda name: "/opt/llama/llama-cli" if name == "llama-cli" else None,
+    )
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: models)
+    monkeypatch.setattr(
+        "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
+    )
+    monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
+    monkeypatch.setattr(
+        "whichllm.engine.ranker.rank_models", lambda *a, **kw: rank_results
+    )
+    monkeypatch.setattr("subprocess.run", fake_run)
+    result = CliRunner().invoke(app, argv)
+    return result, captured
+
+
+def test_run_uses_llama_cli_with_the_recipe_flags(monkeypatch):
+    model = ModelInfo(
+        id="org/MoE-35B-A3B-GGUF",
+        family_id="org/moe-35b-a3b",
+        name="MoE-35B-A3B-GGUF",
+        parameter_count=35_000_000_000,
+        gguf_variants=[
+            GGUFVariant(
+                filename="m.gguf", quant_type="Q4_K_M", file_size_bytes=20 * 10**9
+            )
+        ],
+    )
+    picked = CompatibilityResult(
+        model=model,
+        gguf_variant=model.gguf_variants[0],
+        can_run=True,
+        vram_required_bytes=0,
+        vram_available_bytes=0,
+        quality_score=60.0,
+        placement=Placement("expert_offload", 7, 13, n_cpu_moe=31, num_layers=40),
+    )
+
+    result, captured = _run_with_llama_cli(monkeypatch, [model], [picked], ["run"])
+
+    assert result.exit_code == 0, result.output
+    assert captured["cmd"] == [
+        "/opt/llama/llama-cli",
+        "-hf",
+        "org/MoE-35B-A3B-GGUF:Q4_K_M",
+        "-c",
+        "4096",
+        "-ngl",
+        "99",
+        "--n-cpu-moe",
+        "31",
+        "-fa",
+        "on",
+    ]
+    assert "uv" not in " ".join(captured["cmd"])
+
+
+def test_run_named_model_lets_llama_cpp_fit_it(monkeypatch):
+    model = ModelInfo(
+        id="org/Small-2B-GGUF",
+        family_id="org/small-2b",
+        name="Small-2B-GGUF",
+        parameter_count=2_000_000_000,
+        gguf_variants=[
+            GGUFVariant(filename="s.gguf", quant_type="Q4_K_M", file_size_bytes=10**9)
+        ],
+    )
+
+    result, captured = _run_with_llama_cli(
+        monkeypatch, [model], [], ["run", "org/Small-2B-GGUF", "-q", "Q4_K_M"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured["cmd"] == [
+        "/opt/llama/llama-cli",
+        "-hf",
+        "org/Small-2B-GGUF:Q4_K_M",
+        "-c",
+        "4096",
+    ]
+
+
+def test_run_ranks_like_the_main_command(monkeypatch):
+    from whichllm.commands.autopick import pick_top_runnable
+    from whichllm.models.index_client import IndexCatalog
+
+    model = ModelInfo(
+        id="org/Model-8B-GGUF",
+        family_id="org/model-8b",
+        name="Model-8B-GGUF",
+        parameter_count=8_000_000_000,
+        gguf_variants=[
+            GGUFVariant(
+                filename="m.gguf", quant_type="Q4_K_M", file_size_bytes=5 * 10**9
+            )
+        ],
+    )
+    calls: list[tuple] = []
+
+    def fake_rank_models(models, hardware, **kwargs):
+        calls.append(
+            (
+                hardware.gpus[0].usable_vram_bytes,
+                {k: kwargs.get(k) for k in sorted(kwargs) if k != "top_n"},
+            )
+        )
+        return [
+            CompatibilityResult(
+                model=model,
+                gguf_variant=model.gguf_variants[0],
+                can_run=True,
+                vram_required_bytes=0,
+                vram_available_bytes=0,
+                quality_score=60.0,
+            )
+        ]
+
+    catalog = IndexCatalog(
+        models=[model],
+        benchmark_scores={"org/Model-8B": 61.0},
+        built_at="2026-10-29T00:00:00Z",
+    )
+    monkeypatch.setattr(
+        "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(12)
+    )
+    monkeypatch.setattr(
+        "whichllm.models.index_client.load_index", lambda refresh=False: catalog
+    )
+    monkeypatch.setattr("whichllm.engine.ranker.rank_models", fake_rank_models)
+    monkeypatch.setattr(
+        "whichllm.output.display.display_hardware", lambda hardware: None
+    )
+    monkeypatch.setattr(
+        "whichllm.output.display.display_ranking", lambda results, **kwargs: None
+    )
+
+    assert CliRunner().invoke(app, []).exit_code == 0
+    main_call = calls[-1]
+    pick_top_runnable([model], context_length=4096, quant=None)
+
+    # The same VRAM headroom, size floor and evidence rules as `whichllm`.
+    assert calls[-1] == main_call
+    assert main_call[0] < _hw_with_gpu(12).gpus[0].vram_bytes
+
+
+def _local_gguf_model(
+    model_id: str = "org/Test-7B-GGUF",
+    filename: str = "q4.gguf",
+) -> ModelInfo:
+    """Build a GGUF model whose artifact can be matched in a local library."""
+    return _make_model(
+        model_id=model_id,
+        gguf_variants=[
+            GGUFVariant(
+                filename=filename,
+                quant_type="Q4_K_M",
+                file_size_bytes=1,
+            )
+        ],
+    )
+
+
+def _write_library_file(
+    root: Path,
+    filename: str,
+    *,
+    repo_id: str = "org/Test-7B-GGUF",
+) -> Path:
+    """Create one GGUF file inside an LM Studio library layout."""
+    owner, repo = repo_id.split("/", 1)
+    path = root / owner / repo / filename
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"gguf")
+    return path
+
+
+def _capture_run(monkeypatch, captured: dict[str, object]) -> None:
+    """Stub uv and capture the generated script instead of launching it."""
+
+    class Completed:
+        returncode = 0
+
+    def fake_run(cmd):
+        captured["cmd"] = cmd
+        captured["script"] = Path(cmd[-1]).read_text()
+        return Completed()
+
+    monkeypatch.setattr("shutil.which", _uv_only)
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+
+def _flat(text: str) -> str:
+    """Collapse console line wrapping so long paths can be asserted."""
+    return re.sub(r"\s+", "", text)
+
+
+def test_run_uses_verified_local_artifact_without_hf_download(monkeypatch, tmp_path):
+    model = _local_gguf_model()
+    root = tmp_path / "lmstudio"
+    artifact = _write_library_file(root, "q4.gguf")
+    captured: dict[str, object] = {}
+    _capture_run(monkeypatch, captured)
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [model])
+
+    result = CliRunner().invoke(app, ["run", "Test-7B", "--lm-studio-path", str(root)])
+
+    assert result.exit_code == 0
+    assert _flat(f"Using local LM Studio file: {artifact}") in _flat(result.stdout)
+    assert f"local_path = {str(artifact)!r}" in captured["script"]
+    assert "all(os.path.isfile(part) for part in local_parts)" in captured["script"]
+    assert "llama-cpp-python" in captured["cmd"]
+    # The isolated build runs before the script starts, so the download stays as
+    # the fallback for a file that goes away in between.
+    assert "huggingface-hub" in captured["cmd"]
+
+
+def test_run_uses_entry_part_of_complete_split_artifact(monkeypatch, tmp_path):
+    parts = [f"q4-{part:05d}-of-00003.gguf" for part in (1, 2, 3)]
+    model = _local_gguf_model(filename=parts[0])
+    root = tmp_path / "lmstudio"
+    for part in parts:
+        _write_library_file(root, part)
+    entry = root / "org" / "Test-7B-GGUF" / parts[0]
+    captured: dict[str, object] = {}
+    _capture_run(monkeypatch, captured)
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [model])
+
+    result = CliRunner().invoke(app, ["run", "Test-7B", "--lm-studio-path", str(root)])
+
+    assert result.exit_code == 0
+    assert _flat(f"Using local LM Studio file: {entry}") in _flat(result.stdout)
+    assert f"local_path = {str(entry)!r}" in captured["script"]
+    assert repr(str(entry.with_name(parts[1]))) in captured["script"]
+
+
+def test_run_warns_about_incomplete_explicit_split_set(monkeypatch, tmp_path):
+    parts = [f"q4-{part:05d}-of-00003.gguf" for part in (1, 2, 3)]
+    model = _local_gguf_model(filename=parts[0])
+    root = tmp_path / "lmstudio"
+    _write_library_file(root, parts[0])
+    _write_library_file(root, parts[1])
+    captured: dict[str, object] = {}
+    _capture_run(monkeypatch, captured)
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [model])
+
+    result = CliRunner().invoke(app, ["run", "Test-7B", "--lm-studio-path", str(root)])
+
+    flat_stdout = _flat(result.stdout)
+    assert result.exit_code == 0
+    assert "Using local LM Studio file" not in result.stdout
+    assert _flat("is missing part 3 of 3; downloading instead") in flat_stdout
+    assert "hf_hub_download" in captured["script"]
+    assert "huggingface-hub" in captured["cmd"]
+
+
+def test_run_stays_quiet_when_no_local_artifact_exists(monkeypatch, tmp_path):
+    model = _local_gguf_model()
+    root = tmp_path / "lmstudio"
+    root.mkdir()
+    captured: dict[str, object] = {}
+    _capture_run(monkeypatch, captured)
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [model])
+
+    result = CliRunner().invoke(app, ["run", "Test-7B", "--lm-studio-path", str(root)])
+
+    assert result.exit_code == 0
+    assert "Warning" not in result.stdout
+    assert "Using local LM Studio file" not in result.stdout
+    assert "hf_hub_download" in captured["script"]
+
+
+def test_run_ignores_split_artifact_parts_from_another_library(monkeypatch, tmp_path):
+    parts = [f"q4-{part:05d}-of-00002.gguf" for part in (1, 2)]
+    model = _local_gguf_model(filename=parts[0])
+    first, second = tmp_path / "lib-a", tmp_path / "lib-b"
+    _write_library_file(first, parts[0])
+    _write_library_file(second, parts[1])
+    captured: dict[str, object] = {}
+    _capture_run(monkeypatch, captured)
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [model])
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "run",
+            "Test-7B",
+            "--lm-studio-path",
+            str(first),
+            "--lm-studio-path",
+            str(second),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Using local LM Studio file" not in result.stdout
+    assert _flat("is missing part 2 of 2; downloading instead") in _flat(result.stdout)
+    assert "hf_hub_download" in captured["script"]
+    assert "huggingface-hub" in captured["cmd"]
+
+
+def test_run_uses_complete_split_artifact_from_a_later_library(monkeypatch, tmp_path):
+    parts = [f"q4-{part:05d}-of-00002.gguf" for part in (1, 2)]
+    model = _local_gguf_model(filename=parts[0])
+    first, second = tmp_path / "lib-a", tmp_path / "lib-b"
+    _write_library_file(first, parts[0])
+    for part in parts:
+        _write_library_file(second, part)
+    entry = second / "org" / "Test-7B-GGUF" / parts[0]
+    captured: dict[str, object] = {}
+    _capture_run(monkeypatch, captured)
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [model])
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "run",
+            "Test-7B",
+            "--lm-studio-path",
+            str(first),
+            "--lm-studio-path",
+            str(second),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert _flat(f"Using local LM Studio file: {entry}") in _flat(result.stdout)
+    assert "Warning" not in result.stdout
+    assert f"local_path = {str(entry)!r}" in captured["script"]
+
+
+def test_run_falls_back_when_local_file_disappears_before_launch(monkeypatch, tmp_path):
+    model = _local_gguf_model()
+    root = tmp_path / "lmstudio"
+    artifact = _write_library_file(root, "q4.gguf")
+    captured: dict[str, object] = {}
+    _capture_run(monkeypatch, captured)
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [model])
+
+    real_find = lmstudio.find_local_artifact
+
+    def find_then_remove(repo_id, artifact_path, local_models):
+        match = real_find(repo_id, artifact_path, local_models)
+        if match is not None:
+            match.path.unlink()
+        return match
+
+    monkeypatch.setattr(cli_mod, "find_local_artifact", find_then_remove)
+
+    result = CliRunner().invoke(app, ["run", "Test-7B", "--lm-studio-path", str(root)])
+
+    assert result.exit_code == 0
+    assert not artifact.exists()
+    assert _flat("missing or incomplete; downloading instead") in _flat(result.stdout)
+    assert "hf_hub_download" in captured["script"]
+    assert "huggingface-hub" in captured["cmd"]
+
+
+def test_run_reports_missing_explicit_lm_studio_path(monkeypatch, tmp_path):
+    monkeypatch.setattr("shutil.which", _uv_only)
+    missing = tmp_path / "absent"
+
+    result = CliRunner().invoke(
+        app, ["run", "Test-7B", "--lm-studio-path", str(missing)]
+    )
+
+    assert result.exit_code == 1
+    assert "LM Studio path does not exist" in result.stdout
+
+
+def test_run_llama_cli_opens_a_local_artifact(monkeypatch, tmp_path):
+    model = _local_gguf_model("org/Small-2B-GGUF", "s.gguf")
+    root = tmp_path / "lmstudio"
+    artifact = _write_library_file(root, "s.gguf", repo_id="org/Small-2B-GGUF")
+
+    result, captured = _run_with_llama_cli(
+        monkeypatch,
+        [model],
+        [],
+        ["run", "org/Small-2B-GGUF", "-q", "Q4_K_M", "--lm-studio-path", str(root)],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured["cmd"] == [
+        "/opt/llama/llama-cli",
+        "-m",
+        str(artifact),
+        "-c",
+        "4096",
+    ]
+    assert "-hf" not in captured["cmd"]
+    assert _flat(f"Using local LM Studio file: {artifact}") in _flat(result.stdout)
+
+
+def test_run_llama_cli_keeps_the_recipe_flags_for_a_local_artifact(
+    monkeypatch, tmp_path
+):
+    model = _local_gguf_model("org/MoE-35B-A3B-GGUF", "m.gguf")
+    picked = CompatibilityResult(
+        model=model,
+        gguf_variant=model.gguf_variants[0],
+        can_run=True,
+        vram_required_bytes=0,
+        vram_available_bytes=0,
+        quality_score=60.0,
+        placement=Placement("expert_offload", 7, 13, n_cpu_moe=31, num_layers=40),
+    )
+    root = tmp_path / "lmstudio"
+    artifact = _write_library_file(root, "m.gguf", repo_id="org/MoE-35B-A3B-GGUF")
+
+    result, captured = _run_with_llama_cli(
+        monkeypatch, [model], [picked], ["run", "--lm-studio-path", str(root)]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured["cmd"] == [
+        "/opt/llama/llama-cli",
+        "-m",
+        str(artifact),
+        "-c",
+        "4096",
+        "-ngl",
+        "99",
+        "--n-cpu-moe",
+        "31",
+        "-fa",
+        "on",
+    ]
+
+
+def test_run_llama_cli_warns_about_incomplete_explicit_split_set(monkeypatch, tmp_path):
+    parts = [f"s-{part:05d}-of-00002.gguf" for part in (1, 2)]
+    model = _local_gguf_model("org/Small-2B-GGUF", parts[0])
+    root = tmp_path / "lmstudio"
+    _write_library_file(root, parts[0], repo_id="org/Small-2B-GGUF")
+
+    result, captured = _run_with_llama_cli(
+        monkeypatch,
+        [model],
+        [],
+        ["run", "org/Small-2B-GGUF", "-q", "Q4_K_M", "--lm-studio-path", str(root)],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert _flat("is missing part 2 of 2; downloading instead") in _flat(result.stdout)
+    assert captured["cmd"] == [
+        "/opt/llama/llama-cli",
+        "-hf",
+        "org/Small-2B-GGUF:Q4_K_M",
+        "-c",
+        "4096",
+    ]
+
+
+def test_gguf_chat_script_uses_local_path_without_download():
+    model = _local_gguf_model()
+    variant = model.gguf_variants[0]
+    local_path = '/tmp/lib/org/Test-7B-GGUF/q4.gguf"); print("injected")'
+
+    script = _generate_chat_script(
+        model,
+        variant,
+        context_length=4096,
+        cpu_only=False,
+        n_gpu_layers=7,
+        local_path=local_path,
+    )
+    tree = ast.parse(script)
+    assignments = {
+        node.targets[0].id: ast.literal_eval(node.value)
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id
+        in {"model_id", "filename", "quant_type", "local_path", "local_parts"}
+    }
+
+    assert "huggingface_hub import hf_hub_download" in script
+    assert "n_gpu_layers=7" in script
+    assert "all(os.path.isfile(part) for part in local_parts)" in script
+    assert assignments == {
+        "model_id": model.id,
+        "filename": variant.filename,
+        "quant_type": variant.quant_type,
+        "local_path": local_path,
+        "local_parts": (local_path,),
+    }
+
+
+def test_run_passes_the_ranked_layer_split_with_a_local_artifact(monkeypatch, tmp_path):
+    """The v0.6 layer split and the local reuse have to reach the script together."""
+    model = _local_gguf_model("org/MoE-35B-A3B-GGUF", "m.gguf")
+    picked = CompatibilityResult(
+        model=model,
+        gguf_variant=None,
+        can_run=True,
+        vram_required_bytes=0,
+        vram_available_bytes=0,
+        quality_score=60.0,
+        placement=Placement("expert_offload", 7, 13, n_cpu_moe=31, num_layers=40),
+    )
+    root = tmp_path / "lmstudio"
+    artifact = _write_library_file(root, "m.gguf", repo_id="org/MoE-35B-A3B-GGUF")
+    captured: dict[str, object] = {}
+
+    class Completed:
+        returncode = 0
+
+    def fake_generate(model, variant, context_length, cpu_only, **kwargs):
+        captured.update(kwargs)
+        return "print('ok')"
+
+    def fake_run(cmd):
+        captured["cmd"] = cmd
+        return Completed()
+
+    monkeypatch.setattr("shutil.which", _uv_only)
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [model])
+    monkeypatch.setattr(
+        "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
+    )
+    monkeypatch.setattr("whichllm.models.index_client.load_index", lambda **kw: None)
+    monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
+    monkeypatch.setattr("whichllm.engine.ranker.rank_models", lambda *a, **kw: [picked])
+    monkeypatch.setattr(cli_mod, "_generate_chat_script", fake_generate)
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    result = CliRunner().invoke(app, ["run", "--lm-studio-path", str(root)])
+
+    assert result.exit_code == 0, result.output
+    assert captured["local_path"] == str(artifact)
+    assert captured["n_gpu_layers"] == 14
+    assert "huggingface-hub" in captured["cmd"]
+
+
+def test_run_reuses_only_when_the_query_resolves_to_the_gguf_repo(
+    monkeypatch, tmp_path
+):
+    """v0.6 resolves a plain name to the original repo, so only a gguf query reuses."""
+    original = _make_model("org/Test-7B", downloads=900, base_model_relation="finetune")
+    gguf_repo = _make_model(
+        "org/Test-7B-GGUF",
+        downloads=100,
+        base_model="org/Test-7B",
+        base_model_relation="quantized",
+        gguf_variants=[
+            GGUFVariant(filename="q4.gguf", quant_type="Q4_K_M", file_size_bytes=1)
+        ],
+    )
+    root = tmp_path / "lmstudio"
+    artifact = _write_library_file(root, "q4.gguf", repo_id="org/Test-7B-GGUF")
+    captured: dict[str, object] = {}
+    _capture_run(monkeypatch, captured)
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [original, gguf_repo])
+
+    plain = CliRunner().invoke(app, ["run", "Test-7B", "--lm-studio-path", str(root)])
+
+    assert plain.exit_code == 0, plain.output
+    assert "Using local LM Studio file" not in plain.stdout
+    assert "Warning" not in plain.stdout
+    assert "llama-cpp-python" not in captured["cmd"]
+
+    with_format = CliRunner().invoke(
+        app, ["run", "Test-7B gguf", "--lm-studio-path", str(root)]
+    )
+
+    assert with_format.exit_code == 0, with_format.output
+    assert _flat(f"Using local LM Studio file: {artifact}") in _flat(with_format.stdout)
+    assert f"local_path = {str(artifact)!r}" in captured["script"]
+
+
+def test_run_warns_when_the_entry_part_is_missing(monkeypatch, tmp_path):
+    """A library that kept only the later parts cannot load either."""
+    parts = [f"q4-{part:05d}-of-00002.gguf" for part in (1, 2)]
+    model = _local_gguf_model(filename=parts[0])
+    root = tmp_path / "lmstudio"
+    _write_library_file(root, parts[1])
+    captured: dict[str, object] = {}
+    _capture_run(monkeypatch, captured)
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [model])
+
+    result = CliRunner().invoke(app, ["run", "Test-7B", "--lm-studio-path", str(root)])
+
+    assert result.exit_code == 0
+    assert _flat("is missing part 1 of 2; downloading instead") in _flat(result.stdout)
+    assert "Using local LM Studio file" not in result.stdout
+    assert f"local_path = {None!r}" not in captured["script"]
+
+
+def test_run_survives_a_library_path_with_markup_characters(monkeypatch, tmp_path):
+    model = _local_gguf_model()
+    root = tmp_path / "li[b]rary"
+    artifact = _write_library_file(root, "q4.gguf")
+    captured: dict[str, object] = {}
+    _capture_run(monkeypatch, captured)
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: [model])
+
+    result = CliRunner().invoke(app, ["run", "Test-7B", "--lm-studio-path", str(root)])
+
+    assert result.exit_code == 0, result.output
+    assert _flat(f"Using local LM Studio file: {artifact}") in _flat(result.stdout)
+
+
+def test_run_prints_the_local_file_in_the_offload_hint(monkeypatch, tmp_path):
+    model = _local_gguf_model("org/MoE-35B-A3B-GGUF", "m.gguf")
+    picked = CompatibilityResult(
+        model=model,
+        gguf_variant=model.gguf_variants[0],
+        can_run=True,
+        vram_required_bytes=0,
+        vram_available_bytes=0,
+        quality_score=60.0,
+        placement=Placement("expert_offload", 7, 13, n_cpu_moe=31, num_layers=40),
+    )
+    root = tmp_path / "lmstudio"
+    artifact = _write_library_file(root, "m.gguf", repo_id="org/MoE-35B-A3B-GGUF")
+
+    uv_result, _uv_captured = _run_with_llama_cli_uv_only(
+        monkeypatch,
+        [model],
+        [picked],
+        ["run", "--lm-studio-path", str(root)],
+    )
+
+    flat_stdout = _flat(uv_result.stdout)
+    assert uv_result.exit_code == 0, uv_result.output
+    assert _flat("serve it with llama.cpp") in flat_stdout
+    assert f"llama-server-m{artifact}" in flat_stdout
+    assert "-hf" not in flat_stdout
+
+
+@pytest.mark.parametrize(
+    ("windows", "shown"),
+    [
+        (True, r'llama-server -m "C:\Users\me\LM Studio\m.gguf" -c 4096'),
+        (False, r"llama-server -m 'C:\Users\me\LM Studio\m.gguf' -c 4096"),
+    ],
+)
+def test_shown_commands_quote_for_the_local_shell(windows, shown):
+    # cmd.exe keeps single quotes as part of the file name.
+    args = ["llama-server", "-m", r"C:\Users\me\LM Studio\m.gguf", "-c", "4096"]
+
+    assert cli_mod._shell_join(args, windows=windows) == shown
+
+
+def test_a_windows_path_without_spaces_is_shown_bare():
+    args = ["llama-cli", "-m", r"C:\models\m.gguf", "-ngl", "99"]
+
+    assert (
+        cli_mod._shell_join(args, windows=True)
+        == r"llama-cli -m C:\models\m.gguf -ngl 99"
+    )
+
+
+def _run_with_llama_cli_uv_only(monkeypatch, models, rank_results, argv):
+    captured: dict[str, object] = {}
+
+    class Completed:
+        returncode = 0
+
+    def fake_run(cmd):
+        captured["cmd"] = cmd
+        return Completed()
+
+    monkeypatch.setattr("shutil.which", _uv_only)
+    monkeypatch.setattr(cli_mod, "_load_models", lambda refresh: models)
+    monkeypatch.setattr(
+        "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
+    )
+    monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
+    monkeypatch.setattr(
+        "whichllm.engine.ranker.rank_models", lambda *a, **kw: rank_results
+    )
+    monkeypatch.setattr(
+        cli_mod, "_generate_chat_script", lambda *a, **kw: "print('ok')"
+    )
+    monkeypatch.setattr("subprocess.run", fake_run)
+    result = CliRunner().invoke(app, argv)
+    return result, captured
+
+
+def test_generated_script_falls_back_when_a_local_part_disappears(
+    tmp_path, monkeypatch
+):
+    """The isolated build runs first, so the script checks the files again."""
+    import sys
+    import types
+
+    model = _local_gguf_model()
+    variant = model.gguf_variants[0]
+    missing = tmp_path / "gone.gguf"
+    downloads: list[dict] = []
+
+    class FakeLlama:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    fake_llama = types.ModuleType("llama_cpp")
+    fake_llama.Llama = FakeLlama
+    fake_hub = types.ModuleType("huggingface_hub")
+    fake_hub.hf_hub_download = lambda **kwargs: downloads.append(kwargs) or str(missing)
+    monkeypatch.setitem(sys.modules, "llama_cpp", fake_llama)
+    monkeypatch.setitem(sys.modules, "huggingface_hub", fake_hub)
+
+    def stop_reading(_prompt=""):
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", stop_reading)
+
+    script = _generate_chat_script(
+        model,
+        variant,
+        context_length=4096,
+        cpu_only=False,
+        local_path=str(missing),
+        local_parts=(str(missing),),
+    )
+
+    exec(compile(script, "<generated>", "exec"), {"__name__": "__main__"})
+
+    assert downloads == [{"repo_id": model.id, "filename": variant.filename}]
+
+
+def test_generated_script_opens_an_existing_local_part_set(tmp_path, monkeypatch):
+    import sys
+    import types
+
+    model = _local_gguf_model()
+    variant = model.gguf_variants[0]
+    entry = tmp_path / "q4-00001-of-00002.gguf"
+    entry.write_bytes(b"gguf")
+    part = tmp_path / "q4-00002-of-00002.gguf"
+    part.write_bytes(b"gguf")
+    loaded: list[str] = []
+    downloads: list[dict] = []
+
+    class FakeLlama:
+        def __init__(self, **kwargs):
+            loaded.append(kwargs["model_path"])
+
+    fake_llama = types.ModuleType("llama_cpp")
+    fake_llama.Llama = FakeLlama
+    fake_hub = types.ModuleType("huggingface_hub")
+    fake_hub.hf_hub_download = lambda **kwargs: downloads.append(kwargs) or ""
+    monkeypatch.setitem(sys.modules, "llama_cpp", fake_llama)
+    monkeypatch.setitem(sys.modules, "huggingface_hub", fake_hub)
+    monkeypatch.setattr(
+        "builtins.input", lambda _prompt="": (_ for _ in ()).throw(EOFError)
+    )
+
+    script = _generate_chat_script(
+        model,
+        variant,
+        context_length=4096,
+        cpu_only=False,
+        local_path=str(entry),
+        local_parts=(str(entry), str(part)),
+    )
+
+    exec(compile(script, "<generated>", "exec"), {"__name__": "__main__"})
+
+    assert loaded == [str(entry)]
+    assert downloads == []
 
 
 def test_snippet_no_model_found(monkeypatch):
@@ -2189,3 +3169,196 @@ def test_snippet_auto_pick_exits_when_nothing_runs(monkeypatch):
 
     assert result.exit_code == 1
     assert "No runnable model found" in result.stdout
+
+
+def test_main_reads_configs_for_top_families_then_reranks(monkeypatch):
+    import whichllm.models.shape_fetch as shape_fetch
+
+    model = ModelInfo(
+        id="org/Test-7B",
+        family_id="test-7b",
+        name="Test-7B",
+        parameter_count=7_000_000_000,
+        downloads=1,
+        likes=1,
+        published_at="2026-01-01T00:00:00.000Z",
+    )
+    rank_calls: list[int] = []
+    fetched: list[list[str]] = []
+
+    def fake_rank_models(models, hardware, **kwargs):
+        rank_calls.append(kwargs["top_n"])
+        return [
+            CompatibilityResult(
+                model=model,
+                gguf_variant=None,
+                can_run=True,
+                vram_required_bytes=4 * 1024**3,
+                vram_available_bytes=8 * 1024**3,
+                fit_type="full_gpu",
+                quality_score=80.0,
+            )
+        ]
+
+    async def fake_fetch_family_shapes(models, family_ids):
+        fetched.append(list(family_ids))
+        return 0
+
+    monkeypatch.setattr(
+        "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
+    )
+    monkeypatch.setattr("whichllm.models.cache.load_cache", lambda **_kwargs: [])
+    monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
+    monkeypatch.setattr("whichllm.engine.ranker.rank_models", fake_rank_models)
+    monkeypatch.setattr(shape_fetch, "fetch_family_shapes", fake_fetch_family_shapes)
+    monkeypatch.setattr(
+        "whichllm.output.display.display_hardware", lambda hardware: None
+    )
+    monkeypatch.setattr(
+        "whichllm.output.display.display_ranking", lambda results, **kwargs: None
+    )
+
+    result = CliRunner().invoke(app, ["--top", "3", "--min-params", "1"])
+
+    assert result.exit_code == 0, result.output
+    assert fetched == [["test-7b"]]
+    assert rank_calls == [13, 3]
+
+
+def _index_catalog_with(model):
+    from whichllm.models.index_client import IndexCatalog
+
+    return IndexCatalog(
+        models=[model],
+        benchmark_scores={model.id: 70.0},
+        built_at="2026-10-29T03:17:00Z",
+    )
+
+
+def _main_without_network(monkeypatch, captured):
+    import whichllm.models.fetcher as fetcher
+    import whichllm.models.shape_fetch as shape_fetch
+
+    def fake_rank_models(models, hardware, **kwargs):
+        captured["models"] = [m.id for m in models]
+        captured["scores"] = kwargs["benchmark_scores"]
+        return []
+
+    async def no_fetch(*args, **kwargs):
+        raise AssertionError("the index path must not fetch from the Hub")
+
+    monkeypatch.setattr(
+        "whichllm.hardware.detector.detect_hardware", lambda: _hw_with_gpu(8)
+    )
+    monkeypatch.setattr("whichllm.engine.ranker.rank_models", fake_rank_models)
+    monkeypatch.setattr(shape_fetch, "fetch_family_shapes", no_fetch)
+    monkeypatch.setattr(
+        "whichllm.output.display.display_hardware", lambda hardware: None
+    )
+    monkeypatch.setattr(
+        "whichllm.output.display.display_ranking", lambda results, **kwargs: None
+    )
+    return fetcher
+
+
+def test_main_ranks_from_the_index_without_hub_calls(monkeypatch):
+    captured: dict = {}
+    fetcher = _main_without_network(monkeypatch, captured)
+    model = _make_model("org/Indexed-8B")
+
+    async def no_fetch(*args, **kwargs):
+        raise AssertionError("the index path must not fetch from the Hub")
+
+    monkeypatch.setattr(fetcher, "fetch_models", no_fetch)
+    monkeypatch.setattr("whichllm.models.benchmark.fetch_benchmark_scores", no_fetch)
+    monkeypatch.setattr(
+        "whichllm.models.index_client.load_index",
+        lambda refresh=False: _index_catalog_with(model),
+    )
+
+    result = CliRunner().invoke(app, ["--min-params", "1"])
+
+    assert result.exit_code == 0, result.output
+    assert captured["models"] == ["org/Indexed-8B"]
+    assert captured["scores"] == {"org/Indexed-8B": 70.0}
+    assert "whichllm index built 2026-10-29 03:17:00 UTC" in result.output
+
+
+def test_json_says_which_index_the_scores_came_from(monkeypatch):
+    import json as json_mod
+
+    captured: dict = {}
+    _main_without_network(monkeypatch, captured)
+    catalog = _index_catalog_with(_make_model("org/Indexed-8B"))
+    catalog.sources = [{"name": "AA", "version": "v4.3.2", "entries": 3}]
+    monkeypatch.setattr(
+        "whichllm.models.index_client.load_index", lambda refresh=False: catalog
+    )
+
+    result = CliRunner().invoke(app, ["--json", "--min-params", "1"])
+
+    assert result.exit_code == 0, result.output
+    data = json_mod.loads(result.stdout)["data"]
+    assert data == {
+        "source": "index",
+        "built_at": "2026-10-29T03:17:00Z",
+        "benchmark_sources": catalog.sources,
+    }
+
+
+def test_main_live_flag_skips_the_index(monkeypatch):
+    captured: dict = {}
+    _main_without_network(monkeypatch, captured)
+
+    def unexpected_index(refresh=False):
+        raise AssertionError("--live must not read the index")
+
+    monkeypatch.setattr("whichllm.models.index_client.load_index", unexpected_index)
+    monkeypatch.setattr(
+        "whichllm.models.cache.load_cache",
+        lambda **_kwargs: models_to_dicts_for_cli([_make_model("org/Live-8B")]),
+    )
+    monkeypatch.setattr("whichllm.models.benchmark.load_benchmark_cache", lambda: {})
+
+    result = CliRunner().invoke(app, ["--live", "--min-params", "1"])
+
+    assert result.exit_code == 0, result.output
+    assert captured["models"] == ["org/Live-8B"]
+    assert "fetched live" in result.output
+
+
+def models_to_dicts_for_cli(models):
+    from whichllm.models.fetcher import models_to_dicts
+
+    return models_to_dicts(models)
+
+
+@pytest.mark.parametrize(
+    ("quant", "named"),
+    [("Q5*", "Q5_K_M"), ("Q5", "Q5_K_M"), ("iq4", "IQ4_XS")],
+)
+def test_a_quant_pattern_is_refused_with_real_labels(quant, named):
+    result = CliRunner().invoke(app, ["--gpu", "RTX 4090", "--quant", quant])
+    output = " ".join(result.output.split())
+
+    assert result.exit_code == 1
+    assert "--quant takes one quant label" in output
+    assert named in output
+
+
+@pytest.mark.parametrize("args", [["hardware"], ["--help"]])
+def test_a_narrow_output_encoding_does_not_stop_the_cli(args, tmp_path):
+    # A redirect on Windows writes in the console code page (cp932, cp1252).
+    import os
+    import subprocess
+    import sys
+
+    env = {**os.environ, "PYTHONIOENCODING": "ascii", "XDG_CACHE_HOME": str(tmp_path)}
+    result = subprocess.run(
+        [sys.executable, "-m", "whichllm", *args],
+        capture_output=True,
+        env=env,
+        timeout=120,
+    )
+
+    assert result.returncode == 0, result.stderr.decode("ascii", "replace")[-400:]

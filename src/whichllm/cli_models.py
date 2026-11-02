@@ -18,6 +18,19 @@ _ID_SIZE_RE = re.compile(r"(?:^|[-_/])(\d+(?:\.\d+)?)(b|m)(?:[-_.]|$)", re.IGNOR
 
 _HF_REPO_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$")
 
+
+# A format word in the query asks for a converted upload on purpose.
+_FORMAT_TERM_RE = re.compile(
+    r"(?i)^(gguf|awq|gptq|fp8|fp16|bf16|nvfp4|mlx|exl2|int4|int8|\d+bit)$"
+)
+
+# Name tokens that do not make a repo a different model from the one asked
+# for: chat suffixes, native precisions, size labels (31B, A3B, E4B) and
+# versions or dates (3.1, v1.1, 2503). A conversion such as -GGUF or -FP8
+# does count, unless the query names it.
+_NEUTRAL_NAME_TOKENS = frozenset({"instruct", "it", "chat", "bf16", "fp16"})
+_NEUTRAL_NAME_TOKEN_RE = re.compile(r"(?i)^(?:[ae]?\d+(?:\.\d+)?[bm]|v?\d+(?:\.\d+)*)$")
+
 # Hugging Face uses these responses for missing and private repositories.
 _HF_MISSING_REPO_MESSAGES = (
     "invalid username or password",
@@ -27,7 +40,7 @@ _HF_MISSING_REPO_MESSAGES = (
 
 
 def _load_models(refresh: bool, include_vision: bool = True):
-    """Load models from cache or fetch from HuggingFace."""
+    """Load models from the whichllm index, the cache, or HuggingFace."""
     from whichllm.models.cache import load_cache, save_cache
     from whichllm.models.fetcher import (
         ModelFetchReport,
@@ -36,6 +49,11 @@ def _load_models(refresh: bool, include_vision: bool = True):
         models_to_dicts,
     )
 
+    from whichllm.models.index_client import load_index
+
+    catalog = load_index(refresh=refresh)
+    if catalog is not None:
+        return catalog.models
     # Name lookups accept any current catalog; only a fresh fetch decides
     # whether vision candidates are included.
     cached_data = None if refresh else load_cache()
@@ -109,6 +127,24 @@ def _size_compatible(model: ModelInfo, size_b: float) -> bool:
     return 0.7 <= ratio <= 1.5
 
 
+def _extra_name_tokens(model_id: str, terms: list[str]) -> int:
+    """Count name tokens that no query term starts, such as VL or MedGemma.
+
+    A token that repeats the organisation (the NVIDIA in
+    nvidia/NVIDIA-Nemotron) does not count.
+    """
+    org, _, name = model_id.lower().rpartition("/")
+    return sum(
+        1
+        for token in re.split(r"[-_]", name)
+        if token
+        and token not in _NEUTRAL_NAME_TOKENS
+        and not _NEUTRAL_NAME_TOKEN_RE.match(token)
+        and not (token == org or org.startswith(token + "-"))
+        and not any(token.startswith(t) for t in terms)
+    )
+
+
 def _search_model(models: list, model_name: str):
     """Search for a model by name/ID. Returns single model or exits."""
     query_lower = model_name.lower()
@@ -142,27 +178,37 @@ def _search_model(models: list, model_name: str):
                 console.print(f"  • {m.id} ({p})")
         raise typer.Exit(code=1)
 
-    if size_b is not None:
+    from whichllm.engine.ranking_filters import _is_auxiliary_model
+    from whichllm.models.roles import find_base_checkpoints
 
-        def _sort_key(m: ModelInfo) -> tuple:
-            id_size = _extract_id_size_b(m.id)
-            has_id_size = id_size is not None
-            id_dist = abs(id_size - size_b) if has_id_size else float("inf")
-            pc_dist = (
-                abs(m.parameter_count / 1e9 - size_b)
-                if m.parameter_count > 0
-                else float("inf")
-            )
-            return (
-                0 if (has_id_size or m.parameter_count > 0) else 1,
-                id_dist,
-                pc_dist,
-                -m.downloads,
-            )
+    # Draft heads and pretrain-only checkpoints are not chat models; they win
+    # only when nothing else matches.
+    base_ids = find_base_checkpoints(models) if len(matches) > 1 else set()
+    prefer_original = not any(_FORMAT_TERM_RE.match(t) for t in terms)
 
-        matches.sort(key=_sort_key)
-    else:
-        matches.sort(key=lambda m: m.downloads, reverse=True)
+    def _sort_key(m: ModelInfo) -> tuple:
+        not_chat = _is_auxiliary_model(m) or m.id in base_ids
+        # Closest name first, then the original over a quantized upload,
+        # then downloads.
+        relevance = (
+            _extra_name_tokens(m.id, terms),
+            prefer_original and m.base_model_relation == "quantized",
+            -m.downloads,
+        )
+        if size_b is None:
+            return (not_chat, *relevance)
+        # A size label in the id beats the parameter count, which is often
+        # parsed from that same label.
+        id_size = _extract_id_size_b(m.id)
+        if id_size is not None:
+            size_rank = (0, abs(id_size - size_b), 0.0)
+        elif m.parameter_count > 0:
+            size_rank = (0, float("inf"), abs(m.parameter_count / 1e9 - size_b))
+        else:
+            size_rank = (1, float("inf"), float("inf"))
+        return (not_chat, *size_rank, *relevance)
+
+    matches.sort(key=_sort_key)
     model = matches[0]
     if len(matches) > 1:
         console.print(f"[dim]Found {len(matches)} matches, using: {model.id}[/]")
@@ -211,19 +257,55 @@ def _resolve_model_deps(model, variant) -> tuple[list[str], str]:
     return base, "transformers"
 
 
-def _generate_chat_script(model, variant, context_length: int, cpu_only: bool) -> str:
-    """Generate a self-contained Python chat script for any model type."""
+def _generate_chat_script(
+    model,
+    variant,
+    context_length: int,
+    cpu_only: bool,
+    n_gpu_layers: int | None = None,
+    local_path: str | None = None,
+    local_parts: tuple[str, ...] = (),
+) -> str:
+    """Generate a self-contained Python chat script for any model type.
+
+    ``n_gpu_layers`` is the GGUF layer split from the ranking (-1 = all on
+    the GPU); without it every layer goes to the GPU. ``local_path`` opens a
+    verified local artifact instead of downloading it. The isolated build runs
+    before the script starts, so the script checks every local part again and
+    falls back to the Hugging Face download when one went away in between.
+    """
     if variant:
-        n_gpu = 0 if cpu_only else -1
+        if cpu_only:
+            n_gpu = 0
+        else:
+            n_gpu = n_gpu_layers if n_gpu_layers is not None else -1
+        if local_path is not None:
+            hub_import = ""
+            loader = f"""\
+local_path = {local_path!r}
+local_parts = {tuple(local_parts or (local_path,))!r}
+if local_path and all(os.path.isfile(part) for part in local_parts):
+    model_path = local_path
+    print(f"Using local GGUF {{quant_type}}: {{model_path}}")
+else:
+    from huggingface_hub import hf_hub_download
+
+    print(f"Local GGUF {{local_path}} is gone or incomplete; downloading instead.")
+    model_path = hf_hub_download(repo_id=model_id, filename=filename)"""
+            stdlib_import = "import os\n"
+        else:
+            stdlib_import = ""
+            hub_import = "from huggingface_hub import hf_hub_download\n"
+            loader = """\
+print(f"Downloading {model_id} ({quant_type})...")
+model_path = hf_hub_download(repo_id=model_id, filename=filename)"""
         return f"""\
-from huggingface_hub import hf_hub_download
-from llama_cpp import Llama
+{stdlib_import}{hub_import}from llama_cpp import Llama
 
 model_id = {model.id!r}
 filename = {variant.filename!r}
 quant_type = {variant.quant_type!r}
-print(f"Downloading {{model_id}} ({{quant_type}})...")
-model_path = hf_hub_download(repo_id=model_id, filename=filename)
+{loader}
 print("Loading model...")
 llm = Llama(
     model_path=model_path,
