@@ -8,7 +8,11 @@ import subprocess
 
 from whichllm.constants import NVIDIA_COMPUTE_CAPABILITY, _GiB
 from whichllm.hardware.gpu_db import _static_bandwidth, resolve_detected_bandwidth
-from whichllm.hardware.jetson import detect_jetson_module, is_tegra_gpu_name
+from whichllm.hardware.jetson import (
+    detect_jetson_module,
+    has_tegra_gpu_driver,
+    is_tegra_gpu_name,
+)
 from whichllm.hardware.types import GPUInfo
 
 logger = logging.getLogger(__name__)
@@ -172,8 +176,30 @@ def _detect_nvidia_gpus_via_smi() -> list[GPUInfo]:
     return gpus
 
 
+def _detect_tegra_gpu() -> list[GPUInfo]:
+    """The Jetson GPU from the device tree, when no NVIDIA tool lists it.
+
+    Xavier's JetPack 5 ships neither libnvidia-ml nor nvidia-smi, so NVML and
+    the nvidia-smi fallback both come back empty on a working GPU (#190). An
+    identified module whose GPU driver is loaded is that integrated GPU, and it
+    shares the system RAM: MemTotal, never swap.
+    """
+    module = detect_jetson_module()
+    if module is None or not has_tegra_gpu_driver():
+        return []
+    logger.debug(
+        f"No NVIDIA tool listed a GPU; using {module.name} from the device tree"
+    )
+    return [_make_nvidia_gpu(module.name, None)]
+
+
 def detect_nvidia_gpus() -> list[GPUInfo]:
     """Detect NVIDIA GPUs. Returns empty list on failure."""
+    return _enumerate_nvidia_gpus() or _detect_tegra_gpu()
+
+
+def _enumerate_nvidia_gpus() -> list[GPUInfo]:
+    """GPUs NVML lists, else the ones nvidia-smi lists."""
     try:
         import pynvml
     except ImportError:

@@ -112,6 +112,11 @@ GPU_BANDWIDTH: dict[str, float] = {
     # conservative value is kept and --ram-bandwidth covers the Super case.
     "Jetson Orin Nano 8GB": 68.0,
     "Jetson Orin Nano 4GB": 34.0,
+    # NVIDIA Jetson Xavier (Volta). JetPack 5 ships no NVML or nvidia-smi, so
+    # these modules come from the device tree alone (#190). Data-sheet peaks:
+    # AGX Xavier 256-bit LPDDR4x, Xavier NX 128-bit LPDDR4x.
+    "Jetson AGX Xavier": 136.5,
+    "Jetson Xavier NX": 59.7,
     "A100 80GB": 2039.0,
     "A100 40GB": 1555.0,
     "A100": 1555.0,
@@ -269,6 +274,7 @@ NVIDIA_COMPUTE_CAPABILITY: dict[str, tuple[int, int]] = {
     # Jetson Orin. A bare generation name, because the AGX module puts a word
     # in between ("Jetson AGX Orin").
     "Orin": (8, 7),  # Ampere
+    "Xavier": (7, 2),  # Volta
     "A100": (8, 0),
     "RTX A3000 Laptop": (8, 6),
     "A6000": (8, 6),

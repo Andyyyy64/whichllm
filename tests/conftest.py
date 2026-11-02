@@ -27,6 +27,21 @@ def symlink():
 
 
 @pytest.fixture(autouse=True)
+def _isolate_device_tree(monkeypatch, tmp_path):
+    """Keep Jetson detection off the host's device tree and GPU device nodes.
+
+    On a Jetson the real ones would turn "no NVIDIA tool found" into a GPU.
+    """
+    import whichllm.hardware.jetson as jetson
+
+    monkeypatch.setattr(jetson, "_COMPATIBLE", tmp_path / "no-device-tree")
+    monkeypatch.setattr(jetson, "_GPU_DEVICE_NODES", (tmp_path / "no-gpu-node",))
+    jetson.detect_jetson_module.cache_clear()
+    yield
+    jetson.detect_jetson_module.cache_clear()
+
+
+@pytest.fixture(autouse=True)
 def _isolate_shape_lookups(monkeypatch, tmp_path):
     """Keep model-shape lookups off the network and the user's cache.
 

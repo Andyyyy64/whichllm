@@ -65,7 +65,7 @@ as `PCIe 5.0 x16`. It reads the maximum because the current link drops to
 Gen 1 while the card idles. The link is shown and written to `--json`; no
 estimate uses it. The `nvidia-smi` fallback leaves it out.
 
-## NVIDIA Jetson Orin
+## NVIDIA Jetson Orin and Xavier
 
 Jetson (Tegra) boards are unified-memory SoCs, and neither signal desktop
 detection relies on works there. The driver reports one generic name per SoC
@@ -73,9 +73,6 @@ generation — every Orin module is `Orin (nvgpu)`, from a 4 GB Orin Nano to a
 64 GB AGX Orin — and the memory queries return `NVML_ERROR_NOT_SUPPORTED` or
 `[N/A]`, so the memory-clock trick that separates same-name desktop variants is
 unavailable too.
-
-Only Orin is handled. Xavier and earlier stop at a JetPack that ships neither a
-Tegra NVML nor a Tegra `nvidia-smi`, so no GPU name reaches this code there.
 
 whichllm resolves the module from the kernel device tree instead, which needs
 no root and no NVIDIA tooling:
@@ -91,8 +88,15 @@ The module name replaces the generic one, so the curated tables resolve it like
 any other GPU, and system RAM is used for fit checks as it is for DGX Spark. A
 module that is not recognised keeps its generic name and resolves no bandwidth,
 rather than a product being guessed from the SoC generation — `tegra210` alone
-covers both Jetson Nano and TX1. Detection still requires the driver to
-enumerate the GPU, so a board with a broken or absent CUDA stack reports none.
+covers both Jetson Nano and TX1.
+
+Xavier's JetPack 5 ships neither NVML nor `nvidia-smi`, so no NVIDIA tool lists
+its GPU. When neither does, an AGX Xavier (P2888) or Xavier NX (P3668) module
+from the device tree becomes the GPU, as long as the GPU driver's device node
+(`/dev/nvhost-gpu` or `/dev/nvgpu/igpu0`) exists. A board without a loaded GPU
+driver still reports none, because the device tree says nothing about the
+driver. Its memory is `MemTotal`, without swap, and its compute capability is
+7.2. Orin modules on a JetPack without the tools are found the same way.
 
 Bandwidth values are data-sheet peaks. Orin NX 16GB is the one verified against
 measured throughput; the other Orin modules come from the module data sheets.

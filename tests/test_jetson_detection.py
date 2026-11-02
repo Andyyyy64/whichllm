@@ -48,6 +48,15 @@ ORIN_NX_16GB_COMPATIBLE = (
 # Carrier+module only, with no standalone module entry — this is what actually
 # exercises the "+" split.
 CARRIER_PLUS_MODULE_ONLY = "nvidia,p3768-0000+p3767-0000\0nvidia,tegra234\0"
+# The device trees of the two Xavier boards in #190: an AGX Xavier (L4T R35.1.0,
+# 32.5 GB MemTotal) and a Xavier NX developer kit (L4T R35.6.5, 7.2 GB).
+AGX_XAVIER_COMPATIBLE = (
+    "nvidia,galen\0nvidia,jetson-xavier\0nvidia,p2822-0000+p2888-0001\0"
+    "nvidia,tegra194\0"
+)
+XAVIER_NX_COMPATIBLE = (
+    "nvidia,p3449-0000+p3668-0001\0nvidia,p3509-0000+p3668-0001\0nvidia,tegra194\0"
+)
 
 
 @pytest.fixture(autouse=True)
@@ -59,6 +68,9 @@ def _isolate_device_tree(monkeypatch, tmp_path):
     Jetson the "not a Jetson" cases would pass vacuously.
     """
     monkeypatch.setattr(jetson, "_COMPATIBLE", tmp_path / "compatible")
+    monkeypatch.setattr(
+        jetson, "_GPU_DEVICE_NODES", (tmp_path / "nvhost-gpu", tmp_path / "igpu0")
+    )
     jetson.detect_jetson_module.cache_clear()
     yield
     jetson.detect_jetson_module.cache_clear()
@@ -67,6 +79,10 @@ def _isolate_device_tree(monkeypatch, tmp_path):
 def _write_dt(tmp_path, compatible: str) -> None:
     (tmp_path / "compatible").write_bytes(compatible.encode())
     jetson.detect_jetson_module.cache_clear()
+
+
+def _load_gpu_driver(tmp_path, node: str = "nvhost-gpu") -> None:
+    (tmp_path / node).touch()
 
 
 @pytest.mark.parametrize(
@@ -121,6 +137,32 @@ def test_orin_sku_mapping(tmp_path, part_number, expected):
     _write_dt(tmp_path, f"nvidia,{part_number}\0nvidia,tegra234\0")
     module = jetson.detect_jetson_module()
     assert module is not None and module.name == expected
+
+
+@pytest.mark.parametrize(
+    ("compatible", "expected"),
+    [
+        (AGX_XAVIER_COMPATIBLE, "Jetson AGX Xavier"),
+        (XAVIER_NX_COMPATIBLE, "Jetson Xavier NX"),
+        ("nvidia,p2888-0003\0nvidia,tegra194\0", "Jetson AGX Xavier"),
+        ("nvidia,p2888-0005\0nvidia,tegra194\0", "Jetson AGX Xavier"),
+        ("nvidia,p3668-0000\0nvidia,tegra194\0", "Jetson Xavier NX"),
+        ("nvidia,p3668-0003\0nvidia,tegra194\0", "Jetson Xavier NX"),
+    ],
+)
+def test_xavier_modules_identified(tmp_path, compatible, expected):
+    # The model string cannot tell them apart ("Jetson-AGX" on the AGX), and
+    # "nvidia,jetson-xavier" is missing on the NX; the part number is reliable.
+    _write_dt(tmp_path, compatible)
+    module = jetson.detect_jetson_module()
+    assert module is not None
+    assert module.name == expected
+    assert module.soc == "tegra194"
+
+
+def test_an_agx_xavier_sku_without_a_data_sheet_is_not_claimed(tmp_path):
+    _write_dt(tmp_path, "nvidia,p2888-0002\0nvidia,tegra194\0")
+    assert jetson.detect_jetson_module() is None
 
 
 def test_unrecognised_module_is_not_claimed(tmp_path):
@@ -205,6 +247,8 @@ def test_is_tegra_gpu_name(name, expected):
         ("Jetson Orin NX 8GB", 102.4),
         ("Jetson Orin Nano 8GB", 68.0),
         ("Jetson Orin Nano 4GB", 34.0),
+        ("Jetson AGX Xavier", 136.5),
+        ("Jetson Xavier NX", 59.7),
     ],
 )
 def test_curated_bandwidth(name, bandwidth):
@@ -218,6 +262,8 @@ def test_curated_bandwidth(name, bandwidth):
         ("Jetson Orin NX 16GB", (8, 7)),
         ("Jetson Orin Nano 4GB", (8, 7)),
         ("Jetson AGX Orin", (8, 7)),
+        ("Jetson AGX Xavier", (7, 2)),
+        ("Jetson Xavier NX", (7, 2)),
     ],
 )
 def test_compute_capability(name, cc):
@@ -346,12 +392,8 @@ def test_desktop_gpu_unaffected_even_on_a_jetson_host(monkeypatch, tmp_path):
     assert gpus[0].memory_bandwidth_gbps == 1008.0
 
 
-def test_no_nvidia_tooling_reports_nothing(monkeypatch, tmp_path):
-    # Detection still requires the driver to enumerate a GPU. The device tree is
-    # firmware data and says nothing about whether CUDA is usable, so a Jetson
-    # with a broken or absent driver stack must keep reporting no GPU.
-    _write_dt(tmp_path, ORIN_NX_16GB_COMPATIBLE)
-
+def _no_nvidia_tooling(monkeypatch, smi_output: str | None = None) -> None:
+    """NVML missing, as on JetPack 5, and nvidia-smi missing or a wrapper."""
     real_import = builtins.__import__
 
     def fake_import(name, *args, **kwargs):
@@ -359,13 +401,114 @@ def test_no_nvidia_tooling_reports_nothing(monkeypatch, tmp_path):
             raise ImportError
         return real_import(name, *args, **kwargs)
 
-    def missing_smi(*_args, **_kwargs):
-        raise FileNotFoundError("nvidia-smi")
+    def smi(*_args, **_kwargs):
+        if smi_output is None:
+            raise FileNotFoundError("nvidia-smi")
+        return SimpleNamespace(stdout=smi_output)
 
     monkeypatch.setattr(builtins, "__import__", fake_import)
-    monkeypatch.setattr(subprocess, "run", missing_smi)
+    monkeypatch.setattr(subprocess, "run", smi)
+
+
+def test_no_nvidia_tooling_and_no_gpu_driver_reports_nothing(monkeypatch, tmp_path):
+    # The device tree is firmware data and says nothing about whether the GPU
+    # driver is loaded, so a Jetson whose driver is absent keeps reporting no GPU.
+    _write_dt(tmp_path, ORIN_NX_16GB_COMPATIBLE)
+    _no_nvidia_tooling(monkeypatch)
 
     assert nvidia.detect_nvidia_gpus() == []
+
+
+def test_agx_xavier_without_nvidia_tooling_is_found_in_the_device_tree(
+    monkeypatch, tmp_path
+):
+    # #190: JetPack 5 on an AGX Xavier has no libnvidia-ml and no nvidia-smi,
+    # and whichllm reported "No GPU detected" while llama.cpp ran on its GPU.
+    _write_dt(tmp_path, AGX_XAVIER_COMPATIBLE)
+    _load_gpu_driver(tmp_path)
+    _no_nvidia_tooling(monkeypatch)
+    monkeypatch.setattr(
+        "whichllm.hardware.memory.detect_ram_bytes", lambda: 32_515_698_688
+    )
+
+    gpus = nvidia.detect_nvidia_gpus()
+
+    assert len(gpus) == 1
+    gpu = gpus[0]
+    assert gpu.name == "Jetson AGX Xavier"
+    assert gpu.shared_memory is True
+    assert gpu.vram_bytes == 32_515_698_688  # MemTotal; the swapfile is not added
+    assert gpu.compute_capability == (7, 2)
+    assert gpu.memory_bandwidth_gbps == 136.5
+    assert gpu.cuda_version is None
+
+
+def test_xavier_nx_behind_an_nvidia_smi_wrapper_is_found(monkeypatch, tmp_path):
+    # The board in #190 had a tegrastats wrapper named nvidia-smi that ignores
+    # --query-gpu; its table is no GPU, so the device tree decides.
+    _write_dt(tmp_path, XAVIER_NX_COMPATIBLE)
+    _load_gpu_driver(tmp_path, "igpu0")
+    _no_nvidia_tooling(
+        monkeypatch,
+        smi_output=(
+            "| NVIDIA-SMI emulated (tegrastats)    L4T: # R35 (release), "
+            "REVISION: 6.5 |\n"
+        ),
+    )
+    monkeypatch.setattr(
+        "whichllm.hardware.memory.detect_ram_bytes", lambda: 7_167_025_152
+    )
+
+    gpus = nvidia.detect_nvidia_gpus()
+
+    assert [g.name for g in gpus] == ["Jetson Xavier NX"]
+    assert gpus[0].vram_bytes == 7_167_025_152
+    assert gpus[0].memory_bandwidth_gbps == 59.7
+
+
+def test_an_enumerated_gpu_wins_over_the_device_tree(monkeypatch, tmp_path):
+    # With NVML working (Orin on JetPack 6), the device tree only names the module.
+    _write_dt(tmp_path, ORIN_NX_16GB_COMPATIBLE)
+    _load_gpu_driver(tmp_path)
+    _fake_pynvml_import(monkeypatch, _fake_pynvml(memory_supported=False))
+    monkeypatch.setattr(
+        "whichllm.hardware.memory.detect_ram_bytes", lambda: 16 * 1024**3
+    )
+
+    gpus = nvidia.detect_nvidia_gpus()
+
+    assert [g.name for g in gpus] == ["Jetson Orin NX 16GB"]
+    assert gpus[0].cuda_version == "12.6"
+
+
+def test_hardware_panel_names_the_compute_capability_and_shared_memory(
+    monkeypatch, tmp_path
+):
+    # #190 asked that the panel say which path was taken: shared memory and the
+    # compute capability both show.
+    from io import StringIO
+
+    from rich.console import Console
+
+    from whichllm.output import _console as console_mod
+    from whichllm.output import display as display_mod
+    from whichllm.hardware.types import HardwareInfo
+
+    _write_dt(tmp_path, AGX_XAVIER_COMPATIBLE)
+    _load_gpu_driver(tmp_path)
+    _no_nvidia_tooling(monkeypatch)
+    monkeypatch.setattr(
+        "whichllm.hardware.memory.detect_ram_bytes", lambda: 32_515_698_688
+    )
+    buf = StringIO()
+    monkeypatch.setattr(console_mod, "console", Console(file=buf, width=200))
+
+    display_mod.display_hardware(
+        HardwareInfo(gpus=nvidia.detect_nvidia_gpus(), ram_bytes=32_515_698_688)
+    )
+
+    shown = " ".join(buf.getvalue().split())
+    assert "Jetson AGX Xavier — 30.3 GB shared (CC 7.2) — BW: 136 GB/s" in shown
 
 
 def test_smi_subprocess_error_path(monkeypatch, tmp_path):
