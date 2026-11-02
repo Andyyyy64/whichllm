@@ -92,6 +92,23 @@ def _make_nvidia_gpu(
     )
 
 
+def _pcie_link(pynvml, handle) -> tuple[int | None, int | None]:
+    """PCIe generation and lane count the GPU and its slot support together.
+
+    The current link drops to Gen 1 while the GPU idles, so this reads the
+    maximum instead. It is shown only; no estimate uses it.
+    """
+    try:
+        generation = int(pynvml.nvmlDeviceGetMaxPcieLinkGeneration(handle))
+        lanes = int(pynvml.nvmlDeviceGetMaxPcieLinkWidth(handle))
+    except Exception as error:
+        logger.debug(f"PCIe link unavailable ({error})")
+        return None, None
+    if generation <= 0 or lanes <= 0:
+        return None, None
+    return generation, lanes
+
+
 def _run_smi_query(fields: str) -> str:
     result = subprocess.run(
         ["nvidia-smi", f"--query-gpu={fields}", "--format=csv,noheader,nounits"],
@@ -210,7 +227,10 @@ def detect_nvidia_gpus() -> list[GPUInfo]:
                 )
                 mem_clock_mhz = None
 
-            gpus.append(_make_nvidia_gpu(name, vram_bytes, cuda_str, mem_clock_mhz))
+            gpu = _make_nvidia_gpu(name, vram_bytes, cuda_str, mem_clock_mhz)
+            if not gpu.shared_memory:
+                gpu.pcie_generation, gpu.pcie_lanes = _pcie_link(pynvml, handle)
+            gpus.append(gpu)
     except pynvml.NVMLError as e:
         logger.debug(f"Error enumerating NVIDIA GPUs: {e}")
     finally:
