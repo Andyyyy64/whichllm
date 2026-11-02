@@ -68,13 +68,19 @@ def format_context(tokens: int) -> str:
 
 
 def context_cell(result: CompatibilityResult) -> str:
-    """ "262k→47k" when the fit runs out first, the limit alone when it does not."""
+    """ "262k→47k" when the fit runs out first, the limit alone when it does not.
+
+    Without a known limit, "?→18k" gives the edge and "128k+" says only that
+    the search ceiling fits.
+    """
     if result.max_context_tokens is None:
         return "-"
     fits = format_context(result.max_context_tokens)
     limit = model_context_limit(result.model)
     if limit is None:
-        return f"{fits}+" if result.max_context_tokens >= _UNKNOWN_CEILING else fits
+        if result.max_context_tokens >= _UNKNOWN_CEILING:
+            return f"{fits}+"
+        return f"?→{fits}"
     if result.max_context_tokens >= limit:
         return format_context(limit)
     return f"{format_context(limit)}→{fits}"

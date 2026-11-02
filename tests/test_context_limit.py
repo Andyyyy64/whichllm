@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from io import StringIO
 
 import pytest
+from rich.console import Console
 
 from tests.golden import harness as H
 from whichllm.engine.compatibility import check_compatibility
@@ -65,6 +67,8 @@ def test_cells():
     unknown = replace(row, model=replace(row.model, context_length=None, shape=None))
     unknown.max_context_tokens = 131072
     assert context_cell(unknown) == "128k+"
+    unknown.max_context_tokens = 18432
+    assert context_cell(unknown) == "?→18k"
     assert format_context(1048576) == "1M"
 
 
@@ -89,3 +93,33 @@ def test_the_limit_comes_from_config_when_the_hub_has_none():
     assert (
         model_context_limit(replace(model, context_length=None, shape=shape)) == 262144
     )
+
+
+def _table(width: int, monkeypatch) -> tuple[str, str]:
+    from whichllm.output import _console as console_mod
+    from whichllm.output.ranking import display_ranking
+
+    rows = H.rank_case(_ARCHETYPES["rtx5080-16gb-win"], "general")[:3]
+    for row in rows:
+        row.max_context_tokens = 18432
+    buf = StringIO()
+    console = Console(file=buf, width=width, force_terminal=False)
+    monkeypatch.setattr(console_mod, "console", console)
+    display_ranking(rows, show_status=True)
+    return buf.getvalue(), rows[0].model.id
+
+
+@pytest.mark.parametrize("width", [80, 104])
+def test_a_narrow_terminal_keeps_the_model_name_over_context(width, monkeypatch):
+    shown, model_id = _table(width, monkeypatch)
+
+    assert "Context" not in shown
+    assert model_id[:14] in shown
+
+
+def test_context_shows_once_the_model_name_keeps_its_width(monkeypatch):
+    shown, model_id = _table(105, monkeypatch)
+
+    assert "Context" in shown
+    assert model_id[:14] in shown
+    assert max(len(line) for line in shown.splitlines()) <= 105

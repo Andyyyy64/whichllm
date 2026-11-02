@@ -13,8 +13,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - A Context column shows the model's own limit and the longest context that
   keeps the row's fit on your hardware, such as `256k→127k` for a model that
   stays fully on the GPU up to 127k tokens. The limit comes from the Hub or
-  `config.json`. JSON rows carry `context_length` and `max_context_tokens`.
-  (#34)
+  `config.json`, and `?` marks a limit neither gives. Terminals narrower
+  than 105 columns leave the column out. JSON rows carry `context_length`
+  and `max_context_tokens`. (#34)
 - `whichllm bench` measures a model's real decode speed, prints it next to the
   estimate and saves the result in `~/.cache/whichllm/reports/`. It runs on
   `llama-server`, Ollama, LM Studio or any OpenAI-compatible server through
