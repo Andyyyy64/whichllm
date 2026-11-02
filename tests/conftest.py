@@ -7,6 +7,25 @@ import pytest
 import whichllm.models.shape_fetch as shape_fetch
 
 
+@pytest.fixture
+def symlink():
+    """Make a symlink, or skip where this user may not make one.
+
+    Windows refuses symlinks (error 1314) outside Developer Mode or an
+    elevated shell.
+    """
+
+    def make(link, target):
+        try:
+            link.symlink_to(target, target_is_directory=target.is_dir())
+        except OSError as error:
+            if getattr(error, "winerror", None) != 1314:
+                raise
+            pytest.skip("Windows refuses symlinks to this user")
+
+    return make
+
+
 @pytest.fixture(autouse=True)
 def _isolate_shape_lookups(monkeypatch, tmp_path):
     """Keep model-shape lookups off the network and the user's cache.

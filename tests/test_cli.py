@@ -2308,7 +2308,7 @@ def test_run_uses_entry_part_of_complete_split_artifact(monkeypatch, tmp_path):
     assert result.exit_code == 0
     assert _flat(f"Using local LM Studio file: {entry}") in _flat(result.stdout)
     assert f"local_path = {str(entry)!r}" in captured["script"]
-    assert str(entry.with_name(parts[1])) in captured["script"]
+    assert repr(str(entry.with_name(parts[1]))) in captured["script"]
 
 
 def test_run_warns_about_incomplete_explicit_split_set(monkeypatch, tmp_path):
@@ -2705,6 +2705,29 @@ def test_run_prints_the_local_file_in_the_offload_hint(monkeypatch, tmp_path):
     assert _flat("serve it with llama.cpp") in flat_stdout
     assert f"llama-server-m{artifact}" in flat_stdout
     assert "-hf" not in flat_stdout
+
+
+@pytest.mark.parametrize(
+    ("windows", "shown"),
+    [
+        (True, r'llama-server -m "C:\Users\me\LM Studio\m.gguf" -c 4096'),
+        (False, r"llama-server -m 'C:\Users\me\LM Studio\m.gguf' -c 4096"),
+    ],
+)
+def test_shown_commands_quote_for_the_local_shell(windows, shown):
+    # cmd.exe keeps single quotes as part of the file name.
+    args = ["llama-server", "-m", r"C:\Users\me\LM Studio\m.gguf", "-c", "4096"]
+
+    assert cli_mod._shell_join(args, windows=windows) == shown
+
+
+def test_a_windows_path_without_spaces_is_shown_bare():
+    args = ["llama-cli", "-m", r"C:\models\m.gguf", "-ngl", "99"]
+
+    assert (
+        cli_mod._shell_join(args, windows=True)
+        == r"llama-cli -m C:\models\m.gguf -ngl 99"
+    )
 
 
 def _run_with_llama_cli_uv_only(monkeypatch, models, rank_results, argv):
