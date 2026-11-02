@@ -12,7 +12,7 @@ on:
     inputs:
       ref:
         description: Branch whose builder to run
-        default: v0.6
+        default: main
 
 permissions:
   contents: read
@@ -22,8 +22,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # The builder lives on the v0.6 branch until v0.6 ships.
-  BUILDER_REF: ${{ inputs.ref || 'v0.6' }}
+  BUILDER_REF: ${{ inputs.ref || 'main' }}
   INDEX_URL: https://andyyyy64.github.io/whichllm/index/v1/index.json.gz
 
 jobs:
