@@ -182,6 +182,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- Output redirected to a file or a pipe on Windows no longer stops with a
+  `UnicodeEncodeError` in a code page such as cp932 or cp1252. Characters the
+  code page lacks print as `?`.
+- `--quant` with a pattern or a bare family (`Q5*`, `Q5`) is refused with the
+  labels that exist. It used to match nothing and print "No compatible models
+  found".
+- A program named `nvidia-smi` that ignores `--query-gpu`, such as a wrapper on
+  a Jetson, no longer turns into a 1 MB GPU. Only rows shaped like the requested
+  CSV count. (#190)
 - RTX 50 cards show CUDA compute capability 12.0, as the driver reports, instead
   of 10.0.
 - `--gpu "RTX 5090 Laptop"` works, and so does the name a driver reports.

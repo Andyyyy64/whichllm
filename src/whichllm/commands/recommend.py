@@ -19,6 +19,7 @@ from whichllm.cli_validation import (
     _validate_gpu_flags,
     _validate_output_flags,
     _validate_profile,
+    _validate_quant,
     _validate_ranking_flags,
 )
 
@@ -148,6 +149,7 @@ def main_command(
     _validate_output_flags(json_output, markdown_output)
     _validate_lmstudio_path_flags(lm_studio_path)
     _validate_ranking_flags(top, min_speed, min_params)
+    _validate_quant(quant)
     profile = _validate_profile(profile)
     evidence_mode = _resolve_evidence_mode(evidence, direct)
     fit_filter = _resolve_fit_filter(fit, gpu_only)

@@ -27,8 +27,10 @@ from whichllm.cli_commands import (
     snippet_command,
     upgrade_command,
 )
-from whichllm.cli_shared import _print_version
+from whichllm.cli_shared import _print_version, _tolerate_narrow_encodings
 from whichllm.utils import CONTEXT_LENGTH
+
+_tolerate_narrow_encodings()
 
 app = typer.Typer(
     name="llm-checker",

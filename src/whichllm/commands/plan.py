@@ -9,6 +9,7 @@ import typer
 from whichllm.cli_models import (
     _search_model,
 )
+from whichllm.cli_options import _validate_quant
 from whichllm.cli_shared import _format_fetch_error, _run_async, console
 
 
@@ -24,6 +25,7 @@ def plan_command(
     refresh: bool,
 ) -> None:
     """Show what GPU you need to run a specific model."""
+    _validate_quant(quant)
     from rich.progress import Progress, SpinnerColumn, TextColumn
 
     from whichllm.models.cache import load_cache, save_cache

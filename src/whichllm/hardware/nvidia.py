@@ -111,10 +111,12 @@ def _detect_nvidia_gpus_via_smi() -> list[GPUInfo]:
     fails on a driver/card that rejects ``clocks.max.memory``, we retry the
     original 2-field query so a missing optional field never wipes out detection.
     """
+    fields = 3
     try:
         stdout = _run_smi_query("name,memory.total,clocks.max.memory")
     except (FileNotFoundError, subprocess.SubprocessError, OSError) as e:
         logger.debug(f"nvidia-smi 3-field query failed ({e}); retrying without clock")
+        fields = 2
         try:
             stdout = _run_smi_query("name,memory.total")
         except (FileNotFoundError, subprocess.SubprocessError, OSError) as e2:
@@ -123,8 +125,10 @@ def _detect_nvidia_gpus_via_smi() -> list[GPUInfo]:
 
     gpus: list[GPUInfo] = []
     for line in stdout.splitlines():
-        parts = [part.strip() for part in line.split(",", maxsplit=2)]
-        if len(parts) < 2 or not parts[0]:
+        parts = [part.strip() for part in line.split(",")]
+        # A tool that ignores --query-gpu (a wrapper or shim named nvidia-smi)
+        # exits 0 with its own table; one such row became a 1 MB GPU (#190).
+        if not 2 <= len(parts) <= fields or not parts[0] or "|" in parts[0]:
             continue
 
         name, memory_mib_text = parts[0], parts[1]
@@ -135,7 +139,7 @@ def _detect_nvidia_gpus_via_smi() -> list[GPUInfo]:
             if clock_match:
                 mem_clock_mhz = float(clock_match.group(0))
 
-        match = re.search(r"\d+", memory_mib_text)
+        match = re.fullmatch(r"(\d+)(?:\s*MiB)?", memory_mib_text)
         if not match:
             if not _is_unified_memory_nvidia_gpu(name):
                 logger.debug(f"Could not parse nvidia-smi memory value: {line!r}")
@@ -143,7 +147,7 @@ def _detect_nvidia_gpus_via_smi() -> list[GPUInfo]:
             gpus.append(_make_nvidia_gpu(name, None, mem_clock_mhz=mem_clock_mhz))
             continue
 
-        memory_mib = int(match.group(0))
+        memory_mib = int(match.group(1))
         gpus.append(
             _make_nvidia_gpu(name, memory_mib * 1024**2, mem_clock_mhz=mem_clock_mhz)
         )
