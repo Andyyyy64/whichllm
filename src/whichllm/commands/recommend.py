@@ -253,6 +253,12 @@ def main_command(
         # 上位候補の公開日時が欠けている場合のみ補完して表示品質を上げる
         if results:
             attach_resolved_artifacts(results, all_models, quant_filter=quant)
+            from whichllm.engine.context import max_context_tokens
+
+            for result in results:
+                result.max_context_tokens = max_context_tokens(
+                    result, hardware, context_length
+                )
             from whichllm.models.lmstudio import (
                 attach_local_matches,
                 discover_lmstudio_ggufs,

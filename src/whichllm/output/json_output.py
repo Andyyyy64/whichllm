@@ -6,6 +6,7 @@ import json
 
 from dataclasses import asdict
 
+from whichllm.engine.context import model_context_limit
 from whichllm.engine.multi_gpu import DevicePlacement
 from whichllm.engine.quantization import effective_quant_type, estimate_weight_bytes
 from whichllm.engine.recipe import build_recipe
@@ -120,6 +121,8 @@ def display_json(
                 "benchmark_basis": r.benchmark_basis,
                 "older_generations": list(r.older_generations),
                 "fit_type": r.fit_type,
+                "context_length": model_context_limit(r.model),
+                "max_context_tokens": r.max_context_tokens,
                 "placement": _placement_json(r),
                 "recipe": _recipe_json(r, context_length),
                 "can_run": r.can_run,
