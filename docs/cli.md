@@ -159,7 +159,9 @@ Ranking JSON model rows include:
 The top-level `hardware` object also includes `usable_vram_bytes` per GPU,
 `ram_budget_bytes`, and `budget_notes` when memory budgets are active, plus
 `ram_bandwidth_gbps` and `ram_bandwidth_source` (`detected`, `unified`,
-`estimated`, `override` or `default`).
+`estimated`, `override` or `default`), `ram_available_bytes` (RAM free at
+start), and `pcie_generation` and `pcie_lanes` per GPU when NVML reports
+them.
 
 ## `hardware`
 
@@ -167,8 +169,9 @@ The top-level `hardware` object also includes `usable_vram_bytes` per GPU,
 whichllm hardware [OPTIONS]
 ```
 
-Prints detected hardware without ranking models. The same simulation flags are
-available here:
+Prints detected hardware without ranking models, with the RAM free now, each
+NVIDIA card's PCIe link, and a measured RAM bandwidth beside the figure the
+estimates use. The same simulation flags are available here:
 
 ```bash
 whichllm hardware

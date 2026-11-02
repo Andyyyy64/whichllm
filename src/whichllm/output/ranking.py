@@ -131,6 +131,8 @@ def display_hardware(hw: HardwareInfo) -> None:
                 extra.append(f"CUDA {gpu.cuda_version}")
             if gpu.rocm_version:
                 extra.append(f"ROCm {gpu.rocm_version}")
+            if gpu.pcie_generation and gpu.pcie_lanes:
+                extra.append(f"PCIe {gpu.pcie_generation}.0 x{gpu.pcie_lanes}")
             extra_str = f" ({', '.join(extra)})" if extra else ""
             lines.append(
                 f"[bold green]GPU {i}:[/] {gpu.name} — {vram}{extra_str} — BW: {bw}"
@@ -147,8 +149,13 @@ def display_hardware(hw: HardwareInfo) -> None:
     lines.append(f"[bold blue]CPU:[/] {hw.cpu_name} — {hw.cpu_cores} cores{avx_str}")
 
     ram = _format_bytes(hw.ram_bytes)
+    ram_notes = []
+    if hw.ram_available_bytes is not None:
+        ram_notes.append(f"{_format_bytes(hw.ram_available_bytes)} free")
     if hw.ram_budget_bytes is not None and hw.ram_budget_bytes < hw.ram_bytes:
-        ram += f" (budget {_format_bytes(hw.ram_budget_bytes)})"
+        ram_notes.append(f"budget {_format_bytes(hw.ram_budget_bytes)}")
+    if ram_notes:
+        ram += f" ({', '.join(ram_notes)})"
     if hw.ram_bandwidth_gbps:
         how = {
             "detected": "",
@@ -156,7 +163,14 @@ def display_hardware(hw: HardwareInfo) -> None:
             "override": "set",
             "estimated": "estimated",
         }.get(hw.ram_bandwidth_source, "assumed")
-        detail = ", ".join(part for part in (hw.ram_bandwidth_detail, how) if part)
+        measured = (
+            f"measured {hw.ram_bandwidth_measured_gbps:.0f} GB/s"
+            if hw.ram_bandwidth_measured_gbps
+            else None
+        )
+        detail = ", ".join(
+            part for part in (hw.ram_bandwidth_detail, how, measured) if part
+        )
         ram += f" — BW: {hw.ram_bandwidth_gbps:.0f} GB/s"
         if detail:
             ram += f" [dim]({detail})[/dim]"

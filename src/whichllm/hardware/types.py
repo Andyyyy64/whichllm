@@ -18,6 +18,9 @@ class GPUInfo:
     # Apple Silicon: the whole unified memory, when vram_bytes is only the
     # part Metal lets the GPU use.
     unified_memory_bytes: int | None = None
+    # The PCIe link the GPU and its slot support together. Shown only.
+    pcie_generation: int | None = None
+    pcie_lanes: int | None = None
 
 
 @dataclass
@@ -29,6 +32,9 @@ class HardwareInfo:
     has_avx512: bool = False
     ram_bytes: int = 0
     ram_budget_bytes: int | None = None
+    # RAM free when whichllm started. Shown only; --ram-budget auto reads it
+    # again.
+    ram_available_bytes: int | None = None
     # System RAM bandwidth in GB/s. It bounds CPU-side decode: CPU-only runs,
     # MoE experts kept in RAM and layers that do not fit on the GPU.
     ram_bandwidth_gbps: float | None = None
@@ -37,6 +43,9 @@ class HardwareInfo:
     # or "default" (nothing known; dual-channel DDR4-3200 is assumed).
     ram_bandwidth_source: str = "default"
     ram_bandwidth_detail: str | None = None
+    # Copy bandwidth `whichllm hardware` measured. Shown only: estimates use
+    # ram_bandwidth_gbps, which the CPU speed model is calibrated on.
+    ram_bandwidth_measured_gbps: float | None = None
     disk_free_bytes: int = 0
     os: str = "linux"  # "linux" | "darwin" | "windows"
     budget_notes: list[str] = field(default_factory=list)

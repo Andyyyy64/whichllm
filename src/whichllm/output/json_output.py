@@ -70,12 +70,15 @@ def display_json(
                     "usable_vram_bytes": g.usable_vram_bytes,
                     "memory_bandwidth_gbps": g.memory_bandwidth_gbps,
                     "shared_memory": g.shared_memory,
+                    "pcie_generation": g.pcie_generation,
+                    "pcie_lanes": g.pcie_lanes,
                 }
                 for g in hardware.gpus
             ],
             "cpu": hardware.cpu_name,
             "cpu_cores": hardware.cpu_cores,
             "ram_bytes": hardware.ram_bytes,
+            "ram_available_bytes": hardware.ram_available_bytes,
             "ram_budget_bytes": hardware.ram_budget_bytes,
             "ram_bandwidth_gbps": hardware.ram_bandwidth_gbps,
             "ram_bandwidth_source": hardware.ram_bandwidth_source,

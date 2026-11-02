@@ -26,6 +26,7 @@ def hardware_command(
     from rich.progress import Progress, SpinnerColumn, TextColumn
 
     from whichllm.hardware.detector import detect_hardware
+    from whichllm.hardware.ram_measure import measure_ram_bandwidth_gbps
     from whichllm.output.display import display_hardware
 
     with Progress(
@@ -38,6 +39,13 @@ def hardware_command(
         hw = detect_hardware()
         _apply_gpu_overrides(hw, cpu_only, gpu, vram, bandwidth, gpu_index)
         _apply_ram_bandwidth(hw, ram_bandwidth, gpu_bandwidth_set=bandwidth is not None)
+        # The CPU cannot reach what a unified-memory GPU reads, so a copy
+        # test there would only contradict the figure shown.
+        if hw.ram_bandwidth_source != "unified":
+            progress.update(task, description="Measuring RAM bandwidth...")
+            hw.ram_bandwidth_measured_gbps = measure_ram_bandwidth_gbps(
+                hw.ram_available_bytes
+            )
         progress.remove_task(task)
 
     console.print()

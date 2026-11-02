@@ -90,6 +90,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   ranking. `--json` output gains a
   `data` object with the index build time and these sources, or
   `"source": "live"`.
+- The hardware panel shows the RAM free now and each NVIDIA card's PCIe link
+  (`PCIe 5.0 x16`), and `whichllm hardware` measures RAM bandwidth with a
+  multithreaded copy and prints it beside the figure the estimates use. All
+  three are shown only; estimates do not change. `--json` gains
+  `ram_available_bytes` and `pcie_generation` / `pcie_lanes` per GPU.
 
 ### Changed
 

@@ -15,7 +15,7 @@ The ranker receives a `HardwareInfo` object with:
 - CPU name
 - physical CPU cores
 - AVX2 and AVX-512 support
-- total RAM
+- total RAM, and the RAM free when whichllm started
 - free disk space
 - OS name
 
@@ -29,6 +29,7 @@ Each GPU is represented as `GPUInfo`:
 - CUDA or ROCm version, when known
 - memory bandwidth estimate
 - whether the GPU uses shared memory
+- PCIe generation and lane count, for NVIDIA cards through NVML
 
 ## NVIDIA
 
@@ -58,6 +59,11 @@ system RAM for fit checks.
 
 Compute capability is used to warn when a card is below the minimum expected by
 common local inference tools.
+
+NVML also reports the PCIe link the card and its slot support together, such
+as `PCIe 5.0 x16`. It reads the maximum because the current link drops to
+Gen 1 while the card idles. The link is shown and written to `--json`; no
+estimate uses it. The `nvidia-smi` fallback leaves it out.
 
 ## NVIDIA Jetson Orin
 
@@ -167,8 +173,10 @@ CPU detection reads:
 
 Physical core count comes from `psutil`, with a Linux `/proc/cpuinfo` fallback.
 
-RAM comes from `psutil.virtual_memory()`. Disk free space is checked under the
-user's home directory by default.
+RAM comes from `psutil.virtual_memory()`, which also gives the RAM free right
+now. The free figure is shown and written to `--json`; fit checks keep using
+the total less a reserve unless `--ram-budget auto` asks for the free figure.
+Disk free space is checked under the user's home directory by default.
 
 ## GPU simulation
 
@@ -261,6 +269,16 @@ WSL cache the module list for a week, since reading it starts PowerShell.
 Elsewhere, or in a container, the CPU-family estimate applies. Pass the real
 figure with `--ram-bandwidth` (transfer rate in MT/s x 8 bytes x channels /
 1000, e.g. DDR5-6000 dual channel = 96).
+
+`whichllm hardware` also measures the bandwidth and prints it beside that
+figure, as in `BW: 90 GB/s (DDR5-5600, 128-bit, measured 77 GB/s)`. Threads
+copy 256 MB between two buffers at the same time, the way STREAM's Copy test
+does, and the count grows until more threads stop helping; bytes read and
+written both count. It takes about a second and moves with whatever else
+the machine is doing, so estimates keep the figure above, which the CPU
+speed model is calibrated on. A measurement far above an `assumed` or
+`estimated` figure is a reason to pass `--ram-bandwidth`. Unified memory is
+not measured: the CPU cannot read it as fast as the GPU does.
 
 ## Fit types
 
