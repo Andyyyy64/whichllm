@@ -63,6 +63,13 @@ Speed colors are absolute usability hints: red is under `4 tok/s`, yellow is
 `4-8 tok/s`, green is `8-30 tok/s`, and bright green is `30+ tok/s`. The `~`
 and `?` markers still refer to estimate confidence, not speed quality.
 
+Context shows the model's own limit and, after the arrow, the longest
+context that keeps the row's fit on your hardware: `256k→127k` stays fully on
+the GPU up to 127k tokens. One number means the whole limit fits. The limit
+comes from the Hub metadata or the model's `config.json`; where neither has
+it, `128k+` says only that 128k fits. JSON rows carry the two numbers as
+`context_length` and `max_context_tokens`.
+
 `--vram-headroom auto` subtracts a small budget from each GPU before fit
 checks, so near-edge recommendations are less likely to overflow in tools such
 as LM Studio. Use `--vram-headroom none` to restore the raw detected VRAM.

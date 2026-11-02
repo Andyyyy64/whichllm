@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from whichllm.engine.context import context_cell
 from whichllm.engine.quantization import effective_quant_type
 from whichllm.engine.recipe import build_recipe
 from whichllm.engine.types import CompatibilityResult
@@ -116,6 +117,7 @@ def display_markdown(
             "Fit",
             mem_label,
             "Speed",
+            "Context",
             "Published",
             "Score",
             "License",
@@ -132,6 +134,7 @@ def display_markdown(
                 ),
                 _format_bytes(result.vram_required_bytes),
                 _format_markdown_speed(result),
+                context_cell(result),
                 _format_published_at(result.model.published_at),
                 _format_markdown_score(result),
                 result.model.license or "-",

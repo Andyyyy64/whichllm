@@ -9,6 +9,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from whichllm.engine.context import context_cell
 from whichllm.engine.quantization import effective_quant_type
 from whichllm.engine.recipe import build_recipe
 from whichllm.engine.types import CompatibilityResult
@@ -170,6 +171,11 @@ def display_hardware(hw: HardwareInfo) -> None:
     _console.console.print(panel)
 
 
+def _context_text(result: CompatibilityResult) -> str:
+    """The model's limit, then the longest context this placement still holds."""
+    return context_cell(result).replace("→", "\n→")
+
+
 def display_ranking(
     results: list[CompatibilityResult],
     *,
@@ -195,6 +201,7 @@ def display_ranking(
         table.add_column("Weights", justify="right", width=8)
         table.add_column(f"Fit / {mem_label}", justify="center", width=8)
         table.add_column("Speed", justify="right", width=14)
+        table.add_column("Context", justify="right", width=9)
         table.add_column("Published", justify="center", width=10)
     else:
         table.add_column("Params", justify="right", width=6)
@@ -270,6 +277,7 @@ def display_ranking(
                     weights_str,
                     f"{fit_str}\n[dim]{vram_str}[/dim]",
                     speed_str,
+                    _context_text(r),
                     published_str,
                 ]
             )
@@ -313,6 +321,13 @@ def display_ranking(
             if has_speed_low:
                 parts.append("[red]?[/red] = low-confidence/backend-sensitive tok/s")
             _console.console.print(f"  [dim]Speed:[/dim]  {',  '.join(parts)}")
+        if any(
+            r.max_context_tokens is not None and "→" in context_cell(r) for r in results
+        ):
+            _console.console.print(
+                "  [dim]Context:[/dim]  the model's limit → the longest context "
+                "this fit holds on your hardware"
+            )
 
     has_direct = any(r.benchmark_status == "direct" for r in results)
     if not has_direct:

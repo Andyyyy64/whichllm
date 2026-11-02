@@ -33,6 +33,8 @@ class CompatibilityResult:
     # left out of the list.
     older_generations: list[str] = field(default_factory=list)
     context_fits: bool = True  # False when known model max context < requested
+    # Longest context with the same placement, set for the rows shown.
+    max_context_tokens: int | None = None
     uses_multi_gpu: bool = False
     multi_gpu_effective_vram_bytes: int | None = None
     # Decode speed of the layer split relative to the best single card.

@@ -56,6 +56,8 @@ class ModelShape:
     moe_intermediate_size: int | None = None
     shared_expert_intermediate_size: int | None = None
     first_dense_layers: int = 0
+    # The longest context the checkpoint was built for (max_position_embeddings).
+    max_context: int | None = None
 
     def kv_cache_bytes(self, context_length: int) -> int:
         """K/V and recurrent cache bytes for one sequence of this length."""
@@ -196,6 +198,16 @@ _STATE_BYTES = {
 }
 
 
+def _max_context(text: dict, config: dict) -> int | None:
+    """The trained context length; GLM calls it seq_length."""
+    for source in (text, config):
+        for key in ("max_position_embeddings", "max_sequence_length", "seq_length"):
+            value = _positive_int(source.get(key))
+            if value:
+                return value
+    return None
+
+
 def parse_model_shape(config: dict) -> ModelShape | None:
     """Parse a raw config.json; None when the layout is not understood."""
     if not isinstance(config, dict):
@@ -284,4 +296,5 @@ def parse_model_shape(config: dict) -> ModelShape | None:
         moe_intermediate_size=moe_intermediate if num_experts else None,
         shared_expert_intermediate_size=shared if num_experts else None,
         first_dense_layers=_positive_int(text.get("first_k_dense_replace")) or 0,
+        max_context=_max_context(text, config),
     )
