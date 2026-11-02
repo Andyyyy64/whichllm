@@ -154,15 +154,15 @@ def test_discover_reports_walk_error_for_explicit_path(monkeypatch, tmp_path):
         discover_lmstudio_ggufs([library], home=tmp_path)
 
 
-def test_discover_ignores_broken_file_symlink(tmp_path):
+def test_discover_ignores_broken_file_symlink(tmp_path, symlink):
     repo = tmp_path / ".lmstudio" / "models" / "lmstudio-community" / "Qwen3-8B-GGUF"
     repo.mkdir(parents=True)
-    (repo / "Qwen3-8B-Q4_K_M.gguf").symlink_to(repo / "missing.gguf")
+    symlink(repo / "Qwen3-8B-Q4_K_M.gguf", repo / "missing.gguf")
 
     assert discover_lmstudio_ggufs(home=tmp_path) == []
 
 
-def test_discover_accepts_resolvable_file_symlink(tmp_path):
+def test_discover_accepts_resolvable_file_symlink(tmp_path, symlink):
     target = tmp_path / "downloaded.gguf"
     target.write_bytes(b"gguf")
     link = (
@@ -174,7 +174,7 @@ def test_discover_accepts_resolvable_file_symlink(tmp_path):
         / "Qwen3-8B-Q4_K_M.gguf"
     )
     link.parent.mkdir(parents=True)
-    link.symlink_to(target)
+    symlink(link, target)
 
     discovered = discover_lmstudio_ggufs(home=tmp_path)
 
@@ -357,13 +357,13 @@ def test_find_local_artifact_requires_exact_artifact_case(tmp_path):
     )
 
 
-def test_find_local_artifact_accepts_resolvable_file_symlink(tmp_path):
+def test_find_local_artifact_accepts_resolvable_file_symlink(tmp_path, symlink):
     target = tmp_path / "downloaded.gguf"
     target.write_bytes(b"gguf")
     root = tmp_path / "library"
     link = root / "lmstudio-community" / "Qwen3-8B-GGUF" / "Qwen3-8B-Q4_K_M.gguf"
     link.parent.mkdir(parents=True)
-    link.symlink_to(target)
+    symlink(link, target)
     local_models = discover_lmstudio_ggufs([root])
 
     match = find_local_artifact(

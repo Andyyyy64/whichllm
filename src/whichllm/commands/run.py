@@ -34,6 +34,18 @@ from whichllm.models.lmstudio import (
 )
 
 
+def _shell_join(args: list[str], *, windows: bool | None = None) -> str:
+    """A command line to show, quoted for the shell it will be pasted into.
+
+    shlex quotes for POSIX shells and wraps every Windows path in single
+    quotes, which cmd.exe passes on as part of the file name. Windows gets
+    the double quotes both cmd.exe and PowerShell read, only where needed.
+    """
+    if windows is None:
+        windows = os.name == "nt"
+    return subprocess.list2cmdline(args) if windows else shlex.join(args)
+
+
 def _discover_local_models(lm_studio_path: list[Path] | None) -> list[LocalGGUF]:
     """Scan LM Studio libraries, failing clearly on an unreadable explicit path."""
     try:
@@ -188,7 +200,10 @@ def run_command(
             f"[dim]({variant.quant_type}) with llama.cpp[/]"
         )
         console.print(
-            shlex.join(["llama-cli", *args]), style="dim", markup=False, highlight=False
+            _shell_join(["llama-cli", *args]),
+            style="dim",
+            markup=False,
+            highlight=False,
         )
         result = subprocess.run([llama_cli, *args])
         raise typer.Exit(code=result.returncode)
@@ -280,7 +295,7 @@ def _served_with_local_file(command: str, local_path: str) -> str:
     """Swap the recipe's -hf source for the verified local file."""
     args = command.split()
     if len(args) > 2 and args[1] == "-hf":
-        return shlex.join([args[0], "-m", local_path, *args[3:]])
+        return _shell_join([args[0], "-m", local_path, *args[3:]])
     return command
 
 

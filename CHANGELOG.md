@@ -192,6 +192,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- On Windows, the llama.cpp commands `whichllm run` prints quote a path the
+  way cmd.exe and PowerShell read it. A local LM Studio file used to show as
+  `-m 'C:\...\model.gguf'`, which cmd.exe passes on with the quotes.
 - Output redirected to a file or a pipe on Windows no longer stops with a
   `UnicodeEncodeError` in a code page such as cp932 or cp1252. Characters the
   code page lacks print as `?`.
