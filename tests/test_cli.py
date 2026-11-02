@@ -3308,3 +3308,34 @@ def models_to_dicts_for_cli(models):
     from whichllm.models.fetcher import models_to_dicts
 
     return models_to_dicts(models)
+
+
+@pytest.mark.parametrize(
+    ("quant", "named"),
+    [("Q5*", "Q5_K_M"), ("Q5", "Q5_K_M"), ("iq4", "IQ4_XS")],
+)
+def test_a_quant_pattern_is_refused_with_real_labels(quant, named):
+    result = CliRunner().invoke(app, ["--gpu", "RTX 4090", "--quant", quant])
+    output = " ".join(result.output.split())
+
+    assert result.exit_code == 1
+    assert "--quant takes one quant label" in output
+    assert named in output
+
+
+@pytest.mark.parametrize("args", [["hardware"], ["--help"]])
+def test_a_narrow_output_encoding_does_not_stop_the_cli(args, tmp_path):
+    # A redirect on Windows writes in the console code page (cp932, cp1252).
+    import os
+    import subprocess
+    import sys
+
+    env = {**os.environ, "PYTHONIOENCODING": "ascii", "XDG_CACHE_HOME": str(tmp_path)}
+    result = subprocess.run(
+        [sys.executable, "-m", "whichllm", *args],
+        capture_output=True,
+        env=env,
+        timeout=120,
+    )
+
+    assert result.returncode == 0, result.stderr.decode("ascii", "replace")[-400:]

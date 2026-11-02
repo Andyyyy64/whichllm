@@ -19,7 +19,7 @@ from whichllm.cli_models import (
     _resolve_model_deps,
     _search_model,
 )
-from whichllm.cli_options import _validate_lmstudio_path_flags
+from whichllm.cli_options import _validate_lmstudio_path_flags, _validate_quant
 from whichllm.cli_shared import console
 from whichllm.commands.autopick import pick_top_runnable
 from whichllm.engine.recipe import build_recipe, python_gpu_layers
@@ -128,6 +128,7 @@ def run_command(
     """
 
     _validate_lmstudio_path_flags(lm_studio_path)
+    _validate_quant(quant)
 
     llama_cli = shutil.which("llama-cli")
     if not llama_cli and not shutil.which("uv"):

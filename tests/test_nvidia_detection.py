@@ -258,3 +258,19 @@ def test_xavier_nvml_uses_system_ram_when_memory_query_fails(monkeypatch, name):
 def test_consumer_blackwell_is_capability_12(name):
     # nvidia-smi reports 12.0 here; 10.0 belongs to the data center parts.
     assert _lookup_compute_capability(f"NVIDIA GeForce {name}") == (12, 0)
+
+
+def test_a_tool_that_ignores_the_query_is_not_a_gpu(monkeypatch):
+    # #190: a wrapper named nvidia-smi on a Jetson printed its own table and
+    # exited 0, and its first row became a 1 MB GPU with compute capability 8.9.
+    table = (
+        "+--------------------------------------------------------------+\n"
+        "| NVIDIA-SMI emulated (tegrastats)    L4T: # R35 (release), "
+        "REVISION: 1.0, GCID: 31346300 |\n"
+        "+--------------------------------------------------------------+\n"
+    )
+    monkeypatch.setattr(
+        nvidia.subprocess, "run", lambda *args, **kwargs: SimpleNamespace(stdout=table)
+    )
+
+    assert nvidia._detect_nvidia_gpus_via_smi() == []

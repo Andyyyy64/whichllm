@@ -22,7 +22,7 @@ from whichllm.bench.backends import (
 )
 from whichllm.bench.report import build_report, save_report
 from whichllm.cli_models import _load_models, _pick_gguf_variant, _search_model
-from whichllm.cli_options import _validate_lmstudio_path_flags
+from whichllm.cli_options import _validate_lmstudio_path_flags, _validate_quant
 from whichllm.cli_shared import console
 from whichllm.commands.autopick import pick_top_runnable
 from whichllm.commands.ranking import apply_default_budgets, rank_for_hardware
@@ -300,6 +300,7 @@ def bench_command(
     """Measure a model, compare it with the estimate and save the result."""
     _validate_lmstudio_path_flags(lm_studio_path)
     _validate_options(backend, url, served_model, runs, tokens)
+    _validate_quant(quant)
 
     hardware = _detected_hardware(cpu_only)
     model = variant = picked = None

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 
 import typer
 
@@ -44,6 +45,30 @@ def _validate_gpu_flags(
     if gpu_index is not None and vram is None and bandwidth is None:
         console.print("[red]Error:[/] --gpu-index requires --vram or --bandwidth.")
         raise typer.Exit(code=1)
+
+
+# --quant matches one label exactly. A pattern ("Q5*") or a bare family ("Q5")
+# matched no file and the ranking said only "No compatible models found".
+_QUANT_FAMILY_RE = re.compile(r"I?Q\d", re.IGNORECASE)
+
+
+def _validate_quant(quant: str | None) -> None:
+    """Refuse a --quant value that can only match nothing, and name real labels."""
+    if not quant:
+        return
+    label = quant.strip().upper()
+    if not any(c in label for c in "*?[") and not _QUANT_FAMILY_RE.fullmatch(label):
+        return
+    from whichllm.data.quantization import QUANT_BYTES_PER_WEIGHT
+
+    stem = label.rstrip("*?[]")
+    known = sorted(k for k in QUANT_BYTES_PER_WEIGHT if stem and k.startswith(stem))
+    hint = f" Labels that start with {stem}: {', '.join(known)}." if known else ""
+    console.print(
+        f"[red]Error:[/] --quant takes one quant label such as Q4_K_M, "
+        f"not {quant!r}.{hint}"
+    )
+    raise typer.Exit(code=1)
 
 
 def _validate_output_flags(json_output: bool, markdown_output: bool) -> None:

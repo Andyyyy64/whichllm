@@ -9,6 +9,7 @@ from whichllm.cli_models import (
     _resolve_model_deps,
     _search_model,
 )
+from whichllm.cli_options import _validate_quant
 from whichllm.cli_shared import console
 from whichllm.commands.autopick import pick_top_runnable
 from whichllm.engine.recipe import build_recipe, python_gpu_layers
@@ -24,6 +25,7 @@ def snippet_command(
     refresh: bool,
 ) -> None:
     """Print a ready-to-run Python script for a model."""
+    _validate_quant(quant)
     from rich.progress import Progress, SpinnerColumn, TextColumn
     from rich.syntax import Syntax
 

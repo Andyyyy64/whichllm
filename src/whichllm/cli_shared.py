@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 
 import typer
 from rich.console import Console
@@ -10,6 +11,19 @@ from rich.console import Console
 from whichllm.utils import _current_version
 
 console = Console()
+
+
+def _tolerate_narrow_encodings() -> None:
+    """Print what a non-UTF-8 terminal or file cannot encode as "?".
+
+    Redirected output on Windows uses the console code page, such as cp932 or
+    cp1252, which has no box-drawing or check-mark characters, so
+    `whichllm plan "qwen3 32b" > plan.txt` stopped with a UnicodeEncodeError.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        encoding = (getattr(stream, "encoding", None) or "").lower().replace("-", "")
+        if encoding != "utf8" and hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
 
 
 def _run_async(coro):
@@ -41,4 +55,10 @@ def _print_version(value: bool) -> None:
         raise typer.Exit()
 
 
-__all__ = ["_run_async", "_format_fetch_error", "_print_version", "console"]
+__all__ = [
+    "_run_async",
+    "_format_fetch_error",
+    "_print_version",
+    "_tolerate_narrow_encodings",
+    "console",
+]

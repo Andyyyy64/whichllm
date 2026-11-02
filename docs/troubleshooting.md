@@ -401,6 +401,25 @@ HF_ENDPOINT="https://huggingface.co" whichllm --refresh
 
 Do not include `/api` in `HF_ENDPOINT`; whichllm adds that path internally.
 
+## `CERTIFICATE_VERIFY_FAILED` behind a company proxy
+
+A proxy that inspects HTTPS signs traffic with its own certificate, which the
+certificate list bundled with Python does not trust. Point `SSL_CERT_FILE` at
+your company's CA bundle in PEM form, and set `HTTPS_PROXY` when the proxy is
+not transparent:
+
+```bash
+SSL_CERT_FILE=/path/to/company-ca.pem whichllm
+```
+
+```powershell
+$env:SSL_CERT_FILE = "C:\path\to\company-ca.pem"
+whichllm
+```
+
+The bundle replaces the default list, so it has to hold the public roots too,
+as company bundles usually do.
+
 ## How much disk space does `run` need?
 
 Normal ranking commands do not download model weights. They cache Hugging Face
