@@ -364,6 +364,7 @@ def test_smi_na_memory_is_kept_on_jetson(monkeypatch, tmp_path):
     assert gpus[0].name == "Jetson Orin NX 16GB"
     assert gpus[0].shared_memory is True
     assert gpus[0].memory_bandwidth_gbps == 102.4
+    assert gpus[0].detected_by == "nvidia-smi"
 
 
 def test_smi_na_memory_still_discarded_off_jetson(monkeypatch, tmp_path):
@@ -441,6 +442,7 @@ def test_agx_xavier_without_nvidia_tooling_is_found_in_the_device_tree(
     assert gpu.compute_capability == (7, 2)
     assert gpu.memory_bandwidth_gbps == 136.5
     assert gpu.cuda_version is None
+    assert gpu.detected_by == "device-tree"
 
 
 def test_xavier_nx_behind_an_nvidia_smi_wrapper_is_found(monkeypatch, tmp_path):
@@ -479,13 +481,14 @@ def test_an_enumerated_gpu_wins_over_the_device_tree(monkeypatch, tmp_path):
 
     assert [g.name for g in gpus] == ["Jetson Orin NX 16GB"]
     assert gpus[0].cuda_version == "12.6"
+    assert gpus[0].detected_by == "nvml"
 
 
 def test_hardware_panel_names_the_compute_capability_and_shared_memory(
     monkeypatch, tmp_path
 ):
-    # #190 asked that the panel say which path was taken: shared memory and the
-    # compute capability both show.
+    # #190 asked that the panel say which path was taken: shared memory, the
+    # compute capability and the device-tree fallback all show.
     from io import StringIO
 
     from rich.console import Console
@@ -508,7 +511,10 @@ def test_hardware_panel_names_the_compute_capability_and_shared_memory(
     )
 
     shown = " ".join(buf.getvalue().split())
-    assert "Jetson AGX Xavier — 30.3 GB shared (CC 7.2) — BW: 136 GB/s" in shown
+    assert (
+        "Jetson AGX Xavier — 30.3 GB shared (CC 7.2, via device-tree) — BW: 136 GB/s"
+        in shown
+    )
 
 
 def test_smi_subprocess_error_path(monkeypatch, tmp_path):
@@ -564,3 +570,27 @@ def test_orin_nx_estimate_matches_measured_throughput():
 
     assert at_peak == pytest.approx(measured, rel=0.10)
     assert at_achieved < measured * 0.75
+
+
+def test_the_usual_nvml_path_adds_no_via_note(monkeypatch):
+    from io import StringIO
+
+    from rich.console import Console
+
+    from whichllm.hardware.types import GPUInfo, HardwareInfo
+    from whichllm.output import _console as console_mod
+    from whichllm.output import display as display_mod
+
+    buf = StringIO()
+    monkeypatch.setattr(console_mod, "console", Console(file=buf, width=200))
+    gpu = GPUInfo(
+        name="NVIDIA GeForce RTX 5080",
+        vendor="nvidia",
+        vram_bytes=16 * 1024**3,
+        compute_capability=(12, 0),
+        detected_by="nvml",
+    )
+
+    display_mod.display_hardware(HardwareInfo(gpus=[gpu], ram_bytes=64 * 1024**3))
+
+    assert "via" not in buf.getvalue()

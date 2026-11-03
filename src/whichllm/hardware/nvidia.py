@@ -64,6 +64,8 @@ def _make_nvidia_gpu(
     vram_bytes: int | None,
     cuda_version: str | None = None,
     mem_clock_mhz: float | None = None,
+    *,
+    detected_by: str,
 ) -> GPUInfo:
     # Computed from the driver-reported name, before the substitution below.
     shared_memory = _is_unified_memory_nvidia_gpu(name)
@@ -93,6 +95,7 @@ def _make_nvidia_gpu(
             name, vram_bytes, mem_clock_mhz
         ),
         shared_memory=shared_memory,
+        detected_by=detected_by,
     )
 
 
@@ -165,12 +168,21 @@ def _detect_nvidia_gpus_via_smi() -> list[GPUInfo]:
             if not _is_unified_memory_nvidia_gpu(name):
                 logger.debug(f"Could not parse nvidia-smi memory value: {line!r}")
                 continue
-            gpus.append(_make_nvidia_gpu(name, None, mem_clock_mhz=mem_clock_mhz))
+            gpus.append(
+                _make_nvidia_gpu(
+                    name, None, mem_clock_mhz=mem_clock_mhz, detected_by="nvidia-smi"
+                )
+            )
             continue
 
         memory_mib = int(match.group(1))
         gpus.append(
-            _make_nvidia_gpu(name, memory_mib * 1024**2, mem_clock_mhz=mem_clock_mhz)
+            _make_nvidia_gpu(
+                name,
+                memory_mib * 1024**2,
+                mem_clock_mhz=mem_clock_mhz,
+                detected_by="nvidia-smi",
+            )
         )
 
     return gpus
@@ -190,7 +202,7 @@ def _detect_tegra_gpu() -> list[GPUInfo]:
     logger.debug(
         f"No NVIDIA tool listed a GPU; using {module.name} from the device tree"
     )
-    return [_make_nvidia_gpu(module.name, None)]
+    return [_make_nvidia_gpu(module.name, None, detected_by="device-tree")]
 
 
 def detect_nvidia_gpus() -> list[GPUInfo]:
@@ -253,7 +265,9 @@ def _enumerate_nvidia_gpus() -> list[GPUInfo]:
                 )
                 mem_clock_mhz = None
 
-            gpu = _make_nvidia_gpu(name, vram_bytes, cuda_str, mem_clock_mhz)
+            gpu = _make_nvidia_gpu(
+                name, vram_bytes, cuda_str, mem_clock_mhz, detected_by="nvml"
+            )
             if not gpu.shared_memory:
                 gpu.pcie_generation, gpu.pcie_lanes = _pcie_link(pynvml, handle)
             gpus.append(gpu)

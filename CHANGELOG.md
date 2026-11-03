@@ -12,7 +12,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   neither NVML nor `nvidia-smi`. When no NVIDIA tool lists a GPU, a module
   identified from the device tree becomes the GPU while its driver's device
   node exists, with system RAM (`MemTotal`, not swap) as its memory, compute
-  capability 7.2, and 136.5 or 59.7 GB/s. (#190)
+  capability 7.2, and 136.5 or 59.7 GB/s. The hardware panel says when a
+  GPU came from the device tree or `nvidia-smi` instead of NVML, and
+  `--json` carries `detected_by` per GPU. (#190)
 
 ## [0.6.0] - 2026-11-03
 

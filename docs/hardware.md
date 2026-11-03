@@ -98,6 +98,10 @@ driver still reports none, because the device tree says nothing about the
 driver. Its memory is `MemTotal`, without swap, and its compute capability is
 7.2. Orin modules on a JetPack without the tools are found the same way.
 
+The hardware panel names a fallback path, as in `(CC 7.2, via device-tree)`
+or `via nvidia-smi`; a GPU NVML found carries no note. `--json` reports the
+path as `detected_by` on every GPU.
+
 Bandwidth values are data-sheet peaks. Orin NX 16GB is the one verified against
 measured throughput; the other Orin modules come from the module data sheets.
 JetPack 6.2 "Super Mode" raises Orin Nano bandwidth (8 GB to 102, 4 GB to 51)

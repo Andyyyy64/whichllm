@@ -134,6 +134,9 @@ def display_hardware(hw: HardwareInfo) -> None:
                 extra.append(f"ROCm {gpu.rocm_version}")
             if gpu.pcie_generation and gpu.pcie_lanes:
                 extra.append(f"PCIe {gpu.pcie_generation}.0 x{gpu.pcie_lanes}")
+            # NVML is the usual path; a fallback says which one found the GPU.
+            if gpu.detected_by in ("nvidia-smi", "device-tree"):
+                extra.append(f"via {gpu.detected_by}")
             extra_str = f" ({', '.join(extra)})" if extra else ""
             lines.append(
                 f"[bold green]GPU {i}:[/] {gpu.name} — {vram}{extra_str} — BW: {bw}"
