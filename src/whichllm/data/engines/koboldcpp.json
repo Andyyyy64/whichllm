@@ -18,23 +18,64 @@
   ],
   "platforms": [
     {
-      "os": ["linux", "windows"],
+      "os": [
+        "linux",
+        "windows"
+      ],
       "accel": "cuda",
       "note": "CUDA 12.1 build; the oldpc build uses CUDA 11.4"
     },
-    {"os": ["linux"], "accel": "rocm"},
-    {"os": ["linux", "windows"], "accel": "vulkan"},
-    {"os": ["darwin"], "accel": "metal", "note": "Apple Silicon build only"},
-    {"os": ["linux", "windows"], "accel": "cpu"}
+    {
+      "os": [
+        "linux"
+      ],
+      "accel": "rocm"
+    },
+    {
+      "os": [
+        "linux",
+        "windows"
+      ],
+      "accel": "vulkan"
+    },
+    {
+      "os": [
+        "darwin"
+      ],
+      "accel": "metal",
+      "note": "Apple Silicon build only"
+    },
+    {
+      "os": [
+        "linux",
+        "windows"
+      ],
+      "accel": "cpu"
+    }
   ],
   "gguf": {},
-  "memory": ["gpu", "layer_offload", "expert_offload", "cpu"],
+  "memory": [
+    "gpu",
+    "layer_offload",
+    "expert_offload",
+    "cpu"
+  ],
   "serve": "koboldcpp --model {file} --gpulayers -1 --contextsize {ctx}",
   "port": 5001,
-  "api": ["openai", "anthropic", "ollama"],
+  "api": [
+    "openai",
+    "anthropic",
+    "ollama"
+  ],
   "install": {
     "docs": "https://github.com/LostRuins/koboldcpp/releases"
   },
-  "detect_binaries": ["koboldcpp"],
+  "detect_binaries": [
+    "koboldcpp"
+  ],
+  "probe": {
+    "path": "/api/extra/version",
+    "contains": "KoboldCpp"
+  },
   "note": "One executable per platform. Memory-mapping is off unless --usemmap is given, so the model loads fully into RAM."
 }

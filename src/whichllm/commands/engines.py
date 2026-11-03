@@ -23,6 +23,8 @@ def engines_command(
     from rich.progress import Progress, SpinnerColumn, TextColumn
 
     from whichllm.engines import availability, load_cards
+    from whichllm.engines.detect import detect_installed
+    from whichllm.hardware import ram_bandwidth
     from whichllm.hardware.detector import detect_hardware
     from whichllm.output.engines import display_engines, display_engines_json
 
@@ -37,26 +39,36 @@ def engines_command(
             transient=True,
         )
     )
+    cards = load_cards()
     with spinner as progress:
         task = (
             progress.add_task("Detecting hardware...", total=None) if progress else None
         )
         hw = detect_hardware()
+        host_os = hw.os
         _apply_gpu_overrides(hw, cpu_only, gpu, vram, None, gpu_index)
+        # What is installed belongs to this machine, not to a simulated one.
+        installed = None
+        if not gpu:
+            if progress:
+                progress.update(task, description="Looking for installed engines...")
+            installed = detect_installed(cards, host_os)
         if progress:
             progress.remove_task(task)
 
     rows = sorted(
-        (availability(card, hw) for card in load_cards()),
+        (availability(card, hw) for card in cards),
         key=lambda row: (
             not row.runs,
+            installed is not None and row.card.id not in installed,
             EVIDENCE.index(row.card.evidence),
             row.card.name.lower(),
         ),
     )
+    wsl = installed is not None and ram_bandwidth._is_wsl()
     if json_output:
-        display_engines_json(rows, hw)
+        display_engines_json(rows, hw, installed)
         return
     console.print()
-    display_engines(rows, hw)
+    display_engines(rows, hw, installed, wsl=wsl)
     console.print()

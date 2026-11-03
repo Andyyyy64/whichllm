@@ -9,6 +9,7 @@ from rich.table import Table
 
 from whichllm.engines import Availability
 from whichllm.engines.cards import EngineCard
+from whichllm.engines.detect import Installed
 from whichllm.hardware.types import HardwareInfo
 from whichllm.output import _console
 from whichllm.output.json_output import hardware_json
@@ -42,10 +43,27 @@ def _upstream(card: EngineCard) -> str:
     return f"{version}, {card.released_at}" if card.released_at else version
 
 
-def display_engines(rows: list[Availability], hardware: HardwareInfo) -> None:
+def _installed(found: Installed | None) -> str:
+    if found is None:
+        return "[dim]-[/dim]"
+    parts = [found.version] if found.version else []
+    if found.running:
+        parts.append("[green]running[/]")
+    return ", ".join(["yes", *parts])
+
+
+def display_engines(
+    rows: list[Availability],
+    hardware: HardwareInfo,
+    installed: dict[str, Installed] | None = None,
+    *,
+    wsl: bool = False,
+) -> None:
     table = Table(title=f"Inference engines for {escape(_machine(hardware))}")
     table.add_column("Engine", style="cyan", no_wrap=True)
     table.add_column("Runs here", min_width=10)
+    if installed is not None:
+        table.add_column("Installed", no_wrap=True)
     table.add_column("Evidence", no_wrap=True)
     table.add_column("Upstream", no_wrap=True)
     for row in rows:
@@ -56,20 +74,24 @@ def display_engines(rows: list[Availability], hardware: HardwareInfo) -> None:
         if row.reason:
             runs += f"\n[dim]{escape(row.reason)}[/dim]"
         style = _EVIDENCE_STYLES[row.card.evidence]
-        table.add_row(
-            row.card.name,
-            runs,
-            f"[{style}]{row.card.evidence}[/{style}]",
-            _upstream(row.card),
-        )
+        cells = [row.card.name, runs]
+        if installed is not None:
+            cells.append(_installed(installed.get(row.card.id)))
+        cells += [f"[{style}]{row.card.evidence}[/{style}]", _upstream(row.card)]
+        table.add_row(*cells)
     _console.console.print(table)
     _console.console.print(
         "  [dim]Evidence:[/dim]  verified = whichllm bench runs,  "
         "community = public benchmarks,  documented = docs only"
     )
+    if wsl:
+        _console.console.print(
+            "  [dim]WSL: engines installed on the Windows side are not looked for here."
+            "[/dim]"
+        )
 
 
-def engine_json(row: Availability) -> dict:
+def engine_json(row: Availability, found: Installed | None = None) -> dict:
     card = row.card
     return {
         "id": card.id,
@@ -78,6 +100,10 @@ def engine_json(row: Availability) -> dict:
         "runs": row.runs,
         "accel": row.platform.accel if row.platform else None,
         "reason": row.reason,
+        "installed": found is not None,
+        "installed_path": found.path if found else None,
+        "installed_version": found.version if found else None,
+        "running": found.running if found else False,
         "evidence": card.evidence,
         "status": card.status,
         "version": card.version,
@@ -93,10 +119,15 @@ def engine_json(row: Availability) -> dict:
     }
 
 
-def display_engines_json(rows: list[Availability], hardware: HardwareInfo) -> None:
+def display_engines_json(
+    rows: list[Availability],
+    hardware: HardwareInfo,
+    installed: dict[str, Installed] | None = None,
+) -> None:
+    found = installed or {}
     output = {
         "hardware": hardware_json(hardware),
-        "engines": [engine_json(row) for row in rows],
+        "engines": [engine_json(row, found.get(row.card.id)) for row in rows],
     }
     _console.console.print_json(json.dumps(output, ensure_ascii=False))
 
