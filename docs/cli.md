@@ -207,6 +207,14 @@ engines share ports. llama.cpp and ik_llama.cpp both ship `llama-server`, so
 simulated machine has nothing installed. Under WSL, engines installed on the
 Windows side are not looked for.
 
+The ranking uses the same cards. Under the table, the run line names an
+engine that can run the top pick here, reads its quant and holds its
+placement, preferring one that is already running, then one that is
+installed, then llama.cpp. It finds installed engines with file lookups only,
+so a ranking never runs a binary or asks a port. `--json` rows carry the
+chosen `engine`, every engine that can run the row in `engines`, and
+`engine_installed` (`null` with `--gpu`).
+
 `--json` prints the `hardware` object plus one row per engine with `runs`,
 `accel`, `reason`, `installed`, `installed_path`, `installed_version`,
 `running`, `evidence`, the upstream `version`, the default `port`, the `serve`

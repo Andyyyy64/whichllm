@@ -35,6 +35,15 @@ class CompatibilityResult:
     context_fits: bool = True  # False when known model max context < requested
     # Longest context with the same placement, set for the rows shown.
     max_context_tokens: int | None = None
+    # The engine the recipe uses, the engines that can run this row here,
+    # and whether the chosen one was found installed (None when unknown).
+    engine: str | None = None
+    engines: tuple[str, ...] = ()
+    engine_installed: bool | None = None
+    # The installed binary's name, when it changes the command: the
+    # llama.cpp installer ships one `llama` binary that serves with
+    # `llama serve` instead of `llama-server`.
+    engine_binary: str | None = None
     uses_multi_gpu: bool = False
     multi_gpu_effective_vram_bytes: int | None = None
     # Decode speed of the layer split relative to the best single card.

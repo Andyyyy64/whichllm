@@ -277,6 +277,20 @@ def load_cards() -> tuple[EngineCard, ...]:
     return tuple(cards)
 
 
+def card_by_id(engine_id: str) -> EngineCard | None:
+    return next((card for card in load_cards() if card.id == engine_id), None)
+
+
+def install_hint(card: EngineCard, os_name: str) -> str | None:
+    """The install command for this OS, else the install docs."""
+    commands = dict(card.install)
+    if os_name in commands:
+        return f"install with {commands[os_name]}"
+    if "docs" in commands:
+        return f"install from {commands['docs']}"
+    return None
+
+
 __all__ = [
     "ACCELS",
     "CardError",
@@ -284,6 +298,8 @@ __all__ = [
     "EngineCard",
     "GgufSupport",
     "Platform",
+    "card_by_id",
+    "install_hint",
     "load_cards",
     "parse_card",
 ]

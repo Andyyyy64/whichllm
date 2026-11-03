@@ -87,11 +87,15 @@ def detect_installed(
     os_name: str,
     *,
     probe: bool = True,
+    run_binaries: bool = True,
     client: httpx.Client | None = None,
 ) -> dict[str, Installed]:
     """Installed engines by card id; engines not found are left out.
 
-    ``client`` replaces the one that asks each engine's port, for tests.
+    ``run_binaries=False`` keeps to file lookups, for the ranking, which only
+    needs to know what is there. A binary name two engines share then counts
+    for the one without a --help marker (llama-server for llama.cpp), and no
+    version is read. ``client`` replaces the one that asks each port, for tests.
     """
     found: dict[str, Installed] = {}
     help_cache: dict[str, str] = {}
@@ -117,18 +121,22 @@ def detect_installed(
                     continue
                 name = Path(candidate).name
                 if name in markers:
-                    if hit not in help_cache:
-                        help_cache[hit] = _run(hit, ("--help",))
                     owns = card.help_marker is not None
-                    if (markers[name] in help_cache[hit]) != owns:
-                        continue
+                    if not run_binaries:
+                        if owns:
+                            continue
+                    else:
+                        if hit not in help_cache:
+                            help_cache[hit] = _run(hit, ("--help",))
+                        if (markers[name] in help_cache[hit]) != owns:
+                            continue
                 path = hit
                 break
             reply = _probe(card, client) if client else None
             if path is None and reply is None:
                 continue
             version = None
-            if path and card.version_args:
+            if path and card.version_args and run_binaries:
                 version = _version(_run(path, card.version_args))
             if version is None and reply:
                 version = _version(reply)
