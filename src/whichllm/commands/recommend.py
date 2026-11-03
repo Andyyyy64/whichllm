@@ -111,6 +111,30 @@ def _print_data_source(catalog) -> None:
         )
 
 
+# Subcommands with their own --json; none has --markdown.
+_JSON_SUBCOMMANDS = frozenset({"hardware", "plan", "upgrade"})
+
+
+def _refuse_output_flag_before(
+    command: str, json_output: bool, markdown_output: bool
+) -> None:
+    """Stop on an output flag given before a subcommand.
+
+    Options before a command belong to the ranking, so the subcommand never sees
+    them. Silently ignoring --json there prints a panel to a script that
+    expects JSON.
+    """
+    if not (json_output or markdown_output):
+        return
+    flag = "--json" if json_output else "--markdown"
+    if flag == "--json" and command in _JSON_SUBCOMMANDS:
+        message = f"{flag} goes after the command: whichllm {command} --json"
+    else:
+        message = f"whichllm {command} has no {flag} output"
+    console.print(f"[red]Error:[/] {message}")
+    raise typer.Exit(code=2)
+
+
 def main_command(
     ctx: typer.Context,
     *,
@@ -143,6 +167,7 @@ def main_command(
 ) -> None:
     """Detect hardware and recommend the best local LLMs."""
     if ctx.invoked_subcommand is not None:
+        _refuse_output_flag_before(ctx.invoked_subcommand, json_output, markdown_output)
         return
 
     _validate_gpu_flags(cpu_only, gpu, vram, bandwidth, gpu_index, ram_bandwidth)

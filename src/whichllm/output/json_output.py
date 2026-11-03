@@ -50,6 +50,43 @@ def _recipe_json(
     return asdict(recipe) if recipe else None
 
 
+def hardware_json(hardware: HardwareInfo) -> dict:
+    """The ``hardware`` object of every JSON output."""
+    return {
+        "gpus": [
+            {
+                "name": g.name,
+                "vendor": g.vendor,
+                "vram_bytes": g.vram_bytes,
+                "usable_vram_bytes": g.usable_vram_bytes,
+                "memory_bandwidth_gbps": g.memory_bandwidth_gbps,
+                "shared_memory": g.shared_memory,
+                "pcie_generation": g.pcie_generation,
+                "pcie_lanes": g.pcie_lanes,
+                "detected_by": g.detected_by,
+            }
+            for g in hardware.gpus
+        ],
+        "cpu": hardware.cpu_name,
+        "cpu_cores": hardware.cpu_cores,
+        "ram_bytes": hardware.ram_bytes,
+        "ram_available_bytes": hardware.ram_available_bytes,
+        "ram_budget_bytes": hardware.ram_budget_bytes,
+        "ram_bandwidth_gbps": hardware.ram_bandwidth_gbps,
+        "ram_bandwidth_source": hardware.ram_bandwidth_source,
+        "ram_bandwidth_measured_gbps": hardware.ram_bandwidth_measured_gbps,
+        "disk_free_bytes": hardware.disk_free_bytes,
+        "budget_notes": hardware.budget_notes,
+        "os": hardware.os,
+    }
+
+
+def display_hardware_json(hardware: HardwareInfo) -> None:
+    """Output ``whichllm hardware`` as JSON."""
+    output = {"hardware": hardware_json(hardware)}
+    _console.console.print_json(json.dumps(output, ensure_ascii=False))
+
+
 def display_json(
     results: list[CompatibilityResult],
     hardware: HardwareInfo,
@@ -62,31 +99,7 @@ def display_json(
     benchmark sources, or a live fetch.
     """
     output = {
-        "hardware": {
-            "gpus": [
-                {
-                    "name": g.name,
-                    "vendor": g.vendor,
-                    "vram_bytes": g.vram_bytes,
-                    "usable_vram_bytes": g.usable_vram_bytes,
-                    "memory_bandwidth_gbps": g.memory_bandwidth_gbps,
-                    "shared_memory": g.shared_memory,
-                    "pcie_generation": g.pcie_generation,
-                    "pcie_lanes": g.pcie_lanes,
-                    "detected_by": g.detected_by,
-                }
-                for g in hardware.gpus
-            ],
-            "cpu": hardware.cpu_name,
-            "cpu_cores": hardware.cpu_cores,
-            "ram_bytes": hardware.ram_bytes,
-            "ram_available_bytes": hardware.ram_available_bytes,
-            "ram_budget_bytes": hardware.ram_budget_bytes,
-            "ram_bandwidth_gbps": hardware.ram_bandwidth_gbps,
-            "ram_bandwidth_source": hardware.ram_bandwidth_source,
-            "budget_notes": hardware.budget_notes,
-            "os": hardware.os,
-        },
+        "hardware": hardware_json(hardware),
         "models": [
             {
                 "rank": i,
