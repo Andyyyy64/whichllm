@@ -24,6 +24,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   quants gets an ik_llama.cpp command, since mainline cannot load it.
   `--json` rows carry `engine`, `engines` and `engine_installed`, and the
   recipe gains `engine` and `command`.
+- Engine cards describe fixed-model engines too, which run a short list of
+  large MoE models from their own packs. Strata and Project Maya come first.
+  Each pack lists its download and what it needs in GPU memory, RAM, or RAM
+  and VRAM together, and how little RAM the engine gets by with while it
+  reads experts from the SSD. `whichllm engines` lists them and says when one
+  does not run under WSL, as Project Maya does not.
+- Under the ranking, rows marked + show models a fixed-model engine runs here
+  when llama.cpp cannot place them, such as Qwen3.8-Flash-Next with Strata on
+  a 16 GB GPU and 64 GB of RAM. They are scored like the ranked rows and show
+  only when they would have made the list. Speed shows as ? because only the
+  engines' own numbers exist so far, and the run lines end with each engine's
+  launch command. `--json` lists them under `other_engines`, and `--markdown`
+  adds a table.
 
 ### Changed
 
@@ -32,6 +45,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- Repos whose weights only one engine reads no longer show up as ordinary
+  models in the ranking. That covers a Strata pack with no GGUF next to it,
+  which ranked as a generic NVFP4 checkpoint, and a GGUF cut into
+  `.gguf.part` pieces, whose small MTP draft passed for the model.
 - `whichllm hardware --json` prints the hardware object as JSON, the same
   one the ranking's JSON carries, with the measured RAM bandwidth. A
   `--json` or `--markdown` given before a command such as `hardware` used

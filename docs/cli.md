@@ -144,6 +144,32 @@ model the recipe says its speed can differ from the estimate. On an RTX 5080,
 Ollama 0.40 ran Qwen3.6-35B-A3B at about 100 tok/s, against 88 for
 llama-server with `--n-cpu-moe 12`.
 
+When a fixed-model engine can run a model here that the ranking had to leave
+out, that model follows the ranked rows, marked `+`:
+
+```text
+│   + │ Qwen/Qwen3.8-Flash-Next       │ IQ3_S  │  77.9 GB │ GPU+RAM  │          ? │  71.3 │
+│     │ with Strata, ISTA-DASLab      │        │          │ 12.0 GB  │  docs only │       │
+│     │ IQ3_S                         │        │          │          │            │       │
+
+  Run Qwen3.8-Flash-Next with Strata:
+    strata launch --family qwen --model iq3_s
+```
+
+A fixed-model engine runs a short list of large MoE models from its own packs
+and needs less memory for them than llama.cpp, for example by keeping a lookup
+table or the coldest experts on the SSD. The row comes from the engine's card.
+A pack fits in GPU and RAM, or runs while it reads experts from the SSD (Fit
+says `GPU+RAM +SSD`, and the docs call it much slower). It is scored like the
+ranked rows, from the base model's benchmarks and the quant of the pack's
+experts, and shows only when it outscores the last ranked row and nothing
+ranked from its family scores higher. Each engine adds its best pack per
+model, and at most three rows are added. Speed shows `?` because only the
+engines' own numbers exist so far. `--min-speed` and `--gpu-only` leave these
+rows out. `--json` lists them under `other_engines` with `engine`, `pack`,
+`quant_type`, `tier` (`memory` or `ssd`), `quality_score` and `command`, and
+`--markdown` adds a table with the commands.
+
 Ranking JSON model rows include:
 
 | Field | Meaning |
@@ -194,8 +220,15 @@ engine's own repository and docs, with the sources and the date they were
 checked. The evidence column says how much stands behind it. `verified` means
 whichllm's own `bench` runs match the estimates, `community` means public
 benchmarks exist, and `documented` means only the engine's docs. The cards
-cover llama.cpp, ik_llama.cpp, Ollama, LM Studio, KoboldCpp, Jan and Lemonade
-so far.
+cover llama.cpp, ik_llama.cpp, Ollama, LM Studio, KoboldCpp, Jan and Lemonade,
+and the fixed-model engines Strata and Project Maya.
+
+A fixed-model engine's card also lists the models it runs and its packs for
+each, with the download and what the pack needs in GPU memory, RAM, or RAM
+and VRAM together, and how little RAM the engine runs with while it reads
+experts from the SSD. A GPU that shares system RAM counts once. A card can
+also say the engine does not run under WSL, and `engines` then says so on a
+WSL machine.
 
 The Installed column says which engines are already on this machine, with
 their version and whether a server answers on the engine's default port.
