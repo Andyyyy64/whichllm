@@ -44,6 +44,12 @@ class CompatibilityResult:
     # llama.cpp installer ships one `llama` binary that serves with
     # `llama serve` instead of `llama-server`.
     engine_binary: str | None = None
+    # Rows that run with a fixed-model engine's pack: the memory tier it runs
+    # from ("memory", or "ssd" when some experts are read from the SSD), the
+    # pack's name and the command that starts it.
+    pack_tier: str | None = None
+    pack_name: str | None = None
+    pack_launch: str | None = None
     uses_multi_gpu: bool = False
     multi_gpu_effective_vram_bytes: int | None = None
     # Decode speed of the layer split relative to the best single card.

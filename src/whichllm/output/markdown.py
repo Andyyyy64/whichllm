@@ -99,8 +99,13 @@ def display_markdown(
     show_status: bool = False,
     empty_message: str | None = None,
     context_length: int | None = None,
+    pack_rows: list[CompatibilityResult] | None = None,
 ) -> None:
-    """Emit ranking results as a pasteable GitHub-Flavored Markdown table."""
+    """Emit ranking results as a pasteable GitHub-Flavored Markdown table.
+
+    ``pack_rows`` follow as their own table: models a fixed-model engine runs
+    here from its own pack.
+    """
     lines = ["## Recommended Models", ""]
 
     if not results:
@@ -181,4 +186,41 @@ def display_markdown(
             ]
         else:
             lines += ["", f"Run #1 with {name}:", "", "```bash", recipe.command, "```"]
+    if pack_rows:
+        lines += ["", "### Also runs with other engines", ""]
+        lines.append(
+            _markdown_table(
+                ["Model", "Engine", "Pack", "Quant", "Fit", "Score"],
+                [
+                    [
+                        _format_markdown_model(result),
+                        _engine_name(result.engine),
+                        result.pack_name or "-",
+                        effective_quant_type(result.model, result.gguf_variant),
+                        "GPU+RAM" if result.pack_tier == "memory" else "GPU+RAM+SSD",
+                        _format_markdown_score(result),
+                    ]
+                    for result in pack_rows
+                ],
+            )
+        )
+        lines += [
+            "",
+            "Fit and score follow each engine's docs; speed is not estimated yet.",
+        ]
+        for result in pack_rows:
+            name = _engine_name(result.engine)
+            lines += [
+                "",
+                f"Run {result.model.name} with {name}:",
+                "",
+                "```bash",
+                result.pack_launch or "",
+                "```",
+            ]
     _write_markdown("\n".join(lines))
+
+
+def _engine_name(engine: str | None) -> str:
+    card = card_by_id(engine) if engine else None
+    return card.name if card else (engine or "")
