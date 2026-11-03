@@ -21,6 +21,8 @@ class GPUInfo:
     # The PCIe link the GPU and its slot support together. Shown only.
     pcie_generation: int | None = None
     pcie_lanes: int | None = None
+    # How an NVIDIA GPU was found: "nvml", "nvidia-smi" or "device-tree".
+    detected_by: str | None = None
 
 
 @dataclass

@@ -24,11 +24,16 @@ exported by the kernel, needs no root, and no NVIDIA tooling:
     nvidia,p3767-0000               # module
     nvidia,tegra234                 # SoC generation
 
-Only Orin part numbers are claimed. Anything else returns ``None`` and detection
-behaves as it did before, rather than guessing a product from an SoC generation
-— ``tegra210`` alone, for instance, covers both Jetson Nano and TX1. Xavier and
-earlier are deliberately absent: their last JetPack has neither a Tegra NVML nor
-a Tegra ``nvidia-smi``, so no GPU name reaches this code to begin with.
+Only Orin and Xavier part numbers are claimed. Anything else returns ``None``
+and detection behaves as it did before, rather than guessing a product from an
+SoC generation — ``tegra210`` alone, for instance, covers both Jetson Nano and
+TX1.
+
+Xavier's JetPack 5 ships neither ``libnvidia-ml`` nor ``nvidia-smi``, so no GPU
+name ever reaches NVIDIA detection there (#190). For such a board the module
+itself stands in for the GPU, but only while the nvgpu driver's device node
+exists: the device tree is firmware data and says nothing about whether the
+GPU driver is loaded.
 
 Measured on a Jetson Orin NX 16GB (``p3767-0000``, JetPack 6.2.3 / L4T
 R36.5.0): before this module, ``whichllm hardware`` reported "No GPU detected —
@@ -78,6 +83,8 @@ class JetsonModule:
 # every P3701 is an AGX Orin at 204.8 GB/s whether it carries 32 or 64 GB.
 _MODULE_FAMILIES: dict[str, str] = {
     "p3701": "Jetson AGX Orin",
+    # Xavier NX: 128-bit LPDDR4x at 59.7 GB/s for the 8 and 16 GB modules alike.
+    "p3668": "Jetson Xavier NX",
 }
 
 # P3767 spans two product lines whose bandwidth differs (Orin NX 102.4 GB/s;
@@ -90,7 +97,17 @@ _MODULE_SKUS: dict[str, str] = {
     "p3767-0003": "Jetson Orin Nano 8GB",
     "p3767-0004": "Jetson Orin Nano 4GB",
     "p3767-0005": "Jetson Orin Nano 8GB",
+    # AGX Xavier modules that the Jetson Linux R35 guide lists (16, 32 and 64 GB),
+    # all 256-bit LPDDR4x at 136.5 GB/s. The memory size comes from MemTotal, not
+    # from the part number: a 32 GB board has reported P2888-0001.
+    "p2888-0001": "Jetson AGX Xavier",
+    "p2888-0003": "Jetson AGX Xavier",
+    "p2888-0005": "Jetson AGX Xavier",
 }
+
+# Device nodes the Tegra GPU driver (nvgpu) creates. JetPack 4 and 5 have
+# /dev/nvhost-gpu; JetPack 5 and later also /dev/nvgpu/igpu0.
+_GPU_DEVICE_NODES = (Path("/dev/nvhost-gpu"), Path("/dev/nvgpu/igpu0"))
 
 
 def _read_device_tree_strings(path: Path) -> list[str]:
@@ -143,6 +160,11 @@ def detect_jetson_module() -> JetsonModule | None:
 
     logger.debug("Unrecognised Jetson module (compatible=%s)", entries)
     return None
+
+
+def has_tegra_gpu_driver() -> bool:
+    """True when the integrated GPU's driver is loaded, whatever tools are installed."""
+    return any(node.exists() for node in _GPU_DEVICE_NODES)
 
 
 def is_tegra_gpu_name(name: str) -> bool:

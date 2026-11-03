@@ -73,6 +73,7 @@ def display_json(
                     "shared_memory": g.shared_memory,
                     "pcie_generation": g.pcie_generation,
                     "pcie_lanes": g.pcie_lanes,
+                    "detected_by": g.detected_by,
                 }
                 for g in hardware.gpus
             ],
