@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+
+- `whichllm engines` lists the inference engines whichllm knows, whether each
+  runs on this machine and through which accelerator, and why not when it does
+  not (an old GPU below an engine's CUDA build, no macOS build, no AVX2). Each
+  engine has a card written from its own docs with the sources and the date
+  they were checked, starting with llama.cpp, ik_llama.cpp, Ollama, LM Studio,
+  KoboldCpp, Jan and Lemonade.
+
+### Changed
+
+- Simulating only Apple GPUs (`--gpu "Apple M3 Max"`) treats the machine as
+  macOS, so Metal and the macOS builds apply instead of the host's OS.
+
 ### Fixed
 
 - `whichllm hardware --json` prints the hardware object as JSON, the same

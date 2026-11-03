@@ -19,6 +19,7 @@ import typer
 
 from whichllm.cli_commands import (
     bench_command,
+    engines_command,
     hardware_command,
     main_command,
     plan_command,
@@ -473,4 +474,46 @@ def hardware(
     )
 
 
-__all__ = ["app", "main", "plan", "upgrade", "run", "bench", "snippet", "hardware"]
+@app.command()
+def engines(
+    cpu_only: bool = typer.Option(
+        False, "--cpu-only", help="Ignore GPU and run in CPU-only mode"
+    ),
+    gpu: Optional[list[str]] = typer.Option(
+        None,
+        "--gpu",
+        help="Simulate GPU(s), e.g. 'RTX 4090', '2x RTX 4090', or repeat --gpu",
+    ),
+    vram: Optional[float] = typer.Option(
+        None,
+        "--vram",
+        help="Override simulated GPU VRAM or detected GPU usable VRAM in GB",
+    ),
+    gpu_index: Optional[int] = typer.Option(
+        None,
+        "--gpu-index",
+        help="Detected GPU index to override when multiple GPUs are present",
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+):
+    """Show which inference engines run on this machine, and why not."""
+    return engines_command(
+        cpu_only=cpu_only,
+        gpu=gpu,
+        vram=vram,
+        gpu_index=gpu_index,
+        json_output=json_output,
+    )
+
+
+__all__ = [
+    "app",
+    "main",
+    "plan",
+    "upgrade",
+    "run",
+    "bench",
+    "snippet",
+    "hardware",
+    "engines",
+]

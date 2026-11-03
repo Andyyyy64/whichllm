@@ -1,0 +1,55 @@
+{
+  "id": "llama.cpp",
+  "name": "llama.cpp",
+  "kind": "runner",
+  "url": "https://github.com/ggml-org/llama.cpp",
+  "evidence": "verified",
+  "upstream": {
+    "github": "ggml-org/llama.cpp",
+    "version": "b12069",
+    "released_at": "2026-11-03",
+    "status": "active"
+  },
+  "checked_at": "2026-11-04",
+  "sources": [
+    "https://github.com/ggml-org/llama.cpp/releases",
+    "https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md",
+    "https://github.com/ggml-org/llama.cpp/blob/master/docs/install.md",
+    "https://github.com/ggml-org/llama.cpp/blob/master/ggml/src/ggml-cuda/CMakeLists.txt",
+    "https://github.com/ggml-org/llama.cpp/blob/master/docs/backend/SYCL.md"
+  ],
+  "platforms": [
+    {
+      "os": ["linux", "windows"],
+      "accel": "cuda",
+      "min_compute_capability": "5.0",
+      "note": "CUDA 12 builds; the CUDA 13 builds start at compute capability 7.5"
+    },
+    {
+      "os": ["linux", "windows"],
+      "accel": "rocm",
+      "note": "ROCm 10 builds for gfx1010 to gfx1201"
+    },
+    {"os": ["linux", "windows", "darwin"], "accel": "vulkan"},
+    {"os": ["darwin"], "accel": "metal"},
+    {
+      "os": ["linux", "windows"],
+      "accel": "sycl",
+      "note": "Intel Arc and recent Intel iGPUs"
+    },
+    {"os": ["linux", "windows", "darwin"], "accel": "cpu"}
+  ],
+  "gguf": {},
+  "memory": ["gpu", "layer_offload", "expert_offload", "cpu"],
+  "serve": "llama-server -hf {repo}:{quant}",
+  "port": 9931,
+  "api": ["openai", "anthropic"],
+  "install": {
+    "docs": "https://github.com/ggml-org/llama.cpp/blob/master/docs/install.md",
+    "windows": "winget install ggml.llamacpp",
+    "darwin": "brew install llama.cpp",
+    "linux": "curl -LsSf https://llama.app/install.sh | sh"
+  },
+  "detect_binaries": ["llama-server", "llama"],
+  "note": "llama-server listens on 9931 by default since October 2026 and fits -ngl and expert offload to free memory unless --fit off is given."
+}
