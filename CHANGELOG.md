@@ -15,6 +15,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   they were checked, starting with llama.cpp, ik_llama.cpp, Ollama, LM Studio,
   KoboldCpp, Jan and Lemonade. It also shows which engines are installed,
   their version, and whether a server already answers on the engine's port.
+- The run line under the ranking uses an engine that can run the top pick
+  here and is already installed: a running one first, then an installed one,
+  then llama.cpp. `Run #1 with Ollama (installed)` prints the Ollama command,
+  with the llama.cpp command below it. When nothing suitable is installed the
+  line says how to install llama.cpp. The llama.cpp installer's single
+  `llama` binary gets `llama serve`, and a GGUF in one of ik_llama.cpp's own
+  quants gets an ik_llama.cpp command, since mainline cannot load it.
+  `--json` rows carry `engine`, `engines` and `engine_installed`, and the
+  recipe gains `engine` and `command`.
 
 ### Changed
 

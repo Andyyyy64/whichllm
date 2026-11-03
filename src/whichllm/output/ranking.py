@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import platform
 import re
 from math import log10
 
+from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -13,6 +15,8 @@ from whichllm.engine.context import context_cell
 from whichllm.engine.quantization import effective_quant_type
 from whichllm.engine.recipe import build_recipe
 from whichllm.engine.types import CompatibilityResult
+from whichllm.engines.cards import card_by_id, install_hint
+from whichllm.hardware import ram_bandwidth
 from whichllm.hardware.types import HardwareInfo
 from whichllm.output import _console
 from whichllm.output.formatting import (
@@ -445,14 +449,40 @@ def _older_names(result: CompatibilityResult, limit: int = 3) -> str:
     return ", ".join(names) + (f" and {extra} more" if extra > 0 else "")
 
 
+def _host_os() -> str:
+    name = platform.system().lower()
+    return name if name in ("linux", "windows", "darwin") else "linux"
+
+
 def _print_recipe(result: CompatibilityResult, context_length: int) -> None:
     recipe = build_recipe(result, context_length)
     if recipe is None:
         return
     console = _console.console
+    card = card_by_id(recipe.engine)
+    name = card.name if card else recipe.engine
+    installed = " (installed)" if result.engine_installed else ""
     console.print()
-    console.print("  [bold]Run #1 with llama.cpp:[/]")
-    console.print(Text(f"    {recipe.llama_cpp}", style="bold cyan"))
-    console.print(Text(f"  LM Studio: {recipe.lm_studio}", style="dim"))
+    if recipe.engine == "lm-studio":
+        console.print(f"  [bold]Run #1 in LM Studio{installed}:[/]")
+        console.print(
+            Text(
+                f"    {recipe.gguf_repo} {recipe.quant}, {recipe.lm_studio}",
+                style="bold cyan",
+            )
+        )
+    else:
+        console.print(f"  [bold]Run #1 with {escape(name)}{installed}:[/]")
+        console.print(Text(f"    {recipe.command}", style="bold cyan"))
+    if recipe.engine != "llama.cpp":
+        console.print(Text(f"  llama.cpp: {recipe.llama_cpp}", style="dim"))
+    if recipe.engine != "lm-studio":
+        console.print(Text(f"  LM Studio: {recipe.lm_studio}", style="dim"))
+    # Under WSL the engines may well be installed on the Windows side, which
+    # detection does not look at.
+    if result.engine_installed is False and card and not ram_bandwidth._is_wsl():
+        hint = install_hint(card, _host_os())
+        if hint:
+            console.print(Text(f"  {name} is not installed here; {hint}", style="dim"))
     for note in recipe.notes:
         console.print(Text(f"  {note}", style="dim"))

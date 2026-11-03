@@ -48,7 +48,7 @@ def _isolate_installed_engines(monkeypatch):
     The real search runs binaries on PATH and asks local ports.
     """
     monkeypatch.setattr(
-        "whichllm.engines.detect.detect_installed", lambda cards, os_name: {}
+        "whichllm.engines.detect.detect_installed", lambda cards, os_name, **kwargs: {}
     )
 
 

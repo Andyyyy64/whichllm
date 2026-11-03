@@ -32,14 +32,19 @@ class Recipe:
     lm_studio: str
     ollama: str
     notes: tuple[str, ...] = field(default=())
+    # The engine chosen for this row and its command (LM Studio's is its
+    # load settings).
+    engine: str = "llama.cpp"
+    command: str = ""
 
 
-def _gguf_source(result: CompatibilityResult) -> tuple[str, str] | None:
+def _gguf_source(result: CompatibilityResult) -> tuple[str, str, str] | None:
     if result.artifact_model is not None and result.artifact_variant is not None:
-        return result.artifact_model.id, result.artifact_variant.quant_type
+        variant = result.artifact_variant
+        return result.artifact_model.id, variant.quant_type, variant.filename
     variant = result.gguf_variant
     if variant is not None and not variant.is_estimated:
-        return result.model.id, variant.quant_type
+        return result.model.id, variant.quant_type, variant.filename
     return None
 
 
@@ -48,7 +53,7 @@ def build_recipe(result: CompatibilityResult, context_length: int) -> Recipe | N
     source = _gguf_source(result)
     if source is None:
         return None
-    repo, quant = source
+    repo, quant, filename = source
     placement = result.placement
     kind = placement.kind if placement else result.fit_type
 
@@ -85,13 +90,27 @@ def build_recipe(result: CompatibilityResult, context_length: int) -> Recipe | N
         flags.append("-ngl 0")
         lm_studio = "GPU Offload: 0"
 
+    server = "llama serve" if result.engine_binary == "llama" else "llama-server"
+    llama_cpp = f"{server} -hf {repo}:{quant} " + " ".join(flags)
+    ollama = f"ollama run hf.co/{repo}:{quant}"
+    engine = result.engine or "llama.cpp"
+    commands = {
+        "llama.cpp": llama_cpp,
+        # ik_llama.cpp predates "-hf repo:quant" and takes the repo and the
+        # file apart; the placement flags are the same.
+        "ik_llama.cpp": f"llama-server -hfr {repo} -hff {filename} " + " ".join(flags),
+        "ollama": ollama,
+        "lm-studio": lm_studio,
+    }
     return Recipe(
         gguf_repo=repo,
         quant=quant,
-        llama_cpp=f"llama-server -hf {repo}:{quant} " + " ".join(flags),
+        llama_cpp=llama_cpp,
         lm_studio=lm_studio,
-        ollama=f"ollama run hf.co/{repo}:{quant}",
+        ollama=ollama,
         notes=tuple(notes),
+        engine=engine,
+        command=commands.get(engine, llama_cpp),
     )
 
 

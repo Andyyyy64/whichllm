@@ -5,6 +5,7 @@ from __future__ import annotations
 from whichllm.engine.context import context_cell
 from whichllm.engine.quantization import effective_quant_type
 from whichllm.engine.recipe import build_recipe
+from whichllm.engines.cards import card_by_id
 from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.types import HardwareInfo
 from whichllm.output import _console
@@ -171,5 +172,13 @@ def display_markdown(
         build_recipe(results[0], context_length) if context_length is not None else None
     )
     if recipe is not None:
-        lines += ["", "Run #1 with llama.cpp:", "", "```bash", recipe.llama_cpp, "```"]
+        card = card_by_id(recipe.engine)
+        name = card.name if card else recipe.engine
+        if recipe.engine == "lm-studio":
+            lines += [
+                "",
+                f"Run #1 in LM Studio: {recipe.gguf_repo} {recipe.quant}, {recipe.lm_studio}",
+            ]
+        else:
+            lines += ["", f"Run #1 with {name}:", "", "```bash", recipe.command, "```"]
     _write_markdown("\n".join(lines))
