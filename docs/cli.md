@@ -169,8 +169,9 @@ The top-level `hardware` object also includes `usable_vram_bytes` per GPU,
 `ram_budget_bytes`, and `budget_notes` when memory budgets are active, plus
 `ram_bandwidth_gbps` and `ram_bandwidth_source` (`detected`, `unified`,
 `estimated`, `override` or `default`), `ram_available_bytes` (RAM free at
-start), and `pcie_generation` and `pcie_lanes` per GPU when NVML reports
-them.
+start), `disk_free_bytes`, and per GPU `pcie_generation` and `pcie_lanes`
+when NVML reports them and `detected_by` (`nvml`, `nvidia-smi` or
+`device-tree`) for NVIDIA GPUs.
 
 ## `hardware`
 
@@ -190,6 +191,11 @@ whichllm hardware --gpu "RTX 3060" --vram 12
 whichllm hardware --vram 8 --bandwidth 68
 whichllm hardware --gpu "4x RTX 4090"
 ```
+
+`whichllm hardware --json` prints the same `hardware` object as the ranking's
+JSON, with `ram_bandwidth_measured_gbps` filled in. Output flags belong after
+the command: `whichllm --json hardware` stops with an error instead of
+printing the panel.
 
 ## `plan`
 

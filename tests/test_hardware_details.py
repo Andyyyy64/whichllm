@@ -217,3 +217,44 @@ def test_unified_memory_is_not_measured(monkeypatch):
 
     measure.assert_not_called()
     assert "measured" not in output
+
+
+def test_hardware_json_carries_the_panel_and_the_measurement(monkeypatch):
+    # #190: `whichllm hardware --json` used to be "No such option".
+    measure = Mock(return_value=77.4)
+    monkeypatch.setattr("whichllm.hardware.detector.detect_hardware", _desktop)
+    monkeypatch.setattr(
+        "whichllm.hardware.ram_measure.measure_ram_bandwidth_gbps", measure
+    )
+
+    result = CliRunner().invoke(app, ["hardware", "--json"])
+
+    assert result.exit_code == 0, result.output
+    hardware = json.loads(result.output)["hardware"]
+    assert hardware["gpus"][0]["pcie_lanes"] == 16
+    assert hardware["ram_available_bytes"] == 41 * _GiB
+    assert hardware["ram_bandwidth_measured_gbps"] == 77.4
+    assert hardware["disk_free_bytes"] == 500 * _GiB
+
+
+def test_json_before_hardware_is_refused_instead_of_ignored(monkeypatch):
+    # #190: `whichllm --json hardware` printed the panel and exited 0, so a script
+    # piping it to jq got rich text instead of JSON.
+    monkeypatch.setattr(
+        "whichllm.hardware.detector.detect_hardware",
+        Mock(side_effect=AssertionError("must stop before detecting")),
+    )
+
+    result = CliRunner().invoke(app, ["--json", "hardware"])
+    output = " ".join(result.output.split())
+
+    assert result.exit_code == 2
+    assert "--json goes after the command: whichllm hardware --json" in output
+
+
+def test_an_output_flag_a_command_lacks_says_so():
+    result = CliRunner().invoke(app, ["--markdown", "plan", "qwen 8b"])
+    output = " ".join(result.output.split())
+
+    assert result.exit_code == 2
+    assert "whichllm plan has no --markdown output" in output

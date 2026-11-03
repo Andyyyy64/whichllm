@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- `whichllm hardware --json` prints the hardware object as JSON, the same
+  one the ranking's JSON carries, with the measured RAM bandwidth. A
+  `--json` or `--markdown` given before a command such as `hardware` used
+  to be ignored without a word; it now stops with an error that says where
+  the flag goes. (#190)
 - Jetson AGX Xavier and Xavier NX boards are detected on JetPack 5, which ships
   neither NVML nor `nvidia-smi`. When no NVIDIA tool lists a GPU, a module
   identified from the device tree becomes the GPU while its driver's device

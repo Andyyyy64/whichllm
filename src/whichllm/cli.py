@@ -459,9 +459,11 @@ def hardware(
         "--gpu-index",
         help="Detected GPU index to override when multiple GPUs are present",
     ),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
 ):
     """Show detected hardware information only."""
     return hardware_command(
+        json_output=json_output,
         cpu_only=cpu_only,
         gpu=gpu,
         vram=vram,
