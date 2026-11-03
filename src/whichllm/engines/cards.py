@@ -48,7 +48,9 @@ _MODEL_KEYS = frozenset({"id", "name", "base", "platforms", "packs", "note"})
 _PACK_KEYS = frozenset(
     {"id", "name", "repo", "quant", "launch", "requires", "platforms", "note"}
 )
-_REQUIRES_KEYS = frozenset({"disk_gb", "vram_gb", "ram_gb", "memory_gb", "ssd", "nvme"})
+_REQUIRES_KEYS = frozenset(
+    {"disk_gb", "vram_gb", "ram_gb", "memory_gb", "ssd", "nvme", "unified_memory"}
+)
 _SSD_KEYS = frozenset({"ram_gb", "vram_gb"})
 
 _DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
@@ -96,6 +98,9 @@ class Requires:
     ssd_ram_gb: float | None = None
     ssd_vram_gb: float | None = None
     nvme: bool = False  # the docs ask for an NVMe drive
+    # Runs only where the GPU shares system RAM (a Mac, DGX Spark, Strix Halo),
+    # so RAM and VRAM are one pool and a discrete GPU's RAM does not count.
+    unified_memory: bool = False
 
 
 @dataclass(frozen=True)
@@ -288,6 +293,7 @@ def _requires(raw, path: Path, where: str) -> Requires:
         ssd_ram_gb=_gb(ssd, "ram_gb", path, where),
         ssd_vram_gb=_gb(ssd, "vram_gb", path, where),
         nvme=bool(raw.get("nvme", False)),
+        unified_memory=bool(raw.get("unified_memory", False)),
     )
     if (
         requires.ram_gb is None

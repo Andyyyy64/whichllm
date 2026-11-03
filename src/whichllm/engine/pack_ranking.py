@@ -80,11 +80,15 @@ def _row(
             confidence = max(0.0, min(1.0, evidence.confidence))
             bench_avg = evidence.score * (0.75 + 0.25 * confidence)
     in_memory = option.fit.tier == "memory"
+    # An engine that runs here on the CPU only (WARP) is a CPU-only fit, with
+    # the ranking's discount for one.
+    on_cpu = option.platform is not None and option.platform.accel == "cpu"
+    fit_type = "cpu_only" if on_cpu else "partial_offload"
     score = _compute_quality_score(
         base,
         variant,
         USABLE_SPEED_TOK_S,
-        "partial_offload",
+        fit_type,
         offload_ratio=0.0 if in_memory else _SSD_OFFLOAD_RATIO,
         placement="expert_offload" if in_memory else None,
         family_downloads=family_downloads,
@@ -104,7 +108,7 @@ def _row(
         speed_confidence="low",
         warnings=[option.fit.reason] if option.fit.reason else [],
         quality_score=score,
-        fit_type="partial_offload",
+        fit_type=fit_type,
         benchmark_status=_status(evidence),
         benchmark_source=evidence.source,
         benchmark_confidence=evidence.confidence,
@@ -215,4 +219,13 @@ def _preference(row: CompatibilityResult) -> tuple[bool, float]:
     return row.pack_tier == "memory", row.quality_score
 
 
-__all__ = ["PACK_ROW_LIMIT", "rank_pack_rows"]
+def pack_tiers(row: CompatibilityResult) -> list[str]:
+    """Where a pack row's weights live: GPU and RAM, or RAM alone for a CPU
+    engine, then the SSD when experts are read from it."""
+    tiers = ["RAM"] if row.fit_type == "cpu_only" else ["GPU", "RAM"]
+    if row.pack_tier == "ssd":
+        tiers.append("SSD")
+    return tiers
+
+
+__all__ = ["PACK_ROW_LIMIT", "pack_tiers", "rank_pack_rows"]

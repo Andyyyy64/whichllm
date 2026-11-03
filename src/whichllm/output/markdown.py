@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from whichllm.engine.context import context_cell
+from whichllm.engine.pack_ranking import pack_tiers
 from whichllm.engine.quantization import effective_quant_type
 from whichllm.engine.recipe import build_recipe
 from whichllm.engines.cards import card_by_id
@@ -197,7 +198,7 @@ def display_markdown(
                         _engine_name(result.engine),
                         result.pack_name or "-",
                         effective_quant_type(result.model, result.gguf_variant),
-                        "GPU+RAM" if result.pack_tier == "memory" else "GPU+RAM+SSD",
+                        "+".join(pack_tiers(result)),
                         _format_markdown_score(result),
                     ]
                     for result in pack_rows

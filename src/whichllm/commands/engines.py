@@ -24,6 +24,7 @@ def engines_command(
 
     from whichllm.engines import availability, load_cards
     from whichllm.engines.detect import detect_installed
+    from whichllm.engines.packs import with_packs
     from whichllm.hardware import ram_bandwidth
     from whichllm.hardware.detector import detect_hardware
     from whichllm.output.engines import display_engines, display_engines_json
@@ -59,7 +60,7 @@ def engines_command(
     # WSL is a fact about this machine, so a simulated GPU leaves it out.
     wsl = installed is not None and ram_bandwidth._is_wsl()
     rows = sorted(
-        (availability(card, hw, wsl=wsl) for card in cards),
+        (with_packs(availability(card, hw, wsl=wsl), hw, wsl=wsl) for card in cards),
         key=lambda row: (
             not row.runs,
             installed is not None and row.card.id not in installed,

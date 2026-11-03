@@ -25,11 +25,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   `--json` rows carry `engine`, `engines` and `engine_installed`, and the
   recipe gains `engine` and `command`.
 - Engine cards describe fixed-model engines too, which run a short list of
-  large MoE models from their own packs. Strata and Project Maya come first.
-  Each pack lists its download and what it needs in GPU memory, RAM, or RAM
-  and VRAM together, and how little RAM the engine gets by with while it
-  reads experts from the SSD. `whichllm engines` lists them and says when one
-  does not run under WSL, as Project Maya does not.
+  large MoE models from their own packs. The first are Strata, Project Maya,
+  colibri, DwarfStar (ds4), WARP and TurboFieldfare. Each pack lists its download and
+  what it needs in GPU memory, RAM, or RAM and VRAM together, how little RAM
+  the engine gets by with while it reads experts from the SSD, and whether it
+  needs a GPU that shares system RAM. `whichllm engines` lists them with how
+  many of each engine's packs fit here, and says when one does not run under
+  WSL, as Project Maya does not.
 - Under the ranking, rows marked + show models a fixed-model engine runs here
   when llama.cpp cannot place them, such as Qwen3.8-Flash-Next with Strata on
   a 16 GB GPU and 64 GB of RAM. They are scored like the ranked rows and show

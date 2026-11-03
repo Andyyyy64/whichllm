@@ -221,14 +221,17 @@ checked. The evidence column says how much stands behind it. `verified` means
 whichllm's own `bench` runs match the estimates, `community` means public
 benchmarks exist, and `documented` means only the engine's docs. The cards
 cover llama.cpp, ik_llama.cpp, Ollama, LM Studio, KoboldCpp, Jan and Lemonade,
-and the fixed-model engines Strata and Project Maya.
+and the fixed-model engines Strata, Project Maya, colibri, DwarfStar (ds4),
+WARP and TurboFieldfare.
 
 A fixed-model engine's card also lists the models it runs and its packs for
 each, with the download and what the pack needs in GPU memory, RAM, or RAM
 and VRAM together, and how little RAM the engine runs with while it reads
-experts from the SSD. A GPU that shares system RAM counts once. A card can
-also say the engine does not run under WSL, and `engines` then says so on a
-WSL machine.
+experts from the SSD. A GPU that shares system RAM counts once, and a pack
+can need one (DwarfStar's all do). For these engines the Runs here column
+counts the packs that fit, and says no when none does, with the reason most
+packs give. A card can also say the engine does not run under WSL, and
+`engines` then says so on a WSL machine.
 
 The Installed column says which engines are already on this machine, with
 their version and whether a server answers on the engine's default port.

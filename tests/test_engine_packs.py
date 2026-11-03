@@ -211,3 +211,32 @@ def test_maya_does_not_run_under_wsl():
     assert under_wsl["project-maya"].reason == "does not run under WSL"
     assert under_wsl["strata"].runs
     assert on_linux["project-maya"].runs
+
+
+def test_ds4_needs_a_gpu_that_shares_system_ram():
+    pack = _pack("ds4", "qwen3.8-flash-next", "qwen38-q2")
+    desktop = _machine(vram_gb=24, ram_gb=128, os="linux")
+    mac = _machine(vram_gb=48, ram_gb=64, vendor="apple", os="darwin")
+
+    assert pack_fit(pack, desktop).reason == (
+        "needs a GPU that shares system RAM (a Mac, DGX Spark or Strix Halo)"
+    )
+    assert pack_fit(pack, mac).tier == "memory"
+
+
+def test_the_engines_table_counts_the_packs_that_fit():
+    from whichllm.engines import availability
+    from whichllm.engines.packs import with_packs
+
+    desktop = _machine(vram_gb=16, ram_gb=64, os="linux")
+    ds4 = with_packs(availability(BY_ID["ds4"], desktop), desktop)
+    strata = with_packs(availability(BY_ID["strata"], desktop), desktop)
+    total = sum(len(m.packs) for m in BY_ID["strata"].models)
+
+    assert not ds4.runs
+    assert ds4.reason == (
+        "no pack fits, needs a GPU that shares system RAM (a Mac, DGX Spark or "
+        "Strix Halo)"
+    )
+    assert strata.runs
+    assert strata.reason.endswith(f" of {total} packs fit")

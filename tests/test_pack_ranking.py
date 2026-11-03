@@ -5,7 +5,7 @@ from io import StringIO
 
 from rich.console import Console
 
-from whichllm.engine.pack_ranking import rank_pack_rows
+from whichllm.engine.pack_ranking import pack_tiers, rank_pack_rows
 from whichllm.engine.types import CompatibilityResult
 from whichllm.engines import load_cards
 from whichllm.engines.detect import Installed
@@ -14,6 +14,7 @@ from whichllm.models.types import GGUFVariant, ModelInfo
 
 _GiB = 1024**3
 CARDS = load_cards()
+STRATA = tuple(card for card in CARDS if card.id == "strata")
 BASE = "Qwen/Qwen3.8-Flash-Next"
 PACKS = "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF"
 
@@ -72,11 +73,11 @@ def _shown(score: float, family: str = "other/family") -> CompatibilityResult:
     )
 
 
-def _rows(hardware=None, shown=(), **kwargs):
+def _rows(hardware=None, shown=(), cards=STRATA, **kwargs):
     return rank_pack_rows(
         _catalog(),
         hardware or _machine(),
-        CARDS,
+        cards,
         shown=list(shown),
         benchmark_scores={BASE: 80.0},
         **kwargs,
@@ -88,7 +89,6 @@ def test_a_pack_the_ranking_could_not_place_gets_a_row():
 
     assert len(rows) == 1
     row = rows[0]
-    assert row.engine == "strata"
     assert row.model.id == BASE
     assert row.artifact_model.id == PACKS
     assert row.pack_tier == "memory"
@@ -224,3 +224,32 @@ def test_a_pack_in_memory_comes_before_one_read_from_the_ssd():
 
     assert row.pack_name == "Gyro-M"
     assert row.pack_tier == "memory"
+
+
+def test_a_cpu_engine_is_a_cpu_only_fit():
+    # WARP runs on the CPU only; with Qwen3.8-Flash-Next's experts read from
+    # the SSD it needs about 3 GB of RAM.
+    rows = rank_pack_rows(
+        _catalog(),
+        _machine(ram_gb=16),
+        tuple(c for c in CARDS if c.id == "warp"),
+        shown=[],
+        benchmark_scores={BASE: 80.0},
+    )
+
+    row = rows[0]
+    assert row.engine == "warp"
+    assert row.fit_type == "cpu_only"
+    assert row.pack_tier == "ssd"
+    assert pack_tiers(row) == ["RAM", "SSD"]
+
+
+def test_each_engine_adds_one_row_per_model_best_first():
+    rows = _rows(cards=CARDS)
+    engines = [row.engine for row in rows]
+
+    assert len(engines) == len(set(engines))
+    assert "strata" in engines
+    assert [r.quality_score for r in rows] == sorted(
+        (r.quality_score for r in rows), reverse=True
+    )
