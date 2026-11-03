@@ -13,7 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   not (an old GPU below an engine's CUDA build, no macOS build, no AVX2). Each
   engine has a card written from its own docs with the sources and the date
   they were checked, starting with llama.cpp, ik_llama.cpp, Ollama, LM Studio,
-  KoboldCpp, Jan and Lemonade.
+  KoboldCpp, Jan and Lemonade. It also shows which engines are installed,
+  their version, and whether a server already answers on the engine's port.
 
 ### Changed
 

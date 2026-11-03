@@ -16,33 +16,69 @@
   ],
   "platforms": [
     {
-      "os": ["linux", "windows"],
+      "os": [
+        "linux",
+        "windows"
+      ],
       "accel": "cuda",
       "min_compute_capability": "7.5",
       "note": "Turing and newer are fully supported; Pascal and Volta only partly"
     },
     {
-      "os": ["linux", "windows"],
+      "os": [
+        "linux",
+        "windows"
+      ],
       "accel": "cpu",
       "note": "AVX2 or NEON"
     }
   ],
   "gguf": {
     "extra": [
-      "Q6_0", "IQ1_BN", "IQ2_BN",
-      "IQ2_K", "IQ3_K", "IQ4_K", "IQ5_K", "IQ6_K",
-      "IQ2_KS", "IQ3_KS", "IQ4_KS", "IQ5_KS", "IQ4_KSS", "IQ2_KL",
-      "IQ1_KT", "IQ2_KT", "IQ3_KT", "IQ4_KT"
+      "Q6_0",
+      "IQ1_BN",
+      "IQ2_BN",
+      "IQ2_K",
+      "IQ3_K",
+      "IQ4_K",
+      "IQ5_K",
+      "IQ6_K",
+      "IQ2_KS",
+      "IQ3_KS",
+      "IQ4_KS",
+      "IQ5_KS",
+      "IQ4_KSS",
+      "IQ2_KL",
+      "IQ1_KT",
+      "IQ2_KT",
+      "IQ3_KT",
+      "IQ4_KT"
     ],
-    "missing": ["TQ1_0", "TQ2_0", "NVFP4", "F8_E4M3"]
+    "missing": [
+      "TQ1_0",
+      "TQ2_0",
+      "NVFP4",
+      "F8_E4M3"
+    ]
   },
-  "memory": ["gpu", "layer_offload", "expert_offload", "cpu"],
+  "memory": [
+    "gpu",
+    "layer_offload",
+    "expert_offload",
+    "cpu"
+  ],
   "serve": "llama-server -m {file}",
   "port": 8080,
-  "api": ["openai", "anthropic"],
+  "api": [
+    "openai",
+    "anthropic"
+  ],
   "install": {
     "docs": "https://github.com/ikawrakow/ik_llama.cpp"
   },
-  "detect_binaries": [],
+  "detect_binaries": [
+    "llama-server"
+  ],
+  "help_marker": "--run-time-repack",
   "note": "Built from source or run from its Docker image. Its binaries share llama.cpp's names, and its own quants (IQ*_K, IQ*_KS, IQ*_KT and the repacked _R4/_R8 forms) do not load in mainline llama.cpp."
 }

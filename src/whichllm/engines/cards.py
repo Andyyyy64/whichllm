@@ -34,7 +34,8 @@ _CARD_KEYS = frozenset(
     {
         "id", "name", "kind", "url", "evidence", "upstream", "checked_at",
         "sources", "platforms", "gguf", "memory", "serve", "port", "api",
-        "install", "detect_binaries", "note",
+        "install", "detect_binaries", "detect_paths", "probe", "version_args",
+        "help_marker", "note",
     }
 )  # fmt: skip
 _UPSTREAM_KEYS = frozenset({"github", "version", "released_at", "status"})
@@ -42,6 +43,7 @@ _PLATFORM_KEYS = frozenset(
     {"os", "accel", "min_compute_capability", "requires_avx2", "note"}
 )
 _GGUF_KEYS = frozenset({"extra", "missing"})
+_PROBE_KEYS = frozenset({"path", "contains"})
 
 _DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 _CC_RE = re.compile(r"(\d+)\.(\d+)")
@@ -90,6 +92,15 @@ class EngineCard:
     api: tuple[str, ...]
     install: tuple[tuple[str, str], ...]
     detect_binaries: tuple[str, ...]
+    # (os or "all", path) pairs where an installer puts the engine.
+    detect_paths: tuple[tuple[str, str], ...] = ()
+    # GET this path on the default port; the reply must contain the text.
+    probe_path: str | None = None
+    probe_contains: str | None = None
+    # Arguments that print the version, for binaries where that is safe.
+    version_args: tuple[str, ...] = ()
+    # Text only this engine's --help prints, for a binary name it shares.
+    help_marker: str | None = None
     note: str | None = None
 
 
@@ -167,6 +178,32 @@ def _gguf(raw, path: Path) -> GgufSupport | None:
     )
 
 
+def _detect_paths(raw, path: Path) -> tuple[tuple[str, str], ...]:
+    if raw is None:
+        return ()
+    if not isinstance(raw, dict):
+        raise _fail(path, "'detect_paths' maps an OS or 'all' to a list of paths")
+    pairs = []
+    for os_key, paths in raw.items():
+        if os_key not in OSES | {"all"}:
+            raise _fail(path, f"'detect_paths' key {os_key!r} is not an OS or 'all'")
+        for entry in _strings(raw, os_key, path):
+            pairs.append((os_key, entry))
+    return tuple(pairs)
+
+
+def _probe(raw, path: Path) -> tuple[str | None, str | None]:
+    if raw is None:
+        return None, None
+    if not isinstance(raw, dict):
+        raise _fail(path, "'probe' must be an object")
+    _known_keys(raw, _PROBE_KEYS, "'probe'", path)
+    probe_path = _text(raw, "path", path)
+    if not probe_path.startswith("/"):
+        raise _fail(path, "'probe' path starts with '/'")
+    return probe_path, _text(raw, "contains", path)
+
+
 def parse_card(data: dict, path: Path) -> EngineCard:
     """Validate one card. Raises CardError naming the file and the field."""
     if not isinstance(data, dict):
@@ -193,6 +230,9 @@ def parse_card(data: dict, path: Path) -> EngineCard:
     port = data.get("port")
     if port is not None and not (isinstance(port, int) and 0 < port < 65536):
         raise _fail(path, f"'port' {port!r} is not a TCP port")
+    probe_path, probe_contains = _probe(data.get("probe"), path)
+    if probe_path is not None and port is None:
+        raise _fail(path, "'probe' needs the card's 'port'")
     card = EngineCard(
         id=_text(data, "id", path),
         name=_text(data, "name", path),
@@ -212,6 +252,11 @@ def parse_card(data: dict, path: Path) -> EngineCard:
         api=_strings(data, "api", path),
         install=tuple(sorted(install.items())),
         detect_binaries=_strings(data, "detect_binaries", path),
+        detect_paths=_detect_paths(data.get("detect_paths"), path),
+        probe_path=probe_path,
+        probe_contains=probe_contains,
+        version_args=_strings(data, "version_args", path),
+        help_marker=_text(data, "help_marker", path, optional=True),
         note=_text(data, "note", path, optional=True),
     )
     if path.stem != card.id:
