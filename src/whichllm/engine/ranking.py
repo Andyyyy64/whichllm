@@ -78,6 +78,31 @@ def _score_indices(scores: dict[str, float] | None) -> tuple:
     )
 
 
+def _family_stats(
+    models: list[ModelInfo],
+) -> tuple[dict[str, int], dict[str, int], dict[str, int]]:
+    """Per family, the most downloads and likes of any member, so GGUF
+    converters inherit popularity from the official base model, and the
+    parameter count of the most downloaded member.
+
+    The parameter count catches quasi-fork uploads whose size differs
+    drastically from the family proper (e.g. a 6.6B MTP-head extracted from a
+    158B base ending up tagged with the same family_id).
+    """
+    max_downloads: dict[str, int] = {}
+    max_likes: dict[str, int] = {}
+    dominant_params: dict[str, int] = {}
+    dominant_downloads: dict[str, int] = {}
+    for m in models:
+        fid = m.family_id
+        max_downloads[fid] = max(max_downloads.get(fid, 0), m.downloads)
+        max_likes[fid] = max(max_likes.get(fid, 0), m.likes)
+        if m.parameter_count and m.downloads >= dominant_downloads.get(fid, -1):
+            dominant_downloads[fid] = m.downloads
+            dominant_params[fid] = m.parameter_count
+    return max_downloads, max_likes, dominant_params
+
+
 def _lookup_evidence(
     model: ModelInfo,
     scores: dict[str, float],
@@ -138,23 +163,9 @@ def rank_models(
     results: list[CompatibilityResult] = []
     gguf_only_backend = _is_gguf_only_backend(hardware)
 
-    # Pre-compute max downloads/likes per family so GGUF converters
-    # inherit popularity from the official base model
-    family_max_downloads: dict[str, int] = {}
-    family_max_likes: dict[str, int] = {}
-    # Track the parameter count of the family's dominant member (highest
-    # downloads). Used to detect quasi-fork uploads whose params differ
-    # drastically from the family proper (e.g. a 6.6B MTP-head extracted
-    # from a 158B base ending up tagged with the same family_id).
-    family_dominant_params: dict[str, int] = {}
-    family_dominant_downloads: dict[str, int] = {}
-    for m in models:
-        fid = m.family_id
-        family_max_downloads[fid] = max(family_max_downloads.get(fid, 0), m.downloads)
-        family_max_likes[fid] = max(family_max_likes.get(fid, 0), m.likes)
-        if m.parameter_count and m.downloads >= family_dominant_downloads.get(fid, -1):
-            family_dominant_downloads[fid] = m.downloads
-            family_dominant_params[fid] = m.parameter_count
+    family_max_downloads, family_max_likes, family_dominant_params = _family_stats(
+        models
+    )
 
     # GGUF uploads by the repo they quantize: an official repo's synthetic
     # variants take the real size of the upload file they resolve to.

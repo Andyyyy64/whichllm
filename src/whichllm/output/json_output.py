@@ -87,16 +87,37 @@ def display_hardware_json(hardware: HardwareInfo) -> None:
     _console.console.print_json(json.dumps(output, ensure_ascii=False))
 
 
+def _pack_json(result: CompatibilityResult) -> dict:
+    return {
+        "model_id": result.model.id,
+        "artifact_repo_id": result.artifact_model.id if result.artifact_model else None,
+        "engine": result.engine,
+        "engine_installed": result.engine_installed,
+        "pack": result.pack_name,
+        "quant_type": effective_quant_type(result.model, result.gguf_variant),
+        "tier": result.pack_tier,
+        "vram_required_bytes": result.vram_required_bytes,
+        "quality_score": round(result.quality_score, 2),
+        "benchmark_status": result.benchmark_status,
+        "benchmark_source": result.benchmark_source,
+        "command": result.pack_launch,
+        "warnings": result.warnings,
+        "license": result.model.license,
+    }
+
+
 def display_json(
     results: list[CompatibilityResult],
     hardware: HardwareInfo,
     context_length: int | None = None,
     data: dict | None = None,
+    pack_rows: list[CompatibilityResult] | None = None,
 ) -> None:
     """Output ranking results as JSON.
 
     ``data`` says where the scores came from: the index's build time and its
-    benchmark sources, or a live fetch.
+    benchmark sources, or a live fetch. ``pack_rows`` go under
+    ``other_engines``: models a fixed-model engine runs here from its own pack.
     """
     output = {
         "hardware": hardware_json(hardware),
@@ -151,6 +172,7 @@ def display_json(
             }
             for i, r in enumerate(results, 1)
         ],
+        "other_engines": [_pack_json(r) for r in pack_rows or []],
     }
     if data is not None:
         output["data"] = data

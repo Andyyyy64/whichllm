@@ -274,6 +274,7 @@ def main_command(
                 except Exception as e:
                     progress.update(task, description=f"Model configs skipped: {e}")
         results = _rank(top)
+        pack_rows: list = []
 
         # 上位候補の公開日時が欠けている場合のみ補完して表示品質を上げる
         if results:
@@ -299,6 +300,26 @@ def main_command(
                 )
             )
             assign_engines(results, hardware, cards, installed)
+            from whichllm.engine.pack_ranking import rank_pack_rows
+            from whichllm.hardware.ram_bandwidth import _is_wsl
+
+            pack_rows = rank_pack_rows(
+                all_models,
+                hardware,
+                cards,
+                shown=results,
+                benchmark_scores=bench_scores,
+                task_scores=task_scores.get(profile),
+                task_profile=profile,
+                installed=installed,
+                # WSL belongs to this machine, not to a simulated one.
+                wsl=installed is not None and _is_wsl(),
+                quant_filter=quant,
+                min_speed=speed_filter,
+                min_params_b=min_params,
+                evidence_filter=evidence_mode,
+                fit_filter=fit_filter,
+            )
             from whichllm.models.lmstudio import (
                 attach_local_matches,
                 discover_lmstudio_ggufs,
@@ -339,7 +360,7 @@ def main_command(
                 "benchmark_sources": catalog.sources,
             }
         )
-        display_json(results, hardware, context_length, data)
+        display_json(results, hardware, context_length, data, pack_rows)
     elif markdown_output:
         display_markdown(
             results,
@@ -347,6 +368,7 @@ def main_command(
             show_status=status or not details,
             empty_message=empty_message,
             context_length=context_length,
+            pack_rows=pack_rows,
         )
     else:
         console.print()
@@ -358,6 +380,7 @@ def main_command(
             show_status=status or not details,
             empty_message=empty_message,
             context_length=context_length,
+            pack_rows=pack_rows,
         )
         _print_data_source(catalog)
         console.print()
