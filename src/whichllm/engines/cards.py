@@ -47,6 +47,7 @@ _PROBE_KEYS = frozenset({"path", "contains"})
 
 _DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 _CC_RE = re.compile(r"(\d+)\.(\d+)")
+_GITHUB_RE = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 
 
 class CardError(ValueError):
@@ -82,6 +83,7 @@ class EngineCard:
     status: str
     version: str | None
     released_at: str | None
+    github: str | None  # "owner/repo", when the source is on GitHub
     checked_at: str
     sources: tuple[str, ...]
     platforms: tuple[Platform, ...]
@@ -231,6 +233,9 @@ def parse_card(data: dict, path: Path) -> EngineCard:
     if port is not None and not (isinstance(port, int) and 0 < port < 65536):
         raise _fail(path, f"'port' {port!r} is not a TCP port")
     probe_path, probe_contains = _probe(data.get("probe"), path)
+    github = _text(upstream, "github", path, optional=True)
+    if github is not None and not _GITHUB_RE.fullmatch(github):
+        raise _fail(path, f"'github' {github!r} is not owner/repo")
     if probe_path is not None and port is None:
         raise _fail(path, "'probe' needs the card's 'port'")
     card = EngineCard(
@@ -242,6 +247,7 @@ def parse_card(data: dict, path: Path) -> EngineCard:
         status=_choice(upstream, "status", STATUSES, path),
         version=_text(upstream, "version", path, optional=True),
         released_at=_date(upstream, "released_at", path, optional=True),
+        github=github,
         checked_at=_date(data, "checked_at", path),
         sources=sources,
         platforms=tuple(_platform(p, path) for p in platforms),

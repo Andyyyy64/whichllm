@@ -1,0 +1,56 @@
+name: Engine upstream
+
+# Weekly, compares every engine card with its upstream repository and keeps
+# one issue listing the cards that need a fresh look, plus young repositories
+# that might be engines without a card. The issue closes when the list is
+# empty.
+
+on:
+  schedule:
+    - cron: "41 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: engine-upstream
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: uv sync --locked --dev
+      - name: Compare cards with upstream
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: uv run --locked python scripts/check_engine_upstream.py --out report.md
+      - name: Open, update or close the tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COUNT: ${{ steps.check.outputs.count }}
+        run: |
+          title='Engine cards to re-check'
+          number=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "$title in:title" \
+            --json number,title --jq "map(select(.title == \"$title\")) | .[0].number // empty")
+          if [ "$COUNT" -gt 0 ]; then
+            if [ -n "$number" ]; then
+              gh issue edit "$number" -R "$GITHUB_REPOSITORY" --body-file report.md
+            else
+              gh issue create -R "$GITHUB_REPOSITORY" --title "$title" --body-file report.md
+            fi
+          elif [ -n "$number" ]; then
+            gh issue close "$number" -R "$GITHUB_REPOSITORY" --comment "Every card matches its upstream again."
+          fi
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
