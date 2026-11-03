@@ -173,6 +173,34 @@ start), `disk_free_bytes`, and per GPU `pcie_generation` and `pcie_lanes`
 when NVML reports them and `detected_by` (`nvml`, `nvidia-smi` or
 `device-tree`) for NVIDIA GPUs.
 
+## `engines`
+
+```bash
+whichllm engines [OPTIONS]
+```
+
+Lists the inference engines whichllm knows and whether each runs on this
+machine, through which accelerator, or why not:
+
+```bash
+whichllm engines
+whichllm engines --gpu "GTX 1060"      # older cards fall back, and it says why
+whichllm engines --gpu "Apple M3 Max"  # a simulated Apple GPU is treated as a Mac
+whichllm engines --json
+```
+
+Each engine has a card in `src/whichllm/data/engines/`, written from the
+engine's own repository and docs, with the sources and the date they were
+checked. The evidence column says how much stands behind it. `verified` means
+whichllm's own `bench` runs match the estimates, `community` means public
+benchmarks exist, and `documented` means only the engine's docs. The cards
+cover llama.cpp, ik_llama.cpp, Ollama, LM Studio, KoboldCpp, Jan and Lemonade
+so far.
+
+`--json` prints the `hardware` object plus one row per engine with `runs`,
+`accel`, `reason`, `evidence`, the upstream `version`, the default `port`, the
+`serve` command, `install` hints and `sources`.
+
 ## `hardware`
 
 ```bash

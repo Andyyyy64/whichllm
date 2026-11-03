@@ -1,0 +1,40 @@
+{
+  "id": "jan",
+  "name": "Jan",
+  "kind": "runner",
+  "url": "https://github.com/janhq/jan",
+  "evidence": "documented",
+  "upstream": {
+    "github": "janhq/jan",
+    "version": "0.8.8",
+    "released_at": "2026-10-28",
+    "status": "active"
+  },
+  "checked_at": "2026-11-04",
+  "sources": [
+    "https://github.com/janhq/jan",
+    "https://github.com/janhq/jan/blob/main/docs/src/pages/docs/desktop/local-engine/llama-cpp.mdx",
+    "https://github.com/janhq/jan/blob/main/docs/src/pages/docs/desktop/cli.mdx"
+  ],
+  "platforms": [
+    {
+      "os": ["linux", "windows"],
+      "accel": "cuda",
+      "min_compute_capability": "7.5",
+      "note": "CUDA 13 build, which starts at compute capability 7.5"
+    },
+    {"os": ["linux", "windows"], "accel": "vulkan"},
+    {"os": ["darwin"], "accel": "metal"},
+    {"os": ["linux", "windows", "darwin"], "accel": "cpu"}
+  ],
+  "gguf": {},
+  "memory": ["gpu", "layer_offload", "expert_offload", "cpu"],
+  "serve": "jan serve {model}",
+  "port": 6767,
+  "api": ["openai"],
+  "install": {
+    "docs": "https://github.com/janhq/jan/releases"
+  },
+  "detect_binaries": ["jan"],
+  "note": "llama.cpp is compiled in and cannot be swapped. There is no ROCm build."
+}

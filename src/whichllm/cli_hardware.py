@@ -164,6 +164,10 @@ def _apply_gpu_overrides(
         except ValueError as e:
             console.print(f"[red]Error:[/] {e}")
             raise typer.Exit(code=1)
+        # A simulated Mac is a Mac: Metal and the macOS builds apply, not the
+        # host's OS.
+        if all(g.vendor == "apple" for g in hardware.gpus):
+            hardware.os = "darwin"
         if bandwidth is not None:
             if len(hardware.gpus) != 1:
                 console.print(

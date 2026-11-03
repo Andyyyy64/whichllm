@@ -159,6 +159,7 @@ whichllm --markdown               # pasteable table for issues and chats
 whichllm --json                   # rows include placement and the run recipe
 
 whichllm hardware                 # what was detected
+whichllm engines                  # which inference engines run here
 whichllm plan "qwen3 32b"         # what GPU a model needs
 whichllm upgrade "RTX 4090" "RTX 5090"   # compare against candidate GPUs
 whichllm run                      # download the top pick and chat with it

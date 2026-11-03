@@ -112,7 +112,7 @@ def _print_data_source(catalog) -> None:
 
 
 # Subcommands with their own --json; none has --markdown.
-_JSON_SUBCOMMANDS = frozenset({"hardware", "plan", "upgrade"})
+_JSON_SUBCOMMANDS = frozenset({"engines", "hardware", "plan", "upgrade"})
 
 
 def _refuse_output_flag_before(
