@@ -58,11 +58,18 @@ def _blocker(
     return None
 
 
-def availability(card: EngineCard, hardware: HardwareInfo) -> Availability:
-    """The best accelerator the engine can use here, or why it cannot run."""
+def availability(
+    card: EngineCard, hardware: HardwareInfo, *, wsl: bool = False
+) -> Availability:
+    """The best accelerator the engine can use here, or why it cannot run.
+
+    ``wsl`` says the machine is Linux under WSL, which some engines refuse.
+    """
     on_os = [p for p in card.platforms if hardware.os in p.os]
     if not on_os:
         return Availability(card, None, f"no {_OS_NAMES[hardware.os]} build")
+    if wsl and not card.runs_in_wsl:
+        return Availability(card, None, "does not run under WSL")
     gpu = _main_gpu(hardware)
     wanted = list(_VENDOR_ACCELS.get(gpu.vendor, ())) if gpu else []
     best = wanted[0] if wanted else None

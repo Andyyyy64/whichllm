@@ -56,8 +56,10 @@ def engines_command(
         if progress:
             progress.remove_task(task)
 
+    # WSL is a fact about this machine, so a simulated GPU leaves it out.
+    wsl = installed is not None and ram_bandwidth._is_wsl()
     rows = sorted(
-        (availability(card, hw) for card in cards),
+        (availability(card, hw, wsl=wsl) for card in cards),
         key=lambda row: (
             not row.runs,
             installed is not None and row.card.id not in installed,
@@ -65,7 +67,6 @@ def engines_command(
             row.card.name.lower(),
         ),
     )
-    wsl = installed is not None and ram_bandwidth._is_wsl()
     if json_output:
         display_engines_json(rows, hw, installed)
         return
