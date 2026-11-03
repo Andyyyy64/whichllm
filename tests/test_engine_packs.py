@@ -201,6 +201,7 @@ def test_maya_has_no_mac_build_outside_glm():
 
     assert maya["glm-5.3-flash"].fit.runs
     assert maya["minimax-m3.1-flash"].fit.reason == "no macOS build"
+    assert maya["deepseek-v4.1-flash-1017"].fit.reason == "no macOS build"
 
 
 def test_maya_does_not_run_under_wsl():
