@@ -4,13 +4,23 @@ The ranking asks whether llama.cpp can place a model. A fixed-model engine
 such as Strata needs less memory for its own models, because it keeps a large
 n-gram table on the SSD or reads cold experts from it, so it can run a model
 the ranking had to leave out. These rows show that, scored the way the ranking
-scores its own. Their speed is not estimated: the engines publish their own
-numbers, and whichllm has not measured them yet.
+scores its own.
+
+A pack held in memory is timed the way llama.cpp would run the same file with
+its experts in RAM. That is a floor: the engines report faster runs (Strata
+about three times llama.cpp's on its own packs), and their docs' numbers come
+with the row. A pack that reads experts from the SSD is not timed.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from whichllm.constants import QUANT_QUALITY_PENALTY
+from whichllm.engine.moe import routed_expert_fraction
+from whichllm.engine.performance import estimate_tok_per_sec
+from whichllm.engine.placement import Placement
+from whichllm.engine.quantization import quant_quality_penalty, resident_weight_bytes
 from whichllm.engine.ranking import _family_stats, _lookup_evidence, _score_indices
 from whichllm.engine.ranking_filters import (
     _knowledge_capacity_b,
@@ -30,11 +40,57 @@ from whichllm.models.types import GGUFVariant, ModelInfo
 _GiB = 1024**3
 # Pack rows shown under the ranking at most.
 PACK_ROW_LIMIT = 3
-# Speed is unknown, so a pack that fits in memory is scored as if it ran at
-# the usable bar, neither rewarded nor held back for speed. One that reads
-# experts from the SSD is scored like a model with half its layers in RAM,
-# which is what "much slower" in the engines' docs comes to.
+# A pack that reads experts from the SSD is not timed. It is scored as if it
+# ran at the usable bar, with the factor for half its layers in RAM, which is
+# what "much slower" in the engines' docs comes to.
 _SSD_OFFLOAD_RATIO = 0.5
+_ALTERNATIVES_PER_ROW = 2
+
+
+@dataclass(frozen=True)
+class EngineAlternative:
+    """A fixed-model engine that also runs a ranked model here, from memory."""
+
+    engine: str
+    pack_name: str
+    launch: str
+    docs_speed: tuple[float, str] | None
+
+
+def _docs_speed(pack: Pack) -> tuple[float, str] | None:
+    if pack.docs_speed is None:
+        return None
+    return pack.docs_speed.tok_per_sec, pack.docs_speed.hardware
+
+
+def _floor_speed(
+    model: ModelInfo, variant: GGUFVariant, hardware: HardwareInfo, on_cpu: bool
+) -> float:
+    """llama.cpp's speed for the same file with every routed expert in RAM."""
+    bandwidth = hardware.ram_bandwidth_gbps
+    if on_cpu or not hardware.gpus:
+        return estimate_tok_per_sec(
+            model, variant, None, "cpu_only", ram_bandwidth_gbps=bandwidth
+        )
+    gpu = max(hardware.gpus, key=lambda g: g.vram_bytes)
+    resident = resident_weight_bytes(model, variant)
+    experts = int(resident * routed_expert_fraction(model))
+    if experts <= 0:
+        return estimate_tok_per_sec(model, variant, gpu, "full_gpu")
+    placement = Placement(
+        "expert_offload",
+        gpu_weight_bytes=resident - experts,
+        cpu_weight_bytes=experts,
+        num_layers=model.shape.num_layers if model.shape else None,
+    )
+    return estimate_tok_per_sec(
+        model,
+        variant,
+        gpu,
+        "partial_offload",
+        placement=placement,
+        ram_bandwidth_gbps=bandwidth,
+    )
 
 
 def _pack_variant(pack: Pack, artifact: ModelInfo | None) -> GGUFVariant:
@@ -84,10 +140,20 @@ def _row(
     # the ranking's discount for one.
     on_cpu = option.platform is not None and option.platform.accel == "cpu"
     fit_type = "cpu_only" if on_cpu else "partial_offload"
+    speed = None
+    if in_memory:
+        # 0.0 when the GPU's bandwidth is unknown, which is no estimate either.
+        speed = _floor_speed(artifact or base, variant, hardware, on_cpu) or None
+    docs = _docs_speed(pack)
+    notes = []
+    if speed is not None:
+        notes.append("llama.cpp's speed for this file, a floor for the engine")
+    if docs is not None:
+        notes.append(f"{option.card.name}'s docs: {docs[0]:g} tok/s on {docs[1]}")
     score = _compute_quality_score(
         base,
         variant,
-        USABLE_SPEED_TOK_S,
+        speed or USABLE_SPEED_TOK_S,
         fit_type,
         offload_ratio=0.0 if in_memory else _SSD_OFFLOAD_RATIO,
         placement="expert_offload" if in_memory else None,
@@ -105,8 +171,9 @@ def _row(
         can_run=True,
         vram_required_bytes=int((pack.requires.vram_gb or 0) * _GiB),
         vram_available_bytes=largest,
-        estimated_tok_per_sec=None,
+        estimated_tok_per_sec=speed,
         speed_confidence="low",
+        speed_notes=notes,
         warnings=[option.fit.reason] if option.fit.reason else [],
         quality_score=score,
         fit_type=fit_type,
@@ -122,7 +189,59 @@ def _row(
         pack_tier=option.fit.tier,
         pack_name=pack.name,
         pack_launch=pack.launch,
+        pack_docs_speed=docs,
     )
+
+
+def attach_engine_alternatives(
+    results: list[CompatibilityResult],
+    models: list[ModelInfo],
+    hardware: HardwareInfo,
+    cards: tuple[EngineCard, ...],
+    *,
+    wsl: bool = False,
+) -> None:
+    """Name the fixed-model engines that also run a ranked model here.
+
+    For each row that is not itself an engine's pack, up to two engines whose
+    pack of the same model family fits in memory are listed, those with a
+    speed in their docs first, each with its best-rated pack: the smallest
+    quality penalty, then the larger file.
+    """
+    catalog = {m.id.casefold(): m for m in models}
+    best: dict[tuple[str, str], tuple[tuple[float, int], PackOption]] = {}
+    for option in pack_options(cards, hardware, wsl=wsl):
+        if option.fit.tier != "memory":
+            continue
+        base = catalog.get(option.model.base.casefold())
+        if base is None:
+            continue
+        repo = option.pack.repo
+        artifact = catalog.get(repo.casefold()) if repo else None
+        variant = _pack_variant(option.pack, artifact)
+        rank = (
+            -quant_quality_penalty(base, variant, repo),
+            variant.file_size_bytes,
+        )
+        key = (base.family_id, option.card.id)
+        if key not in best or rank > best[key][0]:
+            best[key] = (rank, option)
+    for result in results:
+        if result.pack_launch:
+            continue
+        family = result.model.family_id
+        alternatives = [
+            EngineAlternative(
+                engine=option.card.id,
+                pack_name=option.pack.name,
+                launch=option.pack.launch,
+                docs_speed=_docs_speed(option.pack),
+            )
+            for (fam, _), (_, option) in sorted(best.items())
+            if fam == family
+        ]
+        alternatives.sort(key=lambda a: a.docs_speed is None)
+        result.engine_alternatives = alternatives[:_ALTERNATIVES_PER_ROW]
 
 
 def rank_pack_rows(
@@ -146,30 +265,27 @@ def rank_pack_rows(
     """Packs that run here and would earn a place in ``shown``, the ranking.
 
     A row qualifies when it outscores the ranking's last row and the ranking
-    has nothing better from the same family. Each engine contributes its best
-    pack per model, one that fits in memory before one that reads the SSD.
+    has no row of its family. A model llama.cpp already ranks keeps that row,
+    and the engine is named beside it instead (attach_engine_alternatives),
+    since both are timed alike. Each engine contributes its best pack per
+    model, one that fits in memory before one that reads the SSD.
     """
-    # Their speed is unknown and they never fit the GPU alone.
-    if min_speed is not None or fit_filter == "full_gpu":
+    # They never fit the GPU alone.
+    if fit_filter == "full_gpu":
         return []
     catalog = {m.id.casefold(): m for m in models}
     downloads, likes, dominant_params = _family_stats(models)
     general_indices = _score_indices(benchmark_scores)
     task_indices = _score_indices(task_scores)
     floor = min((r.quality_score for r in shown), default=0.0)
-    best_in_family: dict[str, float] = {}
-    for result in shown:
-        family = result.model.family_id
-        best_in_family[family] = max(
-            best_in_family.get(family, 0.0), result.quality_score
-        )
+    ranked_families = {result.model.family_id for result in shown}
 
     best: dict[tuple[str, str], CompatibilityResult] = {}
     for option in pack_options(cards, hardware, wsl=wsl):
         if not option.fit.runs:
             continue
         base = catalog.get(option.model.base.casefold())
-        if base is None:
+        if base is None or base.family_id in ranked_families:
             continue
         if quant_filter and option.pack.quant != quant_filter.upper():
             continue
@@ -206,7 +322,8 @@ def rank_pack_rows(
         )
         if row.quality_score <= floor and shown:
             continue
-        if row.quality_score <= best_in_family.get(base.family_id, 0.0):
+        # A pack read from the SSD is not timed, so a speed floor leaves it out.
+        if min_speed is not None and (row.estimated_tok_per_sec or 0) < min_speed:
             continue
         key = (option.card.id, option.model.id)
         current = best.get(key)
@@ -252,4 +369,11 @@ def pack_tiers(row: CompatibilityResult) -> list[str]:
     return tiers
 
 
-__all__ = ["PACK_ROW_LIMIT", "merge_pack_rows", "pack_tiers", "rank_pack_rows"]
+__all__ = [
+    "EngineAlternative",
+    "PACK_ROW_LIMIT",
+    "attach_engine_alternatives",
+    "merge_pack_rows",
+    "pack_tiers",
+    "rank_pack_rows",
+]

@@ -299,7 +299,11 @@ def main_command(
                 )
             )
             assign_engines(results, hardware, cards, installed)
-            from whichllm.engine.pack_ranking import merge_pack_rows, rank_pack_rows
+            from whichllm.engine.pack_ranking import (
+                attach_engine_alternatives,
+                merge_pack_rows,
+                rank_pack_rows,
+            )
             from whichllm.hardware.ram_bandwidth import _is_wsl
 
             pack_rows = rank_pack_rows(
@@ -333,6 +337,13 @@ def main_command(
             attach_local_matches(results, local_models)
             # A model another engine runs here takes its place by score.
             results = merge_pack_rows(results, pack_rows, top)
+            attach_engine_alternatives(
+                results,
+                all_models,
+                hardware,
+                cards,
+                wsl=installed is not None and _is_wsl(),
+            )
             try:
                 if catalog is None and _fill_missing_published_at(
                     all_models, results, fetch_model_published_at

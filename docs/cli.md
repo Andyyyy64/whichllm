@@ -146,16 +146,16 @@ llama-server with `--n-cpu-moe 12`.
 
 When a fixed-model engine can run a model here that llama.cpp cannot place,
 that model takes its rank in the list like any other, with the engine and its
-pack named under it. On a 16 GB GPU with 64 GB of RAM it looks like this:
+pack named under it. On a 16 GB GPU with 56 GB of RAM:
 
 ```text
-│   4 │ Qwen/Qwen3.6-35B-A3B           │  Q6_K  │  27.3 GB │ GPU+RAM  │   41.8 tok/s ? │  71.7 │
-│   5 │ Qwen/Qwen3.8-Flash-Next        │ IQ3_S  │  77.9 GB │ GPU+RAM  │              ? │  71.3 │
-│     │ with Strata, ISTA-DASLab IQ3_S │        │          │ 12.0 GB  │      docs only │       │
-│   6 │ unsloth/gemma-4-12b-it-GGUF    │  Q8_0  │  11.8 GB │ Full GPU │     61.9 tok/s │  70.3 │
+│   1 │ Qwen/Qwen3.8-27B                 │ Q3_K_M │  12.5 GB │ Full GPU │     59.0 tok/s │  86.2 │
+│   2 │ Qwen/Qwen3.8-Flash-Next          │ IQ3_X… │  70.6 GB │ GPU+RAM  │   26.6 tok/s ? │  83.7 │
+│     │ with Strata, ISTA-DASLab IQ3_XXS │        │          │ 12.0 GB  │        docs 62 │       │
+│   3 │ google/gemma-4-31B-it            │ Q3_K_M │  13.7 GB │ Full GPU │     54.4 tok/s │  74.5 │
 
-  Run #5 with Strata:
-    strata launch --family qwen --model iq3_s
+  Run #2 with Strata:
+    strata launch --family qwen --model iq3_xxs
 ```
 
 A fixed-model engine runs a short list of large MoE models from its own packs
@@ -165,15 +165,33 @@ A pack fits in GPU and RAM, or runs while it reads experts from the SSD (Fit
 says `GPU+RAM +SSD`, and the docs call it much slower). It is scored like the
 other rows, from the base model's benchmarks and the quant of the pack's
 experts, and enters only when it outscores the last row llama.cpp could place
-and nothing ranked from its family scores higher. It then counts toward
-`--top` like any row. Each engine adds its best pack per model, and at most
-three such rows are added. Speed shows `?` because only the engines' own
-numbers exist so far, so the score assumes the 8 tok/s usable bar. When such a
-row is the top pick, the run line is the engine's command. `--min-speed` and
-`--gpu-only` leave these rows out. In `--json` the row carries `pack` (`name`
-and `tier`, `memory` or `ssd`), and its `recipe` holds the engine and its
-`command`. `--markdown` names the engine and pack in the Model cell and prints
-the command.
+and the list has no row of its family. It then counts toward `--top` like any
+row. Each engine adds its best pack per model, and at most three such rows are
+added.
+
+The speed of a pack held in memory is what llama.cpp would reach with the same
+file and its experts in RAM. That is a floor: the engines report faster runs
+(Strata puts itself at about three times llama.cpp on its packs), and `docs`
+under it is the engine's own measurement where the card has one. A pack that
+reads experts from the SSD shows `?` and is scored as if it ran at the 8 tok/s
+usable bar, with the factor for half its layers in RAM. `--min-speed` applies
+to the floor and leaves untimed packs out, and `--gpu-only` leaves these rows
+out.
+
+When llama.cpp already ranks the model, the engine is named under the run
+lines instead, for the top three rows:
+
+```text
+  #2 also runs with Strata (ISTA-DASLab IQ3_S, 53 tok/s in its docs on RTX 5070 12 GB, Ryzen 5 7600, 64 GB RAM):
+    strata launch --family qwen --model iq3_s
+```
+
+When an engine row is the top pick, the run line is the engine's command. In
+`--json` such a row carries `pack` (`name`, `tier` as `memory` or `ssd`, and
+`docs_tok_per_sec` with `docs_hardware`), and its `recipe` holds the engine
+and its `command`. Every row lists `engine_alternatives` with the `engine`,
+`pack`, `command` and docs speed. `--markdown` names the engine and pack in the
+Model cell and prints the commands.
 
 Ranking JSON model rows include:
 

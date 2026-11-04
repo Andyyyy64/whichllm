@@ -104,7 +104,26 @@ def _pack_json(result: CompatibilityResult) -> dict | None:
     """The fixed-model engine pack a row runs from, or None for other rows."""
     if not result.pack_launch:
         return None
-    return {"name": result.pack_name, "tier": result.pack_tier}
+    docs = result.pack_docs_speed
+    return {
+        "name": result.pack_name,
+        "tier": result.pack_tier,
+        "docs_tok_per_sec": docs[0] if docs else None,
+        "docs_hardware": docs[1] if docs else None,
+    }
+
+
+def _alternatives_json(result: CompatibilityResult) -> list[dict]:
+    return [
+        {
+            "engine": a.engine,
+            "pack": a.pack_name,
+            "command": a.launch,
+            "docs_tok_per_sec": a.docs_speed[0] if a.docs_speed else None,
+            "docs_hardware": a.docs_speed[1] if a.docs_speed else None,
+        }
+        for a in result.engine_alternatives
+    ]
 
 
 def display_json(
@@ -166,6 +185,7 @@ def display_json(
                 "engines": list(r.engines),
                 "engine_installed": r.engine_installed,
                 "pack": _pack_json(r),
+                "engine_alternatives": _alternatives_json(r),
                 "recipe": _recipe_json(r, context_length),
                 "can_run": r.can_run,
                 "warnings": r.warnings,

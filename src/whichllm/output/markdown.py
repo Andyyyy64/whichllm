@@ -24,8 +24,8 @@ def _escape_markdown_cell(value: object) -> str:
 
 
 def _format_markdown_speed(result: CompatibilityResult) -> str:
-    if result.pack_launch:
-        return "? (docs only)"
+    if result.pack_launch and not result.estimated_tok_per_sec:
+        return "?"
     speed = result.estimated_tok_per_sec
     if speed is None:
         return "N/A"
@@ -183,8 +183,8 @@ def display_markdown(
     if pack_rows:
         lines += [
             "",
-            "A row with another engine runs from that engine's own pack. Fit and "
-            "score follow the engine's docs; speed is not estimated yet.",
+            "A row with another engine runs from that engine's own pack, as its "
+            "docs size it. Its speed is llama.cpp's for the same file, a floor.",
         ]
     recipe = (
         build_recipe(results[0], context_length)
@@ -202,14 +202,31 @@ def display_markdown(
         else:
             lines += ["", f"Run #1 with {name}:", "", "```bash", recipe.command, "```"]
     for rank, result in pack_rows:
+        docs = result.pack_docs_speed
         lines += [
             "",
-            f"Run #{rank} with {_engine_name(result.engine)}:",
+            f"Run #{rank} with {_engine_name(result.engine)}"
+            + (f" ({docs[0]:g} tok/s in its docs on {docs[1]})" if docs else "")
+            + ":",
             "",
             "```bash",
             result.pack_launch or "",
             "```",
         ]
+    for rank, result in enumerate(results[:3], 1):
+        for alternative in result.engine_alternatives:
+            docs = alternative.docs_speed
+            lines += [
+                "",
+                f"#{rank} also runs with {_engine_name(alternative.engine)}, "
+                f"{alternative.pack_name}"
+                + (f" ({docs[0]:g} tok/s in its docs on {docs[1]})" if docs else "")
+                + ":",
+                "",
+                "```bash",
+                alternative.launch,
+                "```",
+            ]
     _write_markdown("\n".join(lines))
 
 

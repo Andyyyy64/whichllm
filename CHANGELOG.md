@@ -17,12 +17,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   with how many of each engine's packs fit here, and says when one does not
   run under WSL, as Project Maya does not.
 - The ranking includes models a fixed-model engine runs here when llama.cpp
-  cannot place them. On a 16 GB GPU with 64 GB of RAM, Qwen3.8-Flash-Next with
-  Strata ranks in the top five. Such a row is scored like the others and takes its rank
-  by score, and the engine and its pack are named under the model. Speed shows
-  as ? because only the engines' own numbers exist so far, and the run line
-  gives the engine's launch command. `--json` rows carry a `pack` object and
-  the engine's command in the recipe.
+  cannot place them. On a 16 GB GPU with 56 GB of RAM, Qwen3.8-Flash-Next with
+  Strata ranks second. Such a row is scored like the others and takes its rank
+  by score, with the engine and its pack named under the model. Its speed is
+  what llama.cpp would reach with the same file, a floor, with the engine's own
+  measurement beside it where its docs have one, and the run line gives the
+  engine's launch command. When llama.cpp already ranks the model, the engine
+  is named under the run lines with its command instead. `--json` rows carry a
+  `pack` object, `engine_alternatives`, and the engine's command in the recipe.
 
 ### Fixed
 
