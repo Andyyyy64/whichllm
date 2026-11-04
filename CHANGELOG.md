@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-11-04
+
 ### Added
 
 - Engine cards describe fixed-model engines too, which run a short list of
@@ -25,6 +27,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   engine's launch command. When llama.cpp already ranks the model, the engine
   is named under the run lines with its command instead. `--json` rows carry a
   `pack` object, `engine_alternatives`, and the engine's command in the recipe.
+
+### Changed
+
+- A quant file an independent measurement placed at or above a better-known
+  type takes that type's quality penalty. ISTA-DASLab's GSQ-RCO IQ3_S and
+  IQ3_XXS of Qwen3.8-Flash-Next beat Unsloth's UD-IQ4_XS on perplexity in
+  Strata's measurement, so they carry the IQ4_XS penalty (5%) instead of 17%
+  and 18%.
 
 ### Fixed
 
@@ -64,11 +74,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Changed
 
-- A quant file an independent measurement placed at or above a better-known
-  type takes that type's quality penalty. ISTA-DASLab's GSQ-RCO IQ3_S and
-  IQ3_XXS of Qwen3.8-Flash-Next beat Unsloth's UD-IQ4_XS on perplexity in
-  Strata's measurement, so they carry the IQ4_XS penalty (5%) instead of 17%
-  and 18%.
 - Simulating only Apple GPUs (`--gpu "Apple M3 Max"`) treats the machine as
   macOS, so Metal and the macOS builds apply instead of the host's OS.
 
