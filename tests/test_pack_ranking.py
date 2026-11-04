@@ -5,7 +5,7 @@ from io import StringIO
 
 from rich.console import Console
 
-from whichllm.engine.pack_ranking import pack_tiers, rank_pack_rows
+from whichllm.engine.pack_ranking import merge_pack_rows, pack_tiers, rank_pack_rows
 from whichllm.engine.types import CompatibilityResult
 from whichllm.engines import load_cards
 from whichllm.engines.detect import Installed
@@ -152,68 +152,86 @@ def _console(monkeypatch, width=200) -> StringIO:
     return buf
 
 
-def test_the_table_marks_pack_rows_and_prints_their_command(monkeypatch):
+def test_pack_rows_take_their_place_by_score():
+    row = _rows()[0]
+    above, below = _shown(row.quality_score + 5), _shown(row.quality_score - 5)
+    last = _shown(row.quality_score - 9)
+
+    merged = merge_pack_rows([above, below, last], [row], top_n=3)
+
+    assert merged == [above, row, below]
+
+
+def test_the_top_pick_can_be_a_pack_row(monkeypatch):
     from whichllm.output.ranking import display_ranking
 
     buf = _console(monkeypatch)
     row = _rows(installed={})[0]
+    ranked = merge_pack_rows([_shown(50.0)], [row], top_n=10)
 
-    display_ranking(
-        [_shown(50.0)], show_status=True, context_length=4096, pack_rows=[row]
-    )
+    display_ranking(ranked, show_status=True, context_length=4096)
 
     shown = buf.getvalue()
+    assert ranked[0] is row
     assert "with Strata, ISTA-DASLab IQ3_S" in shown
     assert "docs only" in shown
-    assert "+ = runs with another engine" in shown
-    assert "Run Qwen3.8-Flash-Next with Strata:" in shown
+    assert "with <engine> = runs with that engine from its own pack" in shown
+    assert "Run #1 with Strata:" in shown
     assert "strata launch --family qwen --model iq3_s" in shown
     assert "Strata is not installed here; install with irm" in shown
+    assert "+ =" not in shown
 
 
-def test_json_lists_pack_rows_under_other_engines(monkeypatch):
+def test_a_pack_row_below_the_top_pick_names_its_rank(monkeypatch):
+    from whichllm.output.ranking import display_ranking
+
+    buf = _console(monkeypatch)
+    row = _rows(installed={})[0]
+    ranked = merge_pack_rows([_shown(row.quality_score + 5)], [row], top_n=10)
+
+    display_ranking(ranked, show_status=True, context_length=4096)
+
+    assert "Run #2 with Strata:" in buf.getvalue()
+
+
+def test_json_rows_carry_the_pack_and_its_command(monkeypatch):
     from whichllm.output.json_output import display_json
 
     buf = _console(monkeypatch, width=10_000)
     row = _rows()[0]
 
-    display_json([], _machine(), 4096, pack_rows=[row])
+    display_json(merge_pack_rows([_shown(50.0)], [row], top_n=10), _machine(), 4096)
 
-    other = json.loads(buf.getvalue())["other_engines"]
-    assert other == [
-        {
-            "model_id": BASE,
-            "artifact_repo_id": PACKS,
-            "engine": "strata",
-            "engine_installed": None,
-            "pack": "ISTA-DASLab IQ3_S",
-            "quant_type": "IQ3_S",
-            "tier": "memory",
-            "vram_required_bytes": 12 * _GiB,
-            "quality_score": round(row.quality_score, 2),
-            "benchmark_status": "direct",
-            "benchmark_source": "direct",
-            "command": "strata launch --family qwen --model iq3_s",
-            "warnings": [],
-            "license": "apache-2.0",
-        }
-    ]
+    data = json.loads(buf.getvalue())
+    first = data["models"][0]
+    assert "other_engines" not in data
+    assert first["rank"] == 1
+    assert first["model_id"] == BASE
+    assert first["artifact_repo_id"] == PACKS
+    assert first["engine"] == "strata"
+    assert first["pack"] == {"name": "ISTA-DASLab IQ3_S", "tier": "memory"}
+    assert first["recipe"]["engine"] == "strata"
+    assert first["recipe"]["command"] == "strata launch --family qwen --model iq3_s"
+    assert first["recipe"]["llama_cpp"] is None
+    assert data["models"][1]["pack"] is None
 
 
-def test_markdown_adds_a_table_for_other_engines(monkeypatch):
+def test_markdown_ranks_pack_rows_in_the_table(monkeypatch):
     from whichllm.output import markdown
 
     written = []
     monkeypatch.setattr(markdown, "_write_markdown", written.append)
     row = _rows()[0]
+    ranked = merge_pack_rows([_shown(50.0)], [row], top_n=10)
 
-    markdown.display_markdown(
-        [_shown(50.0)], _machine(), show_status=True, pack_rows=[row]
-    )
+    markdown.display_markdown(ranked, _machine(), show_status=True, context_length=4096)
 
     text = written[0]
-    assert "### Also runs with other engines" in text
-    assert "| Strata | ISTA-DASLab IQ3_S | IQ3_S | GPU+RAM |" in text
+    assert "| 1 | [Qwen/Qwen3.8-Flash-Next](" in text
+    assert "with Strata, ISTA-DASLab IQ3_S" in text
+    assert "| GPU+RAM |" in text
+    assert "? (docs only)" in text
+    assert "Run #1 with Strata:" in text
     assert "strata launch --family qwen --model iq3_s" in text
 
 

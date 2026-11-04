@@ -219,6 +219,26 @@ def _preference(row: CompatibilityResult) -> tuple[bool, float]:
     return row.pack_tier == "memory", row.quality_score
 
 
+def merge_pack_rows(
+    results: list[CompatibilityResult],
+    pack_rows: list[CompatibilityResult],
+    top_n: int,
+) -> list[CompatibilityResult]:
+    """The ranking with each pack row placed by its score, cut back to top_n.
+
+    The ranking keeps its own order. A pack row goes in front of the first
+    ranked row that scores lower, so it takes a rank like any other model.
+    """
+    merged = list(results)
+    for row in sorted(pack_rows, key=lambda r: r.quality_score, reverse=True):
+        at = next(
+            (i for i, r in enumerate(merged) if r.quality_score < row.quality_score),
+            len(merged),
+        )
+        merged.insert(at, row)
+    return merged[: max(top_n, 0)]
+
+
 def pack_tiers(row: CompatibilityResult) -> list[str]:
     """Where a pack row's weights live: GPU and RAM, or RAM alone for a CPU
     engine, then the SSD when experts are read from it."""
@@ -228,4 +248,4 @@ def pack_tiers(row: CompatibilityResult) -> list[str]:
     return tiers
 
 
-__all__ = ["PACK_ROW_LIMIT", "pack_tiers", "rank_pack_rows"]
+__all__ = ["PACK_ROW_LIMIT", "merge_pack_rows", "pack_tiers", "rank_pack_rows"]

@@ -274,7 +274,6 @@ def main_command(
                 except Exception as e:
                     progress.update(task, description=f"Model configs skipped: {e}")
         results = _rank(top)
-        pack_rows: list = []
 
         # 上位候補の公開日時が欠けている場合のみ補完して表示品質を上げる
         if results:
@@ -300,7 +299,7 @@ def main_command(
                 )
             )
             assign_engines(results, hardware, cards, installed)
-            from whichllm.engine.pack_ranking import rank_pack_rows
+            from whichllm.engine.pack_ranking import merge_pack_rows, rank_pack_rows
             from whichllm.hardware.ram_bandwidth import _is_wsl
 
             pack_rows = rank_pack_rows(
@@ -332,6 +331,8 @@ def main_command(
                 console.print(f"[red]Error:[/] {error}")
                 raise typer.Exit(code=1) from error
             attach_local_matches(results, local_models)
+            # A model another engine runs here takes its place by score.
+            results = merge_pack_rows(results, pack_rows, top)
             try:
                 if catalog is None and _fill_missing_published_at(
                     all_models, results, fetch_model_published_at
@@ -360,7 +361,7 @@ def main_command(
                 "benchmark_sources": catalog.sources,
             }
         )
-        display_json(results, hardware, context_length, data, pack_rows)
+        display_json(results, hardware, context_length, data)
     elif markdown_output:
         display_markdown(
             results,
@@ -368,7 +369,6 @@ def main_command(
             show_status=status or not details,
             empty_message=empty_message,
             context_length=context_length,
-            pack_rows=pack_rows,
         )
     else:
         console.print()
@@ -380,7 +380,6 @@ def main_command(
             show_status=status or not details,
             empty_message=empty_message,
             context_length=context_length,
-            pack_rows=pack_rows,
         )
         _print_data_source(catalog)
         console.print()
