@@ -1,0 +1,165 @@
+{
+  "id": "ds4",
+  "name": "DwarfStar (ds4)",
+  "kind": "fixed_model",
+  "url": "https://github.com/antirez/ds4",
+  "evidence": "documented",
+  "upstream": {
+    "github": "antirez/ds4",
+    "status": "active"
+  },
+  "checked_at": "2026-11-04",
+  "sources": [
+    "https://github.com/antirez/ds4/blob/main/README.md",
+    "https://github.com/antirez/ds4/blob/main/docs/MODELS.md",
+    "https://github.com/antirez/ds4/blob/main/download_model.sh",
+    "https://github.com/antirez/ds4/blob/main/docs/METAL.md",
+    "https://github.com/antirez/ds4/blob/main/docs/DGX_SPARK.md",
+    "https://github.com/antirez/ds4/blob/main/docs/STRIX_HALO.md",
+    "https://github.com/antirez/ds4/blob/main/docs/SSD_STREAMING.md",
+    "https://github.com/antirez/ds4/blob/main/docs/SERVER.md",
+    "https://github.com/antirez/ds4/blob/main/docs/QWEN38_FLASH_NEXT.md"
+  ],
+  "platforms": [
+    {"os": ["darwin"], "accel": "metal", "note": "the main target"},
+    {"os": ["linux"], "accel": "cuda", "note": "DGX Spark first; large multi-GPU CUDA machines also run it"},
+    {"os": ["linux"], "accel": "rocm", "note": "Strix Halo only"}
+  ],
+  "memory": ["gpu", "expert_offload"],
+  "serve": "./ds4-server --ctx 32768",
+  "port": 8000,
+  "api": ["openai", "anthropic"],
+  "install": {
+    "docs": "https://github.com/antirez/ds4#start-here",
+    "darwin": "git clone https://github.com/antirez/ds4.git && cd ds4 && make"
+  },
+  "detect_binaries": ["ds4-server"],
+  "probe": {
+    "path": "/v1/models",
+    "contains": "\"owned_by\":\"ds4.c\""
+  },
+  "models": [
+    {
+      "id": "deepseek-v4-flash-0731",
+      "name": "DeepSeek V4 Flash",
+      "base": "deepseek-ai/DeepSeek-V4-Flash-0731",
+      "packs": [
+        {
+          "id": "ds4f-q2",
+          "name": "Q2 imatrix",
+          "repo": "antirez/deepseek-v4-gguf",
+          "quant": "IQ2_XXS",
+          "launch": "./download_model.sh ds4f-q2 && ./ds4-server --ctx 32768",
+          "requires": {"disk_gb": 86.72, "memory_gb": 96, "ssd": {"ram_gb": 64}, "unified_memory": true}
+        },
+        {
+          "id": "ds4f-q2-q4",
+          "name": "Q2 with Q4 in the last six layers",
+          "repo": "antirez/deepseek-v4-gguf",
+          "quant": "IQ2_XXS",
+          "launch": "./download_model.sh ds4f-q2-q4 && ./ds4-server --ctx 32768",
+          "requires": {"disk_gb": 97.59, "memory_gb": 128, "unified_memory": true}
+        },
+        {
+          "id": "ds4f-q4",
+          "name": "Q4_K",
+          "repo": "antirez/deepseek-v4-gguf",
+          "quant": "Q4_K",
+          "launch": "./download_model.sh ds4f-q4 && ./ds4-server --ctx 32768",
+          "requires": {"disk_gb": 164.63, "memory_gb": 256, "unified_memory": true}
+        },
+        {
+          "id": "ds4f-mxfp4",
+          "name": "Native MXFP4",
+          "repo": "antirez/deepseek-v4-gguf",
+          "quant": "MXFP4",
+          "launch": "./download_model.sh ds4f-mxfp4 && ./ds4-server --ctx 32768",
+          "requires": {"disk_gb": 155.98, "memory_gb": 256, "unified_memory": true}
+        }
+      ]
+    },
+    {
+      "id": "deepseek-v4.1-flash-1017",
+      "name": "DeepSeek V4.1 Flash",
+      "base": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+      "note": "189 GiB of Engram tables stay on disk in every mode, so keep the file on a fast local SSD. Text only on CUDA and ROCm.",
+      "packs": [
+        {
+          "id": "ds41f-q2",
+          "name": "Q2 imatrix",
+          "repo": "antirez/deepseek-v4.1-flash-gguf",
+          "quant": "IQ2_XXS",
+          "launch": "./download_model.sh ds41f-q2 && ./ds4-server -m gguf/DeepSeek-V4.1-Flash-1017-IQ2_XXS-Q2_K-imatrix.gguf --ssd-streaming --ctx 32768",
+          "requires": {"disk_gb": 365.71, "memory_gb": 256, "ssd": {"ram_gb": 128}, "unified_memory": true}
+        }
+      ]
+    },
+    {
+      "id": "glm-5.3-flash",
+      "name": "GLM-5.3-Flash",
+      "base": "zai-org/GLM-5.3-Flash",
+      "packs": [
+        {
+          "id": "glm53-q2",
+          "name": "Q2 imatrix",
+          "repo": "antirez/glm-5.3-flash-gguf",
+          "quant": "IQ2_XXS",
+          "launch": "./download_model.sh glm53-q2 && ./ds4-server -m gguf/GLM-5.3-Flash-Q2.gguf --ctx 32768",
+          "requires": {"disk_gb": 96.51, "memory_gb": 128, "unified_memory": true}
+        },
+        {
+          "id": "glm53-q4",
+          "name": "Q4_K",
+          "repo": "antirez/glm-5.3-flash-gguf",
+          "quant": "Q4_K",
+          "launch": "./download_model.sh glm53-q4 && ./ds4-server --ssd-streaming --ctx 4096",
+          "requires": {"disk_gb": 190.88, "memory_gb": 256, "ssd": {"ram_gb": 128}, "unified_memory": true}
+        }
+      ]
+    },
+    {
+      "id": "glm-5.3",
+      "name": "GLM-5.3",
+      "base": "zai-org/GLM-5.3",
+      "packs": [
+        {
+          "id": "glm53-full-q2",
+          "name": "Routed IQ2_XXS",
+          "repo": "antirez/glm-5.3-gguf",
+          "quant": "IQ2_XXS",
+          "launch": "./download_model.sh glm53-full-q2 && ./ds4-server --ssd-streaming",
+          "requires": {"disk_gb": 211.08, "memory_gb": 256, "ssd": {"ram_gb": 128}, "unified_memory": true}
+        }
+      ]
+    },
+    {
+      "id": "qwen3.8-flash-next",
+      "name": "Qwen3.8-Flash-Next",
+      "base": "Qwen/Qwen3.8-Flash-Next",
+      "platforms": [
+        {"os": ["darwin"], "accel": "metal"},
+        {"os": ["linux"], "accel": "cuda", "note": "one GPU, DGX Spark included"}
+      ],
+      "note": "The 95 GiB n-gram table stays on disk. Reading experts from the SSD works on Metal only, and was run on a 32 GB M1 Max.",
+      "packs": [
+        {
+          "id": "qwen38-q2",
+          "name": "Q2 imatrix",
+          "repo": "antirez/qwen3.8-flash-next-gguf",
+          "quant": "IQ2_XXS",
+          "launch": "./download_model.sh qwen38-q2 && ./ds4-server --ctx 8192",
+          "requires": {"disk_gb": 147.21, "memory_gb": 64, "ssd": {"ram_gb": 32}, "unified_memory": true}
+        },
+        {
+          "id": "qwen38-q4k",
+          "name": "Q4_K and MXFP4",
+          "repo": "antirez/qwen3.8-flash-next-gguf",
+          "quant": "Q4_K",
+          "launch": "./download_model.sh qwen38-q4k && ./ds4-server --ctx 8192",
+          "requires": {"disk_gb": 177.28, "memory_gb": 128, "ssd": {"ram_gb": 32}, "unified_memory": true}
+        }
+      ]
+    }
+  ],
+  "note": "antirez's C engine for a few large MoE models from its own GGUFs, built for machines whose GPU shares the RAM: Macs, DGX Spark and Strix Halo. The memory figures are the Mac memory sizes the docs give. Beta, with no releases yet."
+}

@@ -36,6 +36,11 @@
       "os": ["linux", "windows"],
       "accel": "rocm",
       "note": "experimental, RX 7900, Radeon AI PRO R9700 and RX 9070, Strix Halo"
+    },
+    {
+      "os": ["darwin"],
+      "accel": "metal",
+      "note": "GLM-5.3-Flash only, experimental"
     }
   ],
   "wsl": false,
@@ -107,6 +112,11 @@
       "id": "deepseek-v4.1-flash-1017",
       "name": "DeepSeek-V4.1-Flash-1017",
       "base": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+      "platforms": [
+        {"os": ["linux"], "accel": "cuda", "min_compute_capability": "7.0"},
+        {"os": ["windows"], "accel": "cuda", "min_compute_capability": "7.0", "note": "experimental"},
+        {"os": ["linux", "windows"], "accel": "rocm", "note": "experimental"}
+      ],
       "note": "On its own engine. Sizes include the Engram tables.",
       "packs": [
         {
@@ -132,6 +142,11 @@
       "id": "minimax-m3.1-flash",
       "name": "MiniMax-M3.1-Flash",
       "base": "MiniMaxAI/MiniMax-M3.1-Flash",
+      "platforms": [
+        {"os": ["linux"], "accel": "cuda", "min_compute_capability": "7.0"},
+        {"os": ["windows"], "accel": "cuda", "min_compute_capability": "7.0", "note": "experimental"},
+        {"os": ["linux", "windows"], "accel": "rocm", "note": "experimental"}
+      ],
       "packs": [
         {
           "id": "minimax-maya-xs",

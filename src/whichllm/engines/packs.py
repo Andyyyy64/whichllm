@@ -10,9 +10,10 @@ here. The numbers come from the engine's docs, on its card.
 from __future__ import annotations
 
 import dataclasses
+from collections import Counter
 from dataclasses import dataclass
 
-from whichllm.engines.availability import availability
+from whichllm.engines.availability import Availability, availability
 from whichllm.engines.cards import EngineCard, FixedModel, Pack, Platform, Requires
 from whichllm.hardware.types import GPUInfo, HardwareInfo
 
@@ -83,6 +84,10 @@ def pack_fit(pack: Pack, hardware: HardwareInfo) -> PackFit:
             None,
             f"needs {_gb(need.disk_gb)} of disk, {_have(hardware.disk_free_bytes)} free",
         )
+    if need.unified_memory and not any(_unified(g) for g in hardware.gpus):
+        return PackFit(
+            None, "needs a GPU that shares system RAM (a Mac, DGX Spark or Strix Halo)"
+        )
     largest = max((gpu.vram_bytes for gpu in hardware.gpus), default=0)
     if need.vram_gb is not None and largest < need.vram_gb * _GiB:
         where = f"the largest here has {_have(largest)}" if largest else "none here"
@@ -133,4 +138,29 @@ def pack_options(
     return options
 
 
-__all__ = ["PackFit", "PackOption", "pack_fit", "pack_options"]
+def with_packs(
+    row: Availability, hardware: HardwareInfo, *, wsl: bool = False
+) -> Availability:
+    """A fixed-model engine runs here only when one of its packs does.
+
+    The engine may build for this GPU while every pack it offers needs more
+    memory or a GPU that shares system RAM. Then it does not run, and the
+    reason most of its packs give says why. When some fit, the reason says how
+    many.
+    """
+    if row.card.kind != "fixed_model" or not row.runs:
+        return row
+    options = pack_options((row.card,), hardware, wsl=wsl)
+    fitting = sum(option.fit.runs for option in options)
+    if not fitting:
+        reasons = Counter(option.fit.reason for option in options)
+        return Availability(
+            row.card, None, f"no pack fits, {reasons.most_common(1)[0][0]}"
+        )
+    count = f"{fitting} of {len(options)} packs fit"
+    return Availability(
+        row.card, row.platform, f"{row.reason}; {count}" if row.reason else count
+    )
+
+
+__all__ = ["PackFit", "PackOption", "pack_fit", "pack_options", "with_packs"]

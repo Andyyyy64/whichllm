@@ -12,6 +12,7 @@ from rich.table import Table
 from rich.text import Text
 
 from whichllm.engine.context import context_cell
+from whichllm.engine.pack_ranking import pack_tiers
 from whichllm.engine.quantization import effective_quant_type
 from whichllm.engine.recipe import build_recipe
 from whichllm.engine.types import CompatibilityResult
@@ -243,10 +244,11 @@ def _pack_cells(
     published = Text(_format_published_at(result.model.published_at))
     if show_status:
         model_link.append(f"\n{_params_text(result)}", style="dim")
+        tiers = pack_tiers(result)
         if result.pack_tier == "memory":
-            fit = "[green]GPU+RAM[/]"
+            fit = f"[green]{'+'.join(tiers)}[/]"
         else:
-            fit = "[yellow]GPU+RAM[/]\n[yellow]+SSD[/]"
+            fit = f"[yellow]{'+'.join(tiers[:-1])}[/]\n[yellow]+SSD[/]"
         if result.vram_required_bytes:
             fit += f"\n[dim]{_format_bytes(result.vram_required_bytes)}[/dim]"
         cells += [

@@ -1,0 +1,65 @@
+{
+  "id": "turbo-fieldfare",
+  "name": "TurboFieldfare",
+  "kind": "fixed_model",
+  "url": "https://github.com/drumih/turbo-fieldfare",
+  "evidence": "documented",
+  "upstream": {
+    "github": "drumih/turbo-fieldfare",
+    "version": "0.9.4",
+    "released_at": "2026-10-26",
+    "status": "active"
+  },
+  "checked_at": "2026-11-04",
+  "sources": [
+    "https://github.com/drumih/turbo-fieldfare/blob/main/README.md",
+    "https://github.com/drumih/turbo-fieldfare/blob/main/docs/OPENAI_SERVER.md",
+    "https://github.com/drumih/turbo-fieldfare/blob/main/docs/RUNTIME_CONTROLS.md",
+    "https://github.com/drumih/turbo-fieldfare/blob/main/docs/SYSTEM_DESIGN.md",
+    "https://github.com/drumih/turbo-fieldfare/blob/main/Sources/TurboFieldfareRepack/Core/Remote/SupportedModelSource.swift",
+    "https://huggingface.co/mlx-community/gemma-4-26b-a4b-it-4bit"
+  ],
+  "platforms": [
+    {
+      "os": ["darwin"],
+      "accel": "metal",
+      "note": "Apple silicon, macOS 26 or newer; M1 runs text, images need M2 or newer"
+    }
+  ],
+  "memory": ["expert_offload"],
+  "serve": "TurboFieldfareServer --model scratch/gemma4.gturbo",
+  "port": 8080,
+  "api": ["openai"],
+  "install": {
+    "docs": "https://github.com/drumih/turbo-fieldfare#try-it",
+    "darwin": "git clone https://github.com/drumih/turbo-fieldfare.git && cd turbo-fieldfare && swift build -c release"
+  },
+  "detect_binaries": ["TurboFieldfareServer"],
+  "detect_paths": {
+    "darwin": ["~/Applications/TurboFieldfare.app"]
+  },
+  "probe": {
+    "path": "/v1/models",
+    "contains": "turbofieldfare"
+  },
+  "models": [
+    {
+      "id": "gemma-4-26b-a4b-it",
+      "name": "Gemma 4 26B-A4B",
+      "base": "google/gemma-4-26B-A4B-it",
+      "note": "Keeps 1.35 GB of common weights and the KV cache in memory and streams the routed experts from the SSD. An optional 1.1 GB image pack needs M2 or newer.",
+      "packs": [
+        {
+          "id": "gemma4-gturbo",
+          "name": "MLX 4-bit as .gturbo",
+          "repo": "mlx-community/gemma-4-26b-a4b-it-4bit",
+          "quant": "Q4_0",
+          "launch": ".build/release/TurboFieldfareServer --model scratch/gemma4.gturbo",
+          "requires": {"disk_gb": 15.3, "ssd": {"ram_gb": 8}},
+          "note": "Repacked from the MLX 4-bit repo with TurboFieldfareRepack. Four bits with a scale and bias per 64 weights is 4.5 bits, rated as Q4_0, the GGUF type of the same layout."
+        }
+      ]
+    }
+  ],
+  "note": "A Swift and Metal runtime for one model on Apple silicon, built from source."
+}

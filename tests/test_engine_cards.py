@@ -122,11 +122,26 @@ def test_a_card_is_named_after_its_id():
         parse_card(_card(), Path("other.json"))
 
 
-def test_a_recent_nvidia_card_runs_every_engine_on_cuda():
+def test_a_recent_nvidia_card_runs_every_cuda_engine_on_cuda():
+    rows = _by_id(_machine(gpu=_nvidia("NVIDIA GeForce RTX 5080", (12, 0))))
+    cuda = {
+        row.card.id: row
+        for row in rows.values()
+        if any(p.accel == "cuda" for p in row.card.platforms)
+    }
+
+    assert len(cuda) >= 9
+    assert all(row.runs and row.platform.accel == "cuda" for row in cuda.values())
+    assert all(row.reason is None for row in cuda.values())
+
+
+def test_engines_without_a_cuda_build_say_what_they_run_on():
     rows = _by_id(_machine(gpu=_nvidia("NVIDIA GeForce RTX 5080", (12, 0))))
 
-    assert all(row.runs and row.platform.accel == "cuda" for row in rows.values())
-    assert all(row.reason is None for row in rows.values())
+    # WARP runs on the CPU only, and TurboFieldfare only on a Mac.
+    assert rows["warp"].platform.accel == "cpu"
+    assert rows["warp"].reason == "no cuda build"
+    assert not rows["turbo-fieldfare"].runs
 
 
 def test_an_old_nvidia_card_falls_back_and_says_why():
