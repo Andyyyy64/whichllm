@@ -258,15 +258,23 @@ def _resolve_active_params(
 _STRATA_PACK_RE = re.compile(r"(^|/)pack/experts\.bin$")
 # A GGUF cut with split(1) loads nowhere until it is joined again.
 _RAW_GGUF_PART_RE = re.compile(r"\.gguf\.part-?\d+$")
+# Strata keeps pieces of a model (its n-gram table, the dense weights, the
+# token embeddings) in GGUFs of its own architecture, which llama.cpp does not
+# load.
+_STRATA_GGUF_ARCH_RE = re.compile(r"^strata\b", re.IGNORECASE)
 
 
 def _engine_only(data: dict) -> bool:
     """True when the repo's weights are in a layout no general runner loads.
 
-    A GGUF next to a Strata pack is still a GGUF, so a repo with both stays.
-    Plain GGUFs next to raw split parts are the drafts and projectors of the
-    model in the parts.
+    A GGUF next to a Strata pack is still a GGUF, so a repo with both stays,
+    unless the GGUFs are Strata's own pieces. Plain GGUFs next to raw split
+    parts are the drafts and projectors of the model in the parts.
     """
+    gguf = data.get("gguf")
+    architecture = gguf.get("architecture") if isinstance(gguf, dict) else None
+    if isinstance(architecture, str) and _STRATA_GGUF_ARCH_RE.match(architecture):
+        return True
     names = [
         sib.get("rfilename", "")
         for sib in data.get("siblings") or []
