@@ -1,10 +1,9 @@
 name: Engine upstream
 
 # Every Monday at 04:41 UTC, compares every engine card with its upstream
-# repository and keeps
-# one issue listing the cards that need a fresh look, plus young repositories
-# that might be engines without a card. The issue closes when the list is
-# empty.
+# repository and keeps one issue listing the cards that need a fresh look,
+# plus young repositories that might be engines without a card. The issue
+# closes when the list is empty.
 
 on:
   schedule:
