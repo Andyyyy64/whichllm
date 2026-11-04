@@ -50,6 +50,11 @@ class CompatibilityResult:
     pack_tier: str | None = None
     pack_name: str | None = None
     pack_launch: str | None = None
+    # The pack's decode speed in its engine's docs, and the hardware it ran on.
+    pack_docs_speed: tuple[float, str] | None = None
+    # Fixed-model engines that also run this row's model here from a pack
+    # held in memory (whichllm.engine.pack_ranking.EngineAlternative).
+    engine_alternatives: list = field(default_factory=list)
     uses_multi_gpu: bool = False
     multi_gpu_effective_vram_bytes: int | None = None
     # Decode speed of the layer split relative to the best single card.

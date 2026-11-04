@@ -47,8 +47,12 @@ _GGUF_KEYS = frozenset({"extra", "missing"})
 _PROBE_KEYS = frozenset({"path", "contains"})
 _MODEL_KEYS = frozenset({"id", "name", "base", "platforms", "packs", "note"})
 _PACK_KEYS = frozenset(
-    {"id", "name", "repo", "quant", "launch", "requires", "platforms", "note"}
-)
+    {
+        "id", "name", "repo", "quant", "launch", "requires", "platforms",
+        "docs_speed", "note",
+    }
+)  # fmt: skip
+_DOCS_SPEED_KEYS = frozenset({"tok_per_sec", "hardware"})
 _REQUIRES_KEYS = frozenset(
     {"disk_gb", "vram_gb", "ram_gb", "memory_gb", "ssd", "nvme", "unified_memory"}
 )
@@ -105,6 +109,14 @@ class Requires:
 
 
 @dataclass(frozen=True)
+class DocsSpeed:
+    """Decode speed the engine's docs measured for a pack, and on what."""
+
+    tok_per_sec: float
+    hardware: str
+
+
+@dataclass(frozen=True)
 class Pack:
     """One set of weights a fixed-model engine downloads for a model."""
 
@@ -115,6 +127,7 @@ class Pack:
     launch: str
     requires: Requires
     platforms: tuple[Platform, ...] = ()  # narrower than the model's, when set
+    docs_speed: DocsSpeed | None = None
     note: str | None = None
 
 
@@ -320,6 +333,18 @@ def _platforms(raw, path: Path, *, required: bool) -> tuple[Platform, ...]:
     return tuple(_platform(p, path) for p in raw)
 
 
+def _docs_speed(raw, path: Path, where: str) -> DocsSpeed | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise _fail(path, f"{where} 'docs_speed' must be an object")
+    _known_keys(raw, _DOCS_SPEED_KEYS, f"{where} 'docs_speed'", path)
+    speed = raw.get("tok_per_sec")
+    if isinstance(speed, bool) or not isinstance(speed, (int, float)) or speed <= 0:
+        raise _fail(path, f"{where} 'docs_speed' needs a positive tok_per_sec")
+    return DocsSpeed(float(speed), _text(raw, "hardware", path))
+
+
 def _pack(raw, path: Path, model_id: str) -> Pack:
     if not isinstance(raw, dict):
         raise _fail(path, f"each pack of {model_id!r} must be an object")
@@ -333,6 +358,7 @@ def _pack(raw, path: Path, model_id: str) -> Pack:
         launch=_text(raw, "launch", path),
         requires=_requires(raw.get("requires"), path, f"pack {pack_id!r}"),
         platforms=_platforms(raw.get("platforms"), path, required=False),
+        docs_speed=_docs_speed(raw.get("docs_speed"), path, f"pack {pack_id!r}"),
         note=_text(raw, "note", path, optional=True),
     )
 
@@ -471,6 +497,7 @@ def install_hint(card: EngineCard, os_name: str) -> str | None:
 __all__ = [
     "ACCELS",
     "CardError",
+    "DocsSpeed",
     "EVIDENCE",
     "EngineCard",
     "FixedModel",

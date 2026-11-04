@@ -2,14 +2,22 @@
 
 import json
 from io import StringIO
+from pathlib import Path
 
 from rich.console import Console
 
-from whichllm.engine.pack_ranking import merge_pack_rows, pack_tiers, rank_pack_rows
+from whichllm.engine.pack_ranking import (
+    attach_engine_alternatives,
+    merge_pack_rows,
+    pack_tiers,
+    rank_pack_rows,
+)
 from whichllm.engine.types import CompatibilityResult
 from whichllm.engines import load_cards
 from whichllm.engines.detect import Installed
 from whichllm.hardware.types import GPUInfo, HardwareInfo
+from whichllm.models.moe_fields import fill_moe_from_shape
+from whichllm.models.shape import parse_model_shape
 from whichllm.models.types import GGUFVariant, ModelInfo
 
 _GiB = 1024**3
@@ -17,6 +25,14 @@ CARDS = load_cards()
 STRATA = tuple(card for card in CARDS if card.id == "strata")
 BASE = "Qwen/Qwen3.8-Flash-Next"
 PACKS = "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF"
+# The real config.json, so the packs are timed as the MoE they are.
+SHAPE = parse_model_shape(
+    json.loads(
+        (Path(__file__).parent / "fixtures" / "model_configs.json").read_text(
+            encoding="utf-8"
+        )
+    )[BASE]
+)
 
 
 def _catalog() -> list[ModelInfo]:
@@ -25,9 +41,9 @@ def _catalog() -> list[ModelInfo]:
         id=BASE,
         family_id=family,
         name="Qwen3.8-Flash-Next",
-        parameter_count=230_000_000_000,
-        parameter_count_active=12_000_000_000,
+        parameter_count=180_000_000_000,
         is_moe=True,
+        shape=SHAPE,
         context_length=262_144,
         downloads=500_000,
         published_at="2026-09-20T00:00:00Z",
@@ -37,8 +53,9 @@ def _catalog() -> list[ModelInfo]:
         id=PACKS,
         family_id=family,
         name="Qwen3.8-Flash-Next-GSQ-RCO-GGUF",
-        parameter_count=230_000_000_000,
+        parameter_count=176_900_000_000,
         is_moe=True,
+        shape=SHAPE,
         base_model=BASE,
         base_model_relation="quantized",
         gguf_variants=[
@@ -46,6 +63,8 @@ def _catalog() -> list[ModelInfo]:
             GGUFVariant("Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S.gguf", "IQ3_S", 84 * _GiB),
         ],
     )
+    for model in (base, packs):
+        fill_moe_from_shape(model)
     return [base, packs]
 
 
@@ -55,9 +74,14 @@ def _machine(ram_gb=64, vram_gb=16) -> HardwareInfo:
         vendor="nvidia",
         vram_bytes=vram_gb * _GiB,
         compute_capability=(12, 0),
+        memory_bandwidth_gbps=960,
     )
     return HardwareInfo(
-        gpus=[gpu], has_avx2=True, ram_bytes=ram_gb * _GiB, os="windows"
+        gpus=[gpu],
+        has_avx2=True,
+        ram_bytes=ram_gb * _GiB,
+        ram_bandwidth_gbps=89.6,
+        os="windows",
     )
 
 
@@ -97,7 +121,9 @@ def test_a_pack_the_ranking_could_not_place_gets_a_row():
     assert row.gguf_variant.filename == "Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S.gguf"
     assert row.pack_launch == "strata launch --family qwen --model iq3_s"
     assert row.benchmark_status == "direct"
-    assert row.estimated_tok_per_sec is None
+    # Timed as llama.cpp would run the file, with Strata's own number beside it.
+    assert row.estimated_tok_per_sec > 0
+    assert row.pack_docs_speed == (53.0, "RTX 5070 12 GB, Ryzen 5 7600, 64 GB RAM")
 
 
 def test_less_ram_picks_the_pack_that_still_fits():
@@ -129,10 +155,24 @@ def test_reading_from_the_ssd_scores_lower_than_memory():
     assert "from the SSD" in from_ssd.warnings[0]
 
 
-def test_filters_that_need_a_speed_or_a_full_gpu_leave_packs_out():
-    assert _rows(min_speed=10.0) == []
+def test_filters_apply_to_pack_rows():
+    speed = _rows()[0].estimated_tok_per_sec
+
+    # A speed floor uses each pack's llama.cpp estimate.
+    assert _rows(min_speed=speed - 1)
+    assert _rows(min_speed=1000.0) == []
+    # A pack read from the SSD is not timed, so any speed floor leaves it out.
+    ssd = _machine(ram_gb=32, vram_gb=24)
+    assert _rows(ssd, quant_filter="Q2_0")[0].pack_tier == "ssd"
+    assert _rows(ssd, quant_filter="Q2_0", min_speed=1.0) == []
     assert _rows(fit_filter="full_gpu") == []
     assert _rows(quant_filter="Q2_0")[0].pack_name == "ISTA-DASLab Q2_0"
+
+
+def test_a_model_the_ranking_has_gets_no_second_row():
+    ranked = _shown(1.0, family="qwen/qwen3.8-flash-next")
+
+    assert _rows(shown=[ranked]) == []
 
 
 def test_installed_is_known_only_when_detection_ran():
@@ -174,7 +214,7 @@ def test_the_top_pick_can_be_a_pack_row(monkeypatch):
     shown = buf.getvalue()
     assert ranked[0] is row
     assert "with Strata, ISTA-DASLab IQ3_S" in shown
-    assert "docs only" in shown
+    assert "docs 53" in shown
     assert "with <engine> = runs with that engine from its own pack" in shown
     assert "Run #1 with Strata:" in shown
     assert "strata launch --family qwen --model iq3_s" in shown
@@ -209,7 +249,13 @@ def test_json_rows_carry_the_pack_and_its_command(monkeypatch):
     assert first["model_id"] == BASE
     assert first["artifact_repo_id"] == PACKS
     assert first["engine"] == "strata"
-    assert first["pack"] == {"name": "ISTA-DASLab IQ3_S", "tier": "memory"}
+    assert first["pack"] == {
+        "name": "ISTA-DASLab IQ3_S",
+        "tier": "memory",
+        "docs_tok_per_sec": 53.0,
+        "docs_hardware": "RTX 5070 12 GB, Ryzen 5 7600, 64 GB RAM",
+    }
+    assert first["estimated_tok_per_sec"] > 0
     assert first["recipe"]["engine"] == "strata"
     assert first["recipe"]["command"] == "strata launch --family qwen --model iq3_s"
     assert first["recipe"]["llama_cpp"] is None
@@ -230,8 +276,8 @@ def test_markdown_ranks_pack_rows_in_the_table(monkeypatch):
     assert "| 1 | [Qwen/Qwen3.8-Flash-Next](" in text
     assert "with Strata, ISTA-DASLab IQ3_S" in text
     assert "| GPU+RAM |" in text
-    assert "? (docs only)" in text
-    assert "Run #1 with Strata:" in text
+    assert " tok/s ?" in text
+    assert "Run #1 with Strata (53 tok/s in its docs on RTX 5070" in text
     assert "strata launch --family qwen --model iq3_s" in text
 
 
@@ -271,3 +317,60 @@ def test_each_engine_adds_one_row_per_model_best_first():
     assert [r.quality_score for r in rows] == sorted(
         (r.quality_score for r in rows), reverse=True
     )
+
+
+def test_a_pack_read_from_the_ssd_is_not_timed():
+    row = _rows(_machine(ram_gb=32, vram_gb=24), quant_filter="Q2_0")[0]
+
+    assert row.pack_tier == "ssd"
+    assert row.estimated_tok_per_sec is None
+
+
+def _llama_cpp_row() -> CompatibilityResult:
+    catalog = _catalog()
+    return CompatibilityResult(
+        model=catalog[0],
+        gguf_variant=None,
+        can_run=True,
+        vram_required_bytes=0,
+        vram_available_bytes=0,
+        quality_score=80.0,
+    )
+
+
+def test_a_ranked_row_names_the_engines_that_also_run_its_model(monkeypatch):
+    from whichllm.output.ranking import _print_engine_alternatives
+
+    row = _llama_cpp_row()
+    attach_engine_alternatives([row], _catalog(), _machine(), STRATA)
+
+    assert [(a.engine, a.pack_name) for a in row.engine_alternatives] == [
+        ("strata", "ISTA-DASLab IQ3_S")
+    ]
+    buf = _console(monkeypatch)
+    _print_engine_alternatives([row])
+    shown = buf.getvalue()
+    assert "#1 also runs with Strata" in shown
+    assert "53 tok/s in its docs on RTX 5070" in shown
+    assert "strata launch --family qwen --model iq3_s" in shown
+
+
+def test_json_rows_list_engine_alternatives(monkeypatch):
+    from whichllm.output.json_output import display_json
+
+    row = _llama_cpp_row()
+    attach_engine_alternatives([row], _catalog(), _machine(), STRATA)
+    buf = _console(monkeypatch, width=10_000)
+
+    display_json([row], _machine(), 4096)
+
+    alternatives = json.loads(buf.getvalue())["models"][0]["engine_alternatives"]
+    assert alternatives == [
+        {
+            "engine": "strata",
+            "pack": "ISTA-DASLab IQ3_S",
+            "command": "strata launch --family qwen --model iq3_s",
+            "docs_tok_per_sec": 53.0,
+            "docs_hardware": "RTX 5070 12 GB, Ryzen 5 7600, 64 GB RAM",
+        }
+    ]

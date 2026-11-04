@@ -74,6 +74,7 @@
           "repo": "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF",
           "quant": "Q2_0",
           "launch": "strata launch --family qwen --model q2_0",
+          "docs_speed": {"tok_per_sec": 94, "hardware": "RTX 5070 12 GB, Ryzen 5 7600, 64 GB RAM"},
           "requires": {"disk_gb": 72.4, "vram_gb": 12, "ram_gb": 44, "ssd": {"ram_gb": 32, "vram_gb": 24}, "nvme": true}
         },
         {
@@ -82,6 +83,7 @@
           "repo": "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF",
           "quant": "IQ2_XS",
           "launch": "strata launch --family qwen --model iq2_xs",
+          "docs_speed": {"tok_per_sec": 79, "hardware": "RTX 5070 12 GB, Ryzen 5 7600, 64 GB RAM"},
           "requires": {"disk_gb": 74, "vram_gb": 12, "ram_gb": 45.5, "ssd": {"ram_gb": 32, "vram_gb": 24}, "nvme": true}
         },
         {
@@ -90,6 +92,7 @@
           "repo": "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF",
           "quant": "IQ3_XXS",
           "launch": "strata launch --family qwen --model iq3_xxs",
+          "docs_speed": {"tok_per_sec": 62, "hardware": "RTX 5070 12 GB, Ryzen 5 7600, 64 GB RAM"},
           "requires": {"disk_gb": 81.8, "vram_gb": 12, "ram_gb": 53, "nvme": true}
         },
         {
@@ -98,6 +101,7 @@
           "repo": "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF",
           "quant": "IQ3_S",
           "launch": "strata launch --family qwen --model iq3_s",
+          "docs_speed": {"tok_per_sec": 53, "hardware": "RTX 5070 12 GB, Ryzen 5 7600, 64 GB RAM"},
           "requires": {"disk_gb": 89.6, "vram_gb": 12, "ram_gb": 60, "nvme": true}
         },
         {
@@ -106,6 +110,7 @@
           "repo": "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-Coder-GGUF",
           "quant": "IQ1_M",
           "launch": "strata launch --family coder --model IQ1_M",
+          "docs_speed": {"tok_per_sec": 55, "hardware": "RTX 5070 12 GB, Ryzen 5 7600, 64 GB RAM"},
           "requires": {"disk_gb": 64.4, "vram_gb": 12, "ram_gb": 33, "ssd": {"ram_gb": 32, "vram_gb": 12}, "nvme": true},
           "note": "Keeps 256 of each layer's 512 experts, chosen on code; weaker outside code."
         },
@@ -196,6 +201,7 @@
           "repo": "unsloth/Qwen3.6-35B-A3B-MTP-GGUF",
           "quant": "Q4_K_XL",
           "launch": "strata launch --family qwen36 --model UD-Q4_K_XL",
+          "docs_speed": {"tok_per_sec": 59.7, "hardware": "RTX 3060 12 GB, most experts on the CPU"},
           "requires": {"disk_gb": 23.8, "vram_gb": 12, "ram_gb": 32}
         },
         {
@@ -242,6 +248,7 @@
           "repo": "ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-GGUF",
           "quant": "IQ2_XXS",
           "launch": "strata launch --family deepseek41 --model ist-das-2.00bpw",
+          "docs_speed": {"tok_per_sec": 5, "hardware": "RTX 5070 12 GB, Ryzen 5 7600, 64 GB RAM"},
           "requires": {"disk_gb": 257, "vram_gb": 12, "memory_gb": 138, "ssd": {"ram_gb": 46, "vram_gb": 12}, "nvme": true}
         },
         {

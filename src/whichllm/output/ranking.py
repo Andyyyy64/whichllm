@@ -251,10 +251,16 @@ def _pack_cells(
             fit = f"[yellow]{'+'.join(tiers[:-1])}[/]\n[yellow]+SSD[/]"
         if result.vram_required_bytes:
             fit += f"\n[dim]{_format_bytes(result.vram_required_bytes)}[/dim]"
+        if result.estimated_tok_per_sec:
+            speed = _format_speed(result)
+        else:
+            speed = "[grey50]?[/]"
+        if result.pack_docs_speed:
+            speed += f"\n[dim]docs {result.pack_docs_speed[0]:g}[/dim]"
         cells += [
             _format_weights(result)[0],
             fit,
-            "[grey50]?[/]\n[dim]docs only[/dim]",
+            speed,
             *([_context_text(result)] if show_context else []),
             published,
         ]
@@ -382,8 +388,9 @@ def display_ranking(
     pack_rows = [(i, r) for i, r in enumerate(results, 1) if r.pack_launch]
     if pack_rows:
         _console.console.print(
-            "  [dim]with <engine> = runs with that engine from its own pack. Fit "
-            "and score follow the engine's docs; speed is not estimated yet.[/dim]"
+            "  [dim]with <engine> = runs with that engine from its own pack, as its "
+            "docs size it. Speed is llama.cpp's for the same file, a floor; docs = "
+            "the engine's own measurement.[/dim]"
         )
 
     if show_status:
@@ -502,6 +509,7 @@ def display_ranking(
     if context_length is not None and not results[0].pack_launch:
         _print_recipe(results[0], context_length)
     _print_pack_recipes(pack_rows)
+    _print_engine_alternatives(results)
 
 
 def _older_names(result: CompatibilityResult, limit: int = 3) -> str:
@@ -551,6 +559,25 @@ def _print_recipe(result: CompatibilityResult, context_length: int) -> None:
             console.print(Text(f"  {name} is not installed here; {hint}", style="dim"))
     for note in recipe.notes:
         console.print(Text(f"  {note}", style="dim"))
+
+
+def _print_engine_alternatives(results: list[CompatibilityResult]) -> None:
+    """The fixed-model engines that also run a top row's model, with their
+    command and the speed their docs report."""
+    console = _console.console
+    for rank, result in enumerate(results[:3], 1):
+        for alternative in result.engine_alternatives:
+            name = _engine_name(alternative.engine)
+            docs = ""
+            if alternative.docs_speed:
+                tok, hardware = alternative.docs_speed
+                docs = f", {tok:g} tok/s in its docs on {hardware}"
+            console.print()
+            console.print(
+                f"  [bold]#{rank} also runs with {escape(name)}[/] "
+                f"[dim]({escape(alternative.pack_name)}{escape(docs)}):[/dim]"
+            )
+            console.print(Text(f"    {alternative.launch}", style="cyan"))
 
 
 def _print_pack_recipes(rows: list[tuple[int, CompatibilityResult]]) -> None:
