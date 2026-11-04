@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-11-05
+
 ### Fixed
 
 - A file a measurement rates as a better quant type is now a candidate even
