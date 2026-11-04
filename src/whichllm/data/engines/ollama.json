@@ -1,0 +1,100 @@
+{
+  "id": "ollama",
+  "name": "Ollama",
+  "kind": "runner",
+  "url": "https://github.com/ollama/ollama",
+  "evidence": "community",
+  "upstream": {
+    "github": "ollama/ollama",
+    "version": "0.40.14",
+    "released_at": "2026-11-03",
+    "status": "active"
+  },
+  "checked_at": "2026-11-04",
+  "sources": [
+    "https://github.com/ollama/ollama/releases/tag/v0.30.0",
+    "https://github.com/ollama/ollama/releases/tag/v0.40.0",
+    "https://github.com/ollama/ollama/blob/main/docs/gpu.mdx",
+    "https://github.com/ollama/ollama/blob/main/LLAMA_CPP_VERSION",
+    "https://github.com/ollama/ollama/blob/main/docs/api/anthropic-compatibility.mdx",
+    "https://github.com/ollama/ollama/blob/main/docs/faq.mdx"
+  ],
+  "platforms": [
+    {
+      "os": [
+        "linux",
+        "windows"
+      ],
+      "accel": "cuda",
+      "min_compute_capability": "5.0",
+      "note": "NVIDIA driver 550 or newer"
+    },
+    {
+      "os": [
+        "linux",
+        "windows"
+      ],
+      "accel": "rocm",
+      "note": "ROCm 7; on Windows only RDNA3 cards are listed"
+    },
+    {
+      "os": [
+        "linux",
+        "windows"
+      ],
+      "accel": "vulkan"
+    },
+    {
+      "os": [
+        "darwin"
+      ],
+      "accel": "metal",
+      "note": "Runs MLX on Apple Silicon for the architectures it supports"
+    },
+    {
+      "os": [
+        "linux",
+        "windows",
+        "darwin"
+      ],
+      "accel": "cpu"
+    }
+  ],
+  "gguf": {},
+  "memory": [
+    "gpu",
+    "layer_offload",
+    "expert_offload",
+    "cpu"
+  ],
+  "serve": "ollama run hf.co/{repo}:{quant}",
+  "port": 11434,
+  "api": [
+    "ollama",
+    "openai",
+    "anthropic"
+  ],
+  "install": {
+    "docs": "https://ollama.com/download",
+    "linux": "curl -fsSL https://ollama.com/install.sh | sh"
+  },
+  "detect_binaries": [
+    "ollama"
+  ],
+  "detect_paths": {
+    "windows": [
+      "%LOCALAPPDATA%\\Programs\\Ollama\\ollama.exe"
+    ],
+    "darwin": [
+      "/Applications/Ollama.app"
+    ]
+  },
+  "probe": {
+    "path": "/api/version",
+    "contains": "\"version\""
+  },
+  "version_args": [
+    "--version"
+  ],
+  "note": "Since 0.30 Ollama runs GGUF models on a pinned build of the upstream llama-server, which picks the GPU and CPU split itself."
+}

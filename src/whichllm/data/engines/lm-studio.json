@@ -1,0 +1,97 @@
+{
+  "id": "lm-studio",
+  "name": "LM Studio",
+  "kind": "runner",
+  "url": "https://lmstudio.ai",
+  "evidence": "community",
+  "upstream": {
+    "version": "0.4.28",
+    "status": "active"
+  },
+  "checked_at": "2026-11-04",
+  "sources": [
+    "https://lmstudio.ai/download",
+    "https://lmstudio.ai/docs/app/system-requirements",
+    "https://lmstudio.ai/changelog/lmstudio-v0.4.1",
+    "https://lmstudio.ai/docs/developer",
+    "https://github.com/lmstudio-ai/mlx-engine",
+    "https://github.com/lmstudio-ai/lms/blob/main/src/createClient.ts"
+  ],
+  "platforms": [
+    {
+      "os": [
+        "linux",
+        "windows"
+      ],
+      "accel": "cuda",
+      "requires_avx2": true,
+      "note": "llama.cpp runtime"
+    },
+    {
+      "os": [
+        "linux",
+        "windows"
+      ],
+      "accel": "rocm",
+      "requires_avx2": true,
+      "note": "llama.cpp runtime"
+    },
+    {
+      "os": [
+        "linux",
+        "windows"
+      ],
+      "accel": "vulkan",
+      "requires_avx2": true
+    },
+    {
+      "os": [
+        "darwin"
+      ],
+      "accel": "metal",
+      "note": "Apple Silicon on macOS 14 or newer, with the MLX runtime too; Intel Macs are not supported"
+    },
+    {
+      "os": [
+        "linux",
+        "windows"
+      ],
+      "accel": "cpu",
+      "requires_avx2": true
+    }
+  ],
+  "gguf": {},
+  "memory": [
+    "gpu",
+    "layer_offload",
+    "expert_offload",
+    "cpu"
+  ],
+  "serve": "lms server start --port 1234",
+  "port": 1234,
+  "api": [
+    "openai",
+    "anthropic"
+  ],
+  "install": {
+    "docs": "https://lmstudio.ai/download"
+  },
+  "detect_binaries": [
+    "lms"
+  ],
+  "detect_paths": {
+    "windows": [
+      "~/.lmstudio/bin/lms.exe"
+    ],
+    "linux": [
+      "~/.lmstudio/bin/lms"
+    ],
+    "darwin": [
+      "~/.lmstudio/bin/lms"
+    ]
+  },
+  "probe": {
+    "path": "/lmstudio-greeting",
+    "contains": "\"lmstudio\""
+  }
+}

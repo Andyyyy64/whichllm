@@ -173,6 +173,53 @@ start), `disk_free_bytes`, and per GPU `pcie_generation` and `pcie_lanes`
 when NVML reports them and `detected_by` (`nvml`, `nvidia-smi` or
 `device-tree`) for NVIDIA GPUs.
 
+## `engines`
+
+```bash
+whichllm engines [OPTIONS]
+```
+
+Lists the inference engines whichllm knows and whether each runs on this
+machine, through which accelerator, or why not:
+
+```bash
+whichllm engines
+whichllm engines --gpu "GTX 1060"      # older cards fall back, and it says why
+whichllm engines --gpu "Apple M3 Max"  # a simulated Apple GPU is treated as a Mac
+whichllm engines --json
+```
+
+Each engine has a card in `src/whichllm/data/engines/`, written from the
+engine's own repository and docs, with the sources and the date they were
+checked. The evidence column says how much stands behind it. `verified` means
+whichllm's own `bench` runs match the estimates, `community` means public
+benchmarks exist, and `documented` means only the engine's docs. The cards
+cover llama.cpp, ik_llama.cpp, Ollama, LM Studio, KoboldCpp, Jan and Lemonade
+so far.
+
+The Installed column says which engines are already on this machine, with
+their version and whether a server answers on the engine's default port.
+whichllm looks for each engine's binaries on PATH and where its installer puts
+them (`~/.local/bin/llama`, `~/.lmstudio/bin/lms`, Ollama's app folder), and a
+port only counts when the reply carries that engine's fingerprint, since
+engines share ports. llama.cpp and ik_llama.cpp both ship `llama-server`, so
+`--help` tells them apart. With `--gpu` the column is left out, because a
+simulated machine has nothing installed. Under WSL, engines installed on the
+Windows side are not looked for.
+
+The ranking uses the same cards. Under the table, the run line names an
+engine that can run the top pick here, reads its quant and holds its
+placement, preferring one that is already running, then one that is
+installed, then llama.cpp. It finds installed engines with file lookups only,
+so a ranking never runs a binary or asks a port. `--json` rows carry the
+chosen `engine`, every engine that can run the row in `engines`, and
+`engine_installed` (`null` with `--gpu`).
+
+`--json` prints the `hardware` object plus one row per engine with `runs`,
+`accel`, `reason`, `installed`, `installed_path`, `installed_version`,
+`running`, `evidence`, the upstream `version`, the default `port`, the `serve`
+command, `install` hints and `sources`.
+
 ## `hardware`
 
 ```bash

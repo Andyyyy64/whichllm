@@ -1,0 +1,81 @@
+{
+  "id": "koboldcpp",
+  "name": "KoboldCpp",
+  "kind": "runner",
+  "url": "https://github.com/LostRuins/koboldcpp",
+  "evidence": "documented",
+  "upstream": {
+    "github": "LostRuins/koboldcpp",
+    "version": "1.124.2",
+    "released_at": "2026-10-31",
+    "status": "active"
+  },
+  "checked_at": "2026-11-04",
+  "sources": [
+    "https://github.com/LostRuins/koboldcpp",
+    "https://github.com/LostRuins/koboldcpp/releases/tag/v1.124.2",
+    "https://github.com/LostRuins/koboldcpp/blob/concedo/koboldcpp.py"
+  ],
+  "platforms": [
+    {
+      "os": [
+        "linux",
+        "windows"
+      ],
+      "accel": "cuda",
+      "note": "CUDA 12.1 build; the oldpc build uses CUDA 11.4"
+    },
+    {
+      "os": [
+        "linux"
+      ],
+      "accel": "rocm"
+    },
+    {
+      "os": [
+        "linux",
+        "windows"
+      ],
+      "accel": "vulkan"
+    },
+    {
+      "os": [
+        "darwin"
+      ],
+      "accel": "metal",
+      "note": "Apple Silicon build only"
+    },
+    {
+      "os": [
+        "linux",
+        "windows"
+      ],
+      "accel": "cpu"
+    }
+  ],
+  "gguf": {},
+  "memory": [
+    "gpu",
+    "layer_offload",
+    "expert_offload",
+    "cpu"
+  ],
+  "serve": "koboldcpp --model {file} --gpulayers -1 --contextsize {ctx}",
+  "port": 5001,
+  "api": [
+    "openai",
+    "anthropic",
+    "ollama"
+  ],
+  "install": {
+    "docs": "https://github.com/LostRuins/koboldcpp/releases"
+  },
+  "detect_binaries": [
+    "koboldcpp"
+  ],
+  "probe": {
+    "path": "/api/extra/version",
+    "contains": "KoboldCpp"
+  },
+  "note": "One executable per platform. Memory-mapping is off unless --usemmap is given, so the model loads fully into RAM."
+}

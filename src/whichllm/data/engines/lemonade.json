@@ -1,0 +1,43 @@
+{
+  "id": "lemonade",
+  "name": "Lemonade",
+  "kind": "runner",
+  "url": "https://github.com/lemonade-sdk/lemonade",
+  "evidence": "documented",
+  "upstream": {
+    "github": "lemonade-sdk/lemonade",
+    "version": "2026.44.1",
+    "released_at": "2026-10-28",
+    "status": "active"
+  },
+  "checked_at": "2026-11-04",
+  "sources": [
+    "https://github.com/lemonade-sdk/lemonade",
+    "https://github.com/lemonade-sdk/lemonade/blob/main/docs/dev/backends-reference.md",
+    "https://github.com/lemonade-sdk/lemonade/blob/main/docs/guide/cli.md"
+  ],
+  "platforms": [
+    {
+      "os": ["linux", "windows"],
+      "accel": "cuda",
+      "min_compute_capability": "7.5"
+    },
+    {
+      "os": ["linux", "windows"],
+      "accel": "rocm",
+      "note": "gfx103X to gfx120X"
+    },
+    {"os": ["linux", "windows"], "accel": "vulkan"},
+    {"os": ["darwin"], "accel": "metal"}
+  ],
+  "gguf": {},
+  "memory": ["gpu", "layer_offload", "cpu"],
+  "serve": "lemonade run {model}",
+  "port": 13305,
+  "api": ["openai", "anthropic", "ollama"],
+  "install": {
+    "docs": "https://github.com/lemonade-sdk/lemonade"
+  },
+  "detect_binaries": ["lemonade"],
+  "note": "AMD's server. It runs GGUF through llama.cpp and, on Ryzen AI 300 NPUs, its own NPU backends, under Lemonade's model names such as Qwen3-0.6B-GGUF."
+}

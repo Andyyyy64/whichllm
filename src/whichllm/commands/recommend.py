@@ -112,7 +112,7 @@ def _print_data_source(catalog) -> None:
 
 
 # Subcommands with their own --json; none has --markdown.
-_JSON_SUBCOMMANDS = frozenset({"hardware", "plan", "upgrade"})
+_JSON_SUBCOMMANDS = frozenset({"engines", "hardware", "plan", "upgrade"})
 
 
 def _refuse_output_flag_before(
@@ -279,11 +279,26 @@ def main_command(
         if results:
             attach_resolved_artifacts(results, all_models, quant_filter=quant)
             from whichllm.engine.context import max_context_tokens
+            from whichllm.engines import load_cards
+            from whichllm.engines.detect import detect_installed
+            from whichllm.engines.select import assign_engines
 
             for result in results:
                 result.max_context_tokens = max_context_tokens(
                     result, hardware, context_length
                 )
+            # Only file lookups here: the ranking needs to know what is
+            # installed, not versions or running servers. A simulated GPU has
+            # nothing installed.
+            cards = load_cards()
+            installed = (
+                None
+                if gpu
+                else detect_installed(
+                    cards, hardware.os, probe=False, run_binaries=False
+                )
+            )
+            assign_engines(results, hardware, cards, installed)
             from whichllm.models.lmstudio import (
                 attach_local_matches,
                 discover_lmstudio_ggufs,

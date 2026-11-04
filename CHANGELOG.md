@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-11-04
+
+### Added
+
+- `whichllm engines` lists the inference engines whichllm knows, whether each
+  runs on this machine and through which accelerator, and why not when it does
+  not (an old GPU below an engine's CUDA build, no macOS build, no AVX2). Each
+  engine has a card written from its own docs with the sources and the date
+  they were checked, starting with llama.cpp, ik_llama.cpp, Ollama, LM Studio,
+  KoboldCpp, Jan and Lemonade. It also shows which engines are installed,
+  their version, and whether a server already answers on the engine's port.
+- The run line under the ranking uses an engine that can run the top pick
+  here and is already installed: a running one first, then an installed one,
+  then llama.cpp. `Run #1 with Ollama (installed)` prints the Ollama command,
+  with the llama.cpp command below it. When nothing suitable is installed the
+  line says how to install llama.cpp. The llama.cpp installer's single
+  `llama` binary gets `llama serve`, and a GGUF in one of ik_llama.cpp's own
+  quants gets an ik_llama.cpp command, since mainline cannot load it.
+  `--json` rows carry `engine`, `engines` and `engine_installed`, and the
+  recipe gains `engine` and `command`.
+
+### Changed
+
+- Simulating only Apple GPUs (`--gpu "Apple M3 Max"`) treats the machine as
+  macOS, so Metal and the macOS builds apply instead of the host's OS.
+
 ### Fixed
 
 - `whichllm hardware --json` prints the hardware object as JSON, the same

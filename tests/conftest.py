@@ -42,6 +42,17 @@ def _isolate_device_tree(monkeypatch, tmp_path):
 
 
 @pytest.fixture(autouse=True)
+def _isolate_installed_engines(monkeypatch):
+    """`whichllm engines` finds nothing installed unless a test says otherwise.
+
+    The real search runs binaries on PATH and asks local ports.
+    """
+    monkeypatch.setattr(
+        "whichllm.engines.detect.detect_installed", lambda cards, os_name, **kwargs: {}
+    )
+
+
+@pytest.fixture(autouse=True)
 def _isolate_shape_lookups(monkeypatch, tmp_path):
     """Keep model-shape lookups off the network and the user's cache.
 

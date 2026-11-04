@@ -80,6 +80,22 @@ That rewrites `src/whichllm/data/measurements.json`. Read the diff and open a PR
 by hand. The script treats issue text as untrusted: it only parses JSON and checks
 each field, and it prints every issue it left out and why.
 
+### Engine cards
+Each file in `src/whichllm/data/engines` describes one inference engine, written
+from the engine's own docs and repository, which the card lists under `sources`
+with the date in `checked_at`. Every Monday the `Engine upstream` workflow
+compares the cards with GitHub and keeps one issue, "Engine cards to re-check",
+listing cards whose upstream has a newer release, a push since the card was
+checked, or an archived repository. It also lists repositories created in the
+last two weeks under inference topics with no card yet. To run it locally:
+
+```bash
+uv run --locked python scripts/check_engine_upstream.py --out report.md
+```
+
+When you update a card, re-read its sources rather than copying the release
+notes, then set `upstream.version`, `upstream.released_at` and `checked_at`.
+
 ## Code Style
 - Follow existing code conventions
 - Use type hints
