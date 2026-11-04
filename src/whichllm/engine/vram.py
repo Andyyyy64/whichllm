@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from whichllm.constants import FRAMEWORK_OVERHEAD_BYTES
 from whichllm.engine.moe import routed_expert_fraction
-from whichllm.engine.quantization import estimate_weight_bytes
+from whichllm.engine.quantization import resident_weight_bytes
 from whichllm.models.types import GGUFVariant, ModelInfo
 
 # Empirical KV-cache coefficient: bytes per B-active-param per K-context-token
@@ -126,8 +126,12 @@ def estimate_memory_breakdown(
     variant: GGUFVariant | None,
     context_length: int = 4096,
 ) -> MemoryBreakdown:
-    """Estimate runtime memory by component."""
-    weights = estimate_weight_bytes(model, variant)
+    """Estimate runtime memory by component.
+
+    A lookup table the runtime reads from disk takes no memory here; the
+    download still counts it (see compatibility's disk check).
+    """
+    weights = resident_weight_bytes(model, variant)
     return MemoryBreakdown(
         weights=weights,
         expert_weights=int(weights * routed_expert_fraction(model)),

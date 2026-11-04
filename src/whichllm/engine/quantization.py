@@ -82,6 +82,17 @@ def estimate_weight_bytes(model: ModelInfo, variant: GGUFVariant | None) -> int:
     return int(model.parameter_count * bytes_per_weight)
 
 
+def resident_weight_bytes(model: ModelInfo, variant: GGUFVariant | None) -> int:
+    """Weight bytes a runtime keeps in VRAM or RAM.
+
+    A lookup table read a row at a time from disk is left out.
+    """
+    from whichllm.engine.lookup import lazy_lookup_bytes
+
+    weights = estimate_weight_bytes(model, variant)
+    return weights - lazy_lookup_bytes(model, weights)
+
+
 def quant_quality_penalty(model: ModelInfo, variant: GGUFVariant | None) -> float:
     """Return quality penalty fraction for a quantization format."""
     quant_type = effective_quant_type(model, variant).upper()

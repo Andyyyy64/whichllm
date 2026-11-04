@@ -27,7 +27,8 @@ EVIDENCE = ("verified", "community", "documented")
 STATUSES = frozenset({"active", "slowing", "dormant", "archived"})
 OSES = frozenset({"linux", "windows", "darwin"})
 ACCELS = frozenset({"cuda", "rocm", "metal", "sycl", "vulkan", "cpu"})
-MEMORY = frozenset({"gpu", "layer_offload", "expert_offload", "cpu"})
+# "lazy_lookup": reads a model's lookup tables a row at a time from disk.
+MEMORY = frozenset({"gpu", "layer_offload", "expert_offload", "cpu", "lazy_lookup"})
 
 # Unknown keys are refused, so a typo cannot drop a value without a word.
 _CARD_KEYS = frozenset(

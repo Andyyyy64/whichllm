@@ -151,6 +151,17 @@ which llama.cpp keeps in system RAM (682 MiB for Qwen3.8-27B), so the estimate
 stays on the safe side: Qwen3.8-27B at Q3_K_M is estimated at 14.2 GiB and
 used 12.8 GiB.
 
+Some models carry a lookup table that each token reads only a few rows of:
+Qwen3.8-Flash-Next's n-gram table (`ngram_vocab_size_base` x `ple_embed_dim`,
+51.2B parameters) and DeepSeek V4.1's Engram tables (`engram_num_embeddings` x
+`engram_head_dim`, 196.6B). llama.cpp leaves such a tensor memory-mapped on
+disk and reads the rows it needs (`--lazy-mode`, on by default for tensors over
+4 GiB). whichllm counts the table toward the download but not toward VRAM, RAM
+or what a token reads, so Qwen3.8-Flash-Next is about 10B active instead of
+61.6B, and ISTA-DASLab's IQ3_S needs its 54.8 GB of other weights in memory,
+not 83.6 GB. Only engines whose card says they read tables from disk (llama.cpp)
+are offered for such a model.
+
 Without a shape (no readable config, or a layout whichllm does not
 recognise) the estimate falls back to a parameter-count heuristic. That
 heuristic undercounts GQA models at long context, so use `whichllm plan` for

@@ -11,8 +11,9 @@ from whichllm.models.types import GGUFVariant
 _GGUF_SPLIT_RE = re.compile(r"-(\d{5})-of-(\d{5})\.gguf$", re.IGNORECASE)
 # Files published next to the weights that are not the model: vision
 # projectors and speculative-decoding drafts (DFlash, DSpark).
+# DeepSeek V4.1's Engram table ships as its own GGUF next to the model.
 _AUXILIARY_GGUF_RE = re.compile(
-    r"mmproj|(?:^|[-_./])(?:dflash\d*|dspark|draft)(?:[-_.]|$)", re.IGNORECASE
+    r"mmproj|(?:^|[-_./])(?:dflash\d*|dspark|draft|engram)(?:[-_.]|$)", re.IGNORECASE
 )
 # No quant of a whole model is this small (IQ1_S is about 1.6 bits per
 # weight), so a real file below it holds something else.

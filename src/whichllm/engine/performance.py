@@ -7,7 +7,8 @@ import re
 from whichllm.engine.measurements import gpu_evidence
 from whichllm.engine.moe import active_expert_fraction, routed_expert_fraction
 from whichllm.engine.placement import Placement
-from whichllm.engine.quantization import estimate_weight_bytes
+from whichllm.engine.lookup import resident_params
+from whichllm.engine.quantization import resident_weight_bytes
 from whichllm.engine.quantization import effective_quant_type
 from whichllm.hardware.gpu_db import _MOBILE_MARKER_RE
 from whichllm.hardware.ram_bandwidth import DEFAULT_RAM_BANDWIDTH_GBPS
@@ -222,12 +223,12 @@ def _gguf_read_bandwidth(gpu: GPUInfo, bandwidth: float) -> float:
 
 
 def _active_ratio(model: ModelInfo) -> float:
-    """Share of all stored weights a MoE reads per token (1.0 for dense)."""
+    """Share of the resident weights a MoE reads per token (1.0 for dense)."""
     if not model.is_moe or not model.parameter_count_active:
         return 1.0
     if model.parameter_count <= 0:
         return 1.0
-    active_ratio = model.parameter_count_active / model.parameter_count
+    active_ratio = model.parameter_count_active / resident_params(model)
     return min(1.0, active_ratio) if active_ratio > 0 else 1.0
 
 
@@ -282,7 +283,7 @@ def _split_tok_per_sec(
     share from RAM; the two run one after the other, so the times add up.
     With expert offload the CPU share is only the active experts.
     """
-    model_size = estimate_weight_bytes(model, variant)
+    model_size = resident_weight_bytes(model, variant)
     if placement.kind == "expert_offload":
         experts = model_size * routed_expert_fraction(model)
         active = active_expert_fraction(model)
@@ -504,12 +505,12 @@ def estimate_tok_per_sec(
     read everything from RAM.
     """
     if gpu is None or fit_type == "cpu_only":
-        read = estimate_weight_bytes(model, variant) * _active_ratio(model)
+        read = resident_weight_bytes(model, variant) * _active_ratio(model)
         if read <= 0:
             return 0.0
         return _cpu_decode_bytes_per_sec(model, variant, ram_bandwidth_gbps) / read
 
-    model_size = estimate_weight_bytes(model, variant)
+    model_size = resident_weight_bytes(model, variant)
 
     # MoE: use a speed-specific effective read ratio. VRAM fit still uses
     # total stored weights elsewhere; this only estimates per-token reads.

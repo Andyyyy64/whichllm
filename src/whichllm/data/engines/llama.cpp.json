@@ -73,7 +73,8 @@
     "gpu",
     "layer_offload",
     "expert_offload",
-    "cpu"
+    "cpu",
+    "lazy_lookup"
   ],
   "serve": "llama-server -hf {repo}:{quant}",
   "port": 9931,
