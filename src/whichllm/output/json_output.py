@@ -46,6 +46,19 @@ def _recipe_json(
 ) -> dict | None:
     if context_length is None:
         return None
+    if result.pack_launch:
+        # A fixed-model engine starts its own pack; llama.cpp, LM Studio and
+        # Ollama recipes do not apply.
+        return {
+            "gguf_repo": result.artifact_model.id if result.artifact_model else None,
+            "quant": effective_quant_type(result.model, result.gguf_variant),
+            "llama_cpp": None,
+            "lm_studio": None,
+            "ollama": None,
+            "notes": [],
+            "engine": result.engine,
+            "command": result.pack_launch,
+        }
     recipe = build_recipe(result, context_length)
     return asdict(recipe) if recipe else None
 
@@ -87,23 +100,11 @@ def display_hardware_json(hardware: HardwareInfo) -> None:
     _console.console.print_json(json.dumps(output, ensure_ascii=False))
 
 
-def _pack_json(result: CompatibilityResult) -> dict:
-    return {
-        "model_id": result.model.id,
-        "artifact_repo_id": result.artifact_model.id if result.artifact_model else None,
-        "engine": result.engine,
-        "engine_installed": result.engine_installed,
-        "pack": result.pack_name,
-        "quant_type": effective_quant_type(result.model, result.gguf_variant),
-        "tier": result.pack_tier,
-        "vram_required_bytes": result.vram_required_bytes,
-        "quality_score": round(result.quality_score, 2),
-        "benchmark_status": result.benchmark_status,
-        "benchmark_source": result.benchmark_source,
-        "command": result.pack_launch,
-        "warnings": result.warnings,
-        "license": result.model.license,
-    }
+def _pack_json(result: CompatibilityResult) -> dict | None:
+    """The fixed-model engine pack a row runs from, or None for other rows."""
+    if not result.pack_launch:
+        return None
+    return {"name": result.pack_name, "tier": result.pack_tier}
 
 
 def display_json(
@@ -111,13 +112,12 @@ def display_json(
     hardware: HardwareInfo,
     context_length: int | None = None,
     data: dict | None = None,
-    pack_rows: list[CompatibilityResult] | None = None,
 ) -> None:
     """Output ranking results as JSON.
 
     ``data`` says where the scores came from: the index's build time and its
-    benchmark sources, or a live fetch. ``pack_rows`` go under
-    ``other_engines``: models a fixed-model engine runs here from its own pack.
+    benchmark sources, or a live fetch. A row that runs with a fixed-model
+    engine carries its ``pack``, and its recipe is the engine's own command.
     """
     output = {
         "hardware": hardware_json(hardware),
@@ -165,6 +165,7 @@ def display_json(
                 "engine": r.engine,
                 "engines": list(r.engines),
                 "engine_installed": r.engine_installed,
+                "pack": _pack_json(r),
                 "recipe": _recipe_json(r, context_length),
                 "can_run": r.can_run,
                 "warnings": r.warnings,
@@ -172,7 +173,6 @@ def display_json(
             }
             for i, r in enumerate(results, 1)
         ],
-        "other_engines": [_pack_json(r) for r in pack_rows or []],
     }
     if data is not None:
         output["data"] = data

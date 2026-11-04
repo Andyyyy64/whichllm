@@ -228,16 +228,16 @@ def _engine_name(engine: str | None) -> str:
 
 
 def _pack_cells(
-    result: CompatibilityResult, show_status: bool, show_context: bool
+    result: CompatibilityResult, rank: int, show_status: bool, show_context: bool
 ) -> list:
-    """A row that runs with a fixed-model engine, marked + instead of a rank."""
+    """A row that runs with a fixed-model engine from its own pack."""
     model_link = Text(result.model.id, style="cyan")
     model_link.stylize(f"link https://huggingface.co/{_artifact_model_id(result)}")
     model_link.append(
         f"\nwith {_engine_name(result.engine)}, {result.pack_name}", style="magenta"
     )
     cells: list = [
-        "+",
+        str(rank),
         model_link,
         effective_quant_type(result.model, result.gguf_variant),
     ]
@@ -271,12 +271,11 @@ def display_ranking(
     show_status: bool = False,
     empty_message: str | None = None,
     context_length: int | None = None,
-    pack_rows: list[CompatibilityResult] | None = None,
 ) -> None:
     """Display ranked model table.
 
-    ``pack_rows`` follow the ranking, marked +: models a fixed-model engine
-    runs here from its own pack.
+    A row with ``pack_launch`` set runs with a fixed-model engine from its own
+    pack. It takes its rank like the others, and names the engine and pack.
     """
     if not results:
         _console.console.print(
@@ -319,6 +318,9 @@ def display_ranking(
     newest_ts = max((d.timestamp() for d in published_valid), default=None)
 
     for i, r in enumerate(results, 1):
+        if r.pack_launch:
+            table.add_row(*_pack_cells(r, i, show_status, show_context))
+            continue
         quant = effective_quant_type(r.model, r.gguf_variant)
         vram_str = _format_bytes(r.vram_required_bytes)
         speed_str = _format_speed(r)
@@ -376,17 +378,12 @@ def display_ranking(
         row_cells.append(score_str)
         table.add_row(*row_cells)
 
-    pack_rows = pack_rows or []
-    if pack_rows:
-        table.add_section()
-        for r in pack_rows:
-            table.add_row(*_pack_cells(r, show_status, show_context))
-
     _console.console.print(table)
+    pack_rows = [(i, r) for i, r in enumerate(results, 1) if r.pack_launch]
     if pack_rows:
         _console.console.print(
-            "  [dim]+ = runs with another engine from its own pack. Fit and score "
-            "follow the engine's docs; speed is not estimated yet.[/dim]"
+            "  [dim]with <engine> = runs with that engine from its own pack. Fit "
+            "and score follow the engine's docs; speed is not estimated yet.[/dim]"
         )
 
     if show_status:
@@ -502,7 +499,7 @@ def display_ranking(
                 f"generations of its line: {_older_names(r)}[/dim]"
             )
 
-    if context_length is not None:
+    if context_length is not None and not results[0].pack_launch:
         _print_recipe(results[0], context_length)
     _print_pack_recipes(pack_rows)
 
@@ -556,17 +553,16 @@ def _print_recipe(result: CompatibilityResult, context_length: int) -> None:
         console.print(Text(f"  {note}", style="dim"))
 
 
-def _print_pack_recipes(rows: list[CompatibilityResult]) -> None:
-    """How to start each + row, and how to install an engine that is missing."""
+def _print_pack_recipes(rows: list[tuple[int, CompatibilityResult]]) -> None:
+    """How to start each row that runs with a fixed-model engine, by rank, and
+    how to install an engine that is missing."""
     console = _console.console
     hinted: set[str] = set()
-    for result in rows:
+    for rank, result in rows:
         name = _engine_name(result.engine)
         installed = " (installed)" if result.engine_installed else ""
         console.print()
-        console.print(
-            f"  [bold]Run {escape(result.model.name)} with {escape(name)}{installed}:[/]"
-        )
+        console.print(f"  [bold]Run #{rank} with {escape(name)}{installed}:[/]")
         console.print(Text(f"    {result.pack_launch}", style="bold cyan"))
         card = card_by_id(result.engine) if result.engine else None
         if (

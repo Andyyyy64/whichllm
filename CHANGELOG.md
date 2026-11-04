@@ -16,13 +16,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   whether it needs a GPU that shares system RAM. `whichllm engines` lists them
   with how many of each engine's packs fit here, and says when one does not
   run under WSL, as Project Maya does not.
-- Under the ranking, rows marked + show models a fixed-model engine runs here
-  when llama.cpp cannot place them, such as Qwen3.8-Flash-Next with Strata on
-  a 16 GB GPU and 64 GB of RAM. They are scored like the ranked rows and show
-  only when they would have made the list. Speed shows as ? because only the
-  engines' own numbers exist so far, and the run lines end with each engine's
-  launch command. `--json` lists them under `other_engines`, and `--markdown`
-  adds a table.
+- The ranking includes models a fixed-model engine runs here when llama.cpp
+  cannot place them. On a 16 GB GPU with 64 GB of RAM, Qwen3.8-Flash-Next with
+  Strata ranks in the top five. Such a row is scored like the others and takes its rank
+  by score, and the engine and its pack are named under the model. Speed shows
+  as ? because only the engines' own numbers exist so far, and the run line
+  gives the engine's launch command. `--json` rows carry a `pack` object and
+  the engine's command in the recipe.
 
 ### Fixed
 
