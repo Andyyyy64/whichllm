@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 import pytest
 
 from whichllm.constants import QUANT_QUALITY_PENALTY
 from whichllm.data import DATA_DIR
-from whichllm.engine.quantization import measured_ratings, quant_quality_penalty
+from whichllm.engine.quantization import (
+    measured_ratings,
+    quant_quality_penalty,
+    rated_quant_type,
+)
+from whichllm.engine.ranking_variants import _iter_candidate_variants
+from whichllm.models.artifacts import resolve_ranked_gguf_artifact
 from whichllm.models.types import GGUFVariant, ModelInfo
 
 ISTA = "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF"
@@ -62,6 +69,49 @@ def test_a_base_model_takes_the_rating_of_the_repo_its_file_comes_from():
 
     assert quant_quality_penalty(base, variant) == 0.17
     assert quant_quality_penalty(base, variant, ISTA) == QUANT_QUALITY_PENALTY["IQ4_XS"]
+
+
+def test_a_measured_file_below_three_bits_stays_a_candidate():
+    variants = [
+        GGUFVariant("IQ3_XXS/x.gguf", "IQ3_XXS", 75_800_000_000),
+        GGUFVariant("IQ2_XS/x.gguf", "IQ2_XS", 68_000_000_000),
+    ]
+    ista = replace(_model(ISTA), gguf_variants=variants)
+    other = replace(_model("someone/Other-GGUF"), gguf_variants=variants)
+
+    assert rated_quant_type(ista, variants[0]) == "IQ4_XS"
+    assert "IQ3_XXS" in [v.quant_type for v in _iter_candidate_variants(ista)]
+    assert "IQ3_XXS" not in [v.quant_type for v in _iter_candidate_variants(other)]
+
+
+def test_the_official_row_takes_a_measured_upload_file_as_that_file():
+    official = _model("Qwen/Qwen3.8-Flash-Next")
+    xxs = GGUFVariant("IQ3_XXS/x-00001-of-00002.gguf", "IQ3_XXS", 75_800_000_000)
+    upload = {"base_model": official.id, "base_model_relation": "quantized"}
+    ista = replace(
+        _model(ISTA),
+        gguf_variants=[xxs, GGUFVariant("IQ2_XS/x.gguf", "IQ2_XS", 68_000_000_000)],
+        downloads=10,
+        **upload,
+    )
+    # More downloads, and the same quant type, but no measurement.
+    other = replace(
+        _model("someone/Qwen3.8-Flash-Next-GGUF"),
+        gguf_variants=[GGUFVariant("x-IQ3_XXS.gguf", "IQ3_XXS", 80_000_000_000)],
+        downloads=1000,
+        **upload,
+    )
+
+    bound = [
+        v for v in _iter_candidate_variants(official, None, [other, ista]) if v.repo
+    ]
+
+    assert [(v.repo, v.quant_type) for v in bound] == [(ISTA, "IQ3_XXS")]
+    assert quant_quality_penalty(official, bound[0]) == QUANT_QUALITY_PENALTY["IQ4_XS"]
+    assert resolve_ranked_gguf_artifact(official, bound[0], [other, ista]) == (
+        ista,
+        xxs,
+    )
 
 
 def test_ratings_are_keyed_case_insensitively():

@@ -164,6 +164,8 @@ def _understates_its_base(model: ModelInfo, params_by_repo: dict[str, int]) -> b
 _AMPERE_FORMATS = frozenset({"NVFP4", "FP8"})
 _MIN_COMPUTE_CAPABILITY = (8, 0)
 _NATIVE_FP4_CAPABILITY = (10, 0)
+# MLX runs on Apple Silicon only, and a Mac's ranking takes GGUF files.
+_APPLE_ONLY_FORMATS = frozenset({"MLX"})
 
 
 def _non_gguf_format_note(quant_type: str, hardware: HardwareInfo) -> str | None:
@@ -172,6 +174,8 @@ def _non_gguf_format_note(quant_type: str, hardware: HardwareInfo) -> str | None
     Returns ``None`` when the format cannot run on this machine's GPU, an empty
     string when it runs as expected, and a note when it runs with a caveat.
     """
+    if quant_type in _APPLE_ONLY_FORMATS:
+        return None
     if quant_type not in _AMPERE_FORMATS:
         return ""
     capabilities = [

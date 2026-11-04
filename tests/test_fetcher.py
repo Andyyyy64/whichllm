@@ -864,6 +864,22 @@ def test_a_gguf_next_to_a_strata_pack_is_still_ranked():
     assert [v.quant_type for v in parsed.gguf_variants] == ["IQ3_S"]
 
 
+def test_strata_s_own_ggufs_next_to_its_pack_are_not_a_model_to_rank():
+    # Maximilian228/Qwen3.8-Flash-Next-NVFP4-GPTQ-Strata, whose 51.2B
+    # parameters are the n-gram table alone.
+    pieces = _repo(
+        "someone/Qwen3.8-Flash-Next-NVFP4-GPTQ-Strata",
+        "pack/dense.bin",
+        "pack/experts.bin",
+        "ple-fp8.gguf",
+        "qwen-nvfp4-gptq-dense.gguf",
+        "token-embd-bf16.gguf",
+    )
+    pieces["gguf"] = {"total": 51_200_245_760, "architecture": "strata-ple"}
+
+    assert _parse_model(pieces) is None
+
+
 def test_a_gguf_cut_with_split_is_not_a_model_to_rank():
     parts = _repo(
         "someone/DeepSeek-V4.1-Flash-1017-GSQ-strata",

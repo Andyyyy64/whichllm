@@ -128,18 +128,18 @@ Catalog captured 2026-11-01 with whichllm 0.5.23 (fd64b46): 1430 models, 4729 be
 ## rtx5090-32gb-linux / general
 
 1. Qwen/Qwen3.8-27B [Q8_0, full_gpu, 52.5 tok/s, score 91.6]
-2. google/gemma-4-31B-it [Q6_K, full_gpu, 58.6 tok/s, score 78.4]
-3. Qwen/Qwen3.6-35B-A3B [Q6_K, full_gpu, 122.1 tok/s, score 78.1]
-4. google/gemma-4-26B-A4B-it [Q8_0, full_gpu, 120.0 tok/s, score 76.9]
-5. zai-org/GLM-4.7-Flash [Q6_K, full_gpu, 94.3 tok/s, score 72.1]
+2. Qwen/Qwen3.8-Flash-Next [IQ3_XXS, partial_offload, 14.9 tok/s, score 81.7]
+3. google/gemma-4-31B-it [Q6_K, full_gpu, 58.6 tok/s, score 78.4]
+4. Qwen/Qwen3.6-35B-A3B [Q6_K, full_gpu, 122.1 tok/s, score 78.1]
+5. google/gemma-4-26B-A4B-it [Q8_0, full_gpu, 120.0 tok/s, score 76.9]
 
 ## rtx5090-32gb-linux / coding
 
 1. Qwen/Qwen3.8-27B [Q8_0, full_gpu, 52.5 tok/s, score 89.8]
-2. google/gemma-4-31B-it [Q6_K, full_gpu, 58.6 tok/s, score 81.4]
-3. Qwen/Qwen3.6-35B-A3B [Q6_K, full_gpu, 122.1 tok/s, score 77.9]
-4. google/gemma-4-26B-A4B-it [Q8_0, full_gpu, 120.0 tok/s, score 77.4]
-5. zai-org/GLM-4.7-Flash [Q6_K, full_gpu, 94.3 tok/s, score 72.1]
+2. Qwen/Qwen3.8-Flash-Next [IQ3_XXS, partial_offload, 14.9 tok/s, score 83.1]
+3. google/gemma-4-31B-it [Q6_K, full_gpu, 58.6 tok/s, score 81.4]
+4. Qwen/Qwen3.6-35B-A3B [Q6_K, full_gpu, 122.1 tok/s, score 77.9]
+5. google/gemma-4-26B-A4B-it [Q8_0, full_gpu, 120.0 tok/s, score 77.4]
 
 ## rtx5090-laptop-24gb-win / general
 
@@ -152,7 +152,7 @@ Catalog captured 2026-11-01 with whichllm 0.5.23 (fd64b46): 1430 models, 4729 be
 ## 2x-rtx3090-48gb-linux / general
 
 1. Qwen/Qwen3.8-27B [Q8_0, full_gpu, 27.8 tok/s, score 90.5]
-2. Qwen/Qwen3.8-Flash-Next [Q4_K_M, partial_offload, 8.6 tok/s, score 80.3]
+2. Qwen/Qwen3.8-Flash-Next [IQ3_XXS, partial_offload, 8.9 tok/s, score 80.3]
 3. Qwen/Qwen3.6-35B-A3B [Q8_0, full_gpu, 59.3 tok/s, score 78.8]
 4. google/gemma-4-31B-it [Q5_K_M, full_gpu, 37.7 tok/s, score 77.8]
 5. google/gemma-4-26B-A4B-it [Q8_0, full_gpu, 81.5 tok/s, score 76.9]
