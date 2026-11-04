@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-11-04
+
 ### Added
 
 - `whichllm engines` lists the inference engines whichllm knows, whether each
