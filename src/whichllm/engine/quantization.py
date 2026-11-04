@@ -120,13 +120,12 @@ def rated_quant_type(
 ) -> str:
     """The quant type a file is judged as: its own, or its measured rating.
 
-    ``repo`` is the repository the file comes from, when it is not
-    ``model``'s own.
+    ``repo`` is the repository the file comes from, when it is neither
+    ``model``'s own nor the upload the variant names.
     """
     quant_type = effective_quant_type(model, variant).upper()
-    return measured_ratings().get(
-        ((repo or model.id).casefold(), quant_type), quant_type
-    )
+    source = repo or (variant.repo if variant else None) or model.id
+    return measured_ratings().get((source.casefold(), quant_type), quant_type)
 
 
 def quant_quality_penalty(

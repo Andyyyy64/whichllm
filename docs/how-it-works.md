@@ -286,7 +286,8 @@ For each `ModelInfo`, `engine/ranker.py` builds candidate variants:
 
 - Existing GGUF files are evaluated by quantization.
 - Extreme low-bit GGUF variants are skipped unless explicitly requested with
-  `--quant`.
+  `--quant`, or unless a measurement in `data/quant_quality.json` rates the
+  file as a better type.
 - Official safetensors-only repos can receive synthetic GGUF estimates for
   common community conversions such as `Q4_K_M`, `Q5_K_M`, `Q6_K`, and `Q8_0`.
   When the catalog has a GGUF upload of the repo that the recipe would
@@ -294,9 +295,13 @@ For each `ModelInfo`, `engine/ranker.py` builds candidate variants:
   unsloth's Qwen3.6-35B-A3B at Q4_K_M is 22.1 GB, not the 20.2 GB the
   parameter count gives. When uploads exist, only the quants they carry are
   ranked, so a pick has a file behind it. A repo with no upload in the catalog
-  keeps the estimates, and its row has no recipe.
+  keeps the estimates, and its row has no recipe. An upload's file with a
+  measured rating is offered too, bound to that upload, so the rating and the
+  recipe are that file's and not another upload's of the same quant.
 - Pre-quantized repos such as AWQ, GPTQ, FP8, and BF16 are not given synthetic
   GGUF variants.
+- MLX repos, which the Hub tags `mlx`, are never ranked. MLX runs on Apple
+  Silicon only, and a Mac's ranking takes GGUF files.
 
 Apple Silicon and CPU-only rankings are restricted to GGUF candidates for
 runtime stability. Linux with NVIDIA can also rank non-GGUF AWQ/GPTQ/FP16/BF16

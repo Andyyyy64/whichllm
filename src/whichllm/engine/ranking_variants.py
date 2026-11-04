@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 
 from whichllm.constants import (
     DEFAULT_BYTES_PER_WEIGHT,
@@ -19,6 +20,24 @@ _SYNTHETIC_QUANTS = ("Q3_K_M", "Q4_K_M", "Q5_K_M", "Q6_K", "Q8_0")
 _PREQUANTIZED_REPO_RE = re.compile(
     r"-(awq|gptq|bnb|fp8|fp16|bf16|mxfp4|nvfp4|int4|int8|4bit|8bit|gguf)$",
     re.IGNORECASE,
+)
+# Sub-3-bit GGUFs lose 25-60% of model quality and rarely produce a
+# meaningfully better candidate than a smaller model at Q4_K_M. They are left
+# out unless explicitly requested via --quant.
+_EXTREME_QUANTS = frozenset(
+    {
+        "Q2_K",
+        "Q2_0",
+        "Q1_0",
+        "TQ2_0",
+        "TQ1_0",
+        "IQ3_XXS",
+        "IQ2_XXS",
+        "IQ2_S",
+        "IQ2_M",
+        "IQ1_M",
+        "IQ1_S",
+    }
 )
 
 
@@ -48,7 +67,9 @@ def _synthesize_variants_for_official_repo(
     20.2 GB the parameter count gives). When uploads cover some quants, only
     those are offered: a pick needs a file to download. A repo with no known
     upload keeps every quant, since its conversions are usually just outside
-    the catalog.
+    the catalog. An upload's file that a measurement rates above its type is
+    offered as well, as that very file: on a machine where only ISTA-DASLab's
+    IQ3_XXS of Qwen3.8-Flash-Next fits, the row is still Qwen's own.
     """
     org = model.id.split("/", 1)[0] if "/" in model.id else ""
     if org not in _OFFICIAL_ORGS:
@@ -78,7 +99,25 @@ def _synthesize_variants_for_official_repo(
                 variant.file_size_bytes = resolved[1].file_size_bytes
                 variant.is_estimated = False
         out.append(variant)
-    return uploaded or out
+    return (uploaded or out) + _measured_upload_files(gguf_uploads, quant_filter_upper)
+
+
+def _measured_upload_files(
+    gguf_uploads: list[ModelInfo] | tuple[ModelInfo, ...],
+    quant_filter_upper: str | None,
+) -> list[GGUFVariant]:
+    """Upload files a measurement rates as a type worth running, bound to
+    their repos, since a rating belongs to one file and not to its quant."""
+    files: list[GGUFVariant] = []
+    for upload in gguf_uploads:
+        for variant in upload.gguf_variants:
+            quant = variant.quant_type.upper()
+            if quant_filter_upper and quant != quant_filter_upper:
+                continue
+            rated = rated_quant_type(upload, variant)
+            if rated != quant and rated not in _EXTREME_QUANTS:
+                files.append(replace(variant, repo=upload.id))
+    return files
 
 
 def _iter_candidate_variants(
@@ -118,23 +157,7 @@ def _iter_candidate_variants(
         if not candidates:
             return []
     else:
-        # Sub-3-bit GGUFs lose 25-60% of model quality and rarely produce
-        # a meaningfully better candidate than a smaller model at Q4_K_M.
-        # Exclude them unless explicitly requested via --quant. A file a
-        # measurement rates as a better type is judged as that type.
-        _EXTREME_QUANTS = {
-            "Q2_K",
-            "Q2_0",
-            "Q1_0",
-            "TQ2_0",
-            "TQ1_0",
-            "IQ3_XXS",
-            "IQ2_XXS",
-            "IQ2_S",
-            "IQ2_M",
-            "IQ1_M",
-            "IQ1_S",
-        }
+        # A file a measurement rates as a better type is judged as that type.
         filtered = [
             v for v in candidates if rated_quant_type(model, v) not in _EXTREME_QUANTS
         ]

@@ -57,6 +57,19 @@ def is_equivalent_quantization(candidate: ModelInfo, selected: ModelInfo) -> boo
     )
 
 
+def _bound_upload_file(
+    selected_variant: GGUFVariant, models: list[ModelInfo]
+) -> tuple[ModelInfo, GGUFVariant] | None:
+    """The upload file a variant names, and no other."""
+    for model in models:
+        if model.id != selected_variant.repo:
+            continue
+        for variant in model.gguf_variants:
+            if variant.filename == selected_variant.filename:
+                return model, variant
+    return None
+
+
 def resolve_ranked_gguf_artifact(
     selected_model: ModelInfo,
     selected_variant: GGUFVariant,
@@ -74,6 +87,8 @@ def resolve_ranked_gguf_artifact(
     if selected_model.gguf_variants:
         variant = find_gguf_variant(selected_model, desired_quant)
         return (selected_model, variant) if variant else None
+    if selected_variant.repo:
+        return _bound_upload_file(selected_variant, models)
 
     candidates: list[tuple[int, int, ModelInfo, GGUFVariant]] = []
     for model in models:
