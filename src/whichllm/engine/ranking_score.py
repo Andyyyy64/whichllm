@@ -101,8 +101,13 @@ def _compute_quality_score(
     benchmark_avg: float | None = None,
     benchmark_source: str = "none",
     placement: str | None = None,
+    artifact_repo: str | None = None,
 ) -> float:
-    """Compute a quality score (0-100) for ranking."""
+    """Compute a quality score (0-100) for ranking.
+
+    ``artifact_repo`` is the repository the file comes from when ``model`` is
+    its base model, as for a fixed-model engine's pack.
+    """
     params_b = model.parameter_count / 1e9
     if model.is_moe and model.parameter_count_active:
         effective_b = model.parameter_count_active / 1e9
@@ -135,7 +140,7 @@ def _compute_quality_score(
         benchmark_score = raw * bench_weight
 
     # Quantization penalty
-    quant_penalty = quant_quality_penalty(model, variant)
+    quant_penalty = quant_quality_penalty(model, variant, artifact_repo)
     quality_core = (benchmark_score + size_score) * (1 - quant_penalty)
 
     # Weak / unverifiable evidence gets an extra discount.
