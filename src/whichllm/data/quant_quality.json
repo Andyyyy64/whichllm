@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "rule": "A file is rated as the GGUF quant type it matches or beats on perplexity in an independent measurement of the same model, against files of that type on the same harness. Without such a measurement a file keeps the penalty of its own type.",
+  "entries": [
+    {
+      "repo": "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF",
+      "quant": "IQ3_S",
+      "rated_as": "IQ4_XS",
+      "measured": "Perplexity 4.097 against Q8_0's 4.052 over 4,995 positions, where Unsloth's UD-IQ4_XS measured 4.120 and UD-Q4_K_XL 4.068.",
+      "source": "https://github.com/Niko1221/Strata/blob/main/docs/QUANTS.md"
+    },
+    {
+      "repo": "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF",
+      "quant": "IQ3_XXS",
+      "rated_as": "IQ4_XS",
+      "measured": "Perplexity 4.119 against Q8_0's 4.052 over 4,995 positions, where Unsloth's UD-IQ4_XS measured 4.120.",
+      "source": "https://github.com/Niko1221/Strata/blob/main/docs/QUANTS.md"
+    }
+  ]
+}

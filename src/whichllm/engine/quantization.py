@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import re
+from functools import lru_cache
 
 from whichllm.constants import QUANT_QUALITY_PENALTY
+from whichllm.data import DATA_DIR
 from whichllm.models.gguf import quant_table_key
 from whichllm.models.types import GGUFVariant, ModelInfo
 
@@ -82,9 +85,45 @@ def estimate_weight_bytes(model: ModelInfo, variant: GGUFVariant | None) -> int:
     return int(model.parameter_count * bytes_per_weight)
 
 
-def quant_quality_penalty(model: ModelInfo, variant: GGUFVariant | None) -> float:
-    """Return quality penalty fraction for a quantization format."""
+def resident_weight_bytes(model: ModelInfo, variant: GGUFVariant | None) -> int:
+    """Weight bytes a runtime keeps in VRAM or RAM.
+
+    A lookup table read a row at a time from disk is left out.
+    """
+    from whichllm.engine.lookup import lazy_lookup_bytes
+
+    weights = estimate_weight_bytes(model, variant)
+    return weights - lazy_lookup_bytes(model, weights)
+
+
+@lru_cache(maxsize=1)
+def measured_ratings() -> dict[tuple[str, str], str]:
+    """The quant type a measured file rates as, by (repo, quant type).
+
+    ``data/quant_quality.json`` lists files whose quality an independent
+    measurement placed at or above a better-known type, such as ISTA-DASLab's
+    GSQ-RCO IQ3_S of Qwen3.8-Flash-Next beating Unsloth's UD-IQ4_XS on
+    perplexity.
+    """
+    data = json.loads((DATA_DIR / "quant_quality.json").read_text(encoding="utf-8"))
+    return {
+        (entry["repo"].casefold(), entry["quant"].upper()): entry["rated_as"].upper()
+        for entry in data["entries"]
+    }
+
+
+def quant_quality_penalty(
+    model: ModelInfo, variant: GGUFVariant | None, repo: str | None = None
+) -> float:
+    """Return quality penalty fraction for a quantization format.
+
+    ``repo`` is the repository the file comes from, when it is not
+    ``model``'s own; a file with a measured rating takes that type's penalty.
+    """
     quant_type = effective_quant_type(model, variant).upper()
+    rated = measured_ratings().get(((repo or model.id).casefold(), quant_type))
+    if rated is not None:
+        quant_type = rated
     key = quant_table_key(quant_type, QUANT_QUALITY_PENALTY)
     if key in QUANT_QUALITY_PENALTY:
         return QUANT_QUALITY_PENALTY[key]

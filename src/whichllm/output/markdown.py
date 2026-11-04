@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from whichllm.engine.context import context_cell
+from whichllm.engine.pack_ranking import pack_tiers
 from whichllm.engine.quantization import effective_quant_type
 from whichllm.engine.recipe import build_recipe
 from whichllm.engines.cards import card_by_id
@@ -23,6 +24,8 @@ def _escape_markdown_cell(value: object) -> str:
 
 
 def _format_markdown_speed(result: CompatibilityResult) -> str:
+    if result.pack_launch and not result.estimated_tok_per_sec:
+        return "?"
     speed = result.estimated_tok_per_sec
     if speed is None:
         return "N/A"
@@ -72,6 +75,8 @@ def _format_markdown_model(result: CompatibilityResult) -> str:
         model = result.model.id
     if result.local_path:
         model += " (Installed)"
+    if result.pack_launch:
+        model += f" with {_engine_name(result.engine)}, {result.pack_name}"
     return model
 
 
@@ -100,7 +105,11 @@ def display_markdown(
     empty_message: str | None = None,
     context_length: int | None = None,
 ) -> None:
-    """Emit ranking results as a pasteable GitHub-Flavored Markdown table."""
+    """Emit ranking results as a pasteable GitHub-Flavored Markdown table.
+
+    A row that runs with a fixed-model engine names the engine and its pack,
+    and its run line is the engine's own command.
+    """
     lines = ["## Recommended Models", ""]
 
     if not results:
@@ -129,7 +138,9 @@ def display_markdown(
                 _format_markdown_model(result),
                 _format_markdown_params(result),
                 effective_quant_type(result.model, result.gguf_variant),
-                _format_markdown_fit(
+                "+".join(pack_tiers(result))
+                if result.pack_launch
+                else _format_markdown_fit(
                     result.fit_type,
                     result.placement.kind if result.placement else None,
                 ),
@@ -168,8 +179,17 @@ def display_markdown(
         ]
 
     lines.append(_markdown_table(headers, rows))
+    pack_rows = [(i, r) for i, r in enumerate(results, 1) if r.pack_launch]
+    if pack_rows:
+        lines += [
+            "",
+            "A row with another engine runs from that engine's own pack, as its "
+            "docs size it. Its speed is llama.cpp's for the same file, a floor.",
+        ]
     recipe = (
-        build_recipe(results[0], context_length) if context_length is not None else None
+        build_recipe(results[0], context_length)
+        if context_length is not None and not results[0].pack_launch
+        else None
     )
     if recipe is not None:
         card = card_by_id(recipe.engine)
@@ -181,4 +201,35 @@ def display_markdown(
             ]
         else:
             lines += ["", f"Run #1 with {name}:", "", "```bash", recipe.command, "```"]
+    for rank, result in pack_rows:
+        docs = result.pack_docs_speed
+        lines += [
+            "",
+            f"Run #{rank} with {_engine_name(result.engine)}"
+            + (f" ({docs[0]:g} tok/s in its docs on {docs[1]})" if docs else "")
+            + ":",
+            "",
+            "```bash",
+            result.pack_launch or "",
+            "```",
+        ]
+    for rank, result in enumerate(results[:3], 1):
+        for alternative in result.engine_alternatives:
+            docs = alternative.docs_speed
+            lines += [
+                "",
+                f"#{rank} also runs with {_engine_name(alternative.engine)}, "
+                f"{alternative.pack_name}"
+                + (f" ({docs[0]:g} tok/s in its docs on {docs[1]})" if docs else "")
+                + ":",
+                "",
+                "```bash",
+                alternative.launch,
+                "```",
+            ]
     _write_markdown("\n".join(lines))
+
+
+def _engine_name(engine: str | None) -> str:
+    card = card_by_id(engine) if engine else None
+    return card.name if card else (engine or "")

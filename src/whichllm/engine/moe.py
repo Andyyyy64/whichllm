@@ -8,6 +8,7 @@ which is what runtimes keep on the GPU when experts move to system RAM.
 
 from __future__ import annotations
 
+from whichllm.engine.lookup import resident_params
 from whichllm.models.shape import ModelShape
 from whichllm.models.types import ModelInfo
 
@@ -34,17 +35,21 @@ def routed_expert_params(model: ModelInfo) -> int | None:
 
 
 def routed_expert_fraction(model: ModelInfo) -> float:
-    """Share of the stored weights that are routed experts (0.0 for dense)."""
+    """Share of the resident weights that are routed experts (0.0 for dense).
+
+    A lookup table left on disk is not part of the resident weights.
+    """
     if not model.is_moe or model.parameter_count <= 0:
         return 0.0
+    resident = resident_params(model)
     routed = routed_expert_params(model)
     if routed is not None:
-        return min(routed / model.parameter_count, _MAX_EXPERT_FRACTION)
+        return min(routed / resident, _MAX_EXPERT_FRACTION)
     if model.parameter_count_active:
         # Without the shape, count only the weights no token reads as
         # experts. That understates the movable share, so placement stays
         # on the cautious side.
-        inactive = 1.0 - model.parameter_count_active / model.parameter_count
+        inactive = 1.0 - model.parameter_count_active / resident
         return max(0.0, min(inactive, _MAX_EXPERT_FRACTION))
     return 0.0
 

@@ -12,6 +12,7 @@ from rich.table import Table
 from rich.text import Text
 
 from whichllm.engine.context import context_cell
+from whichllm.engine.pack_ranking import pack_tiers
 from whichllm.engine.quantization import effective_quant_type
 from whichllm.engine.recipe import build_recipe
 from whichllm.engine.types import CompatibilityResult
@@ -203,6 +204,72 @@ def _context_text(result: CompatibilityResult) -> str:
     return context_cell(result).replace("→", "\n→")
 
 
+def _score_text(result: CompatibilityResult) -> str:
+    score_val = f"{result.quality_score:.1f}"
+    if result.benchmark_status == "none":
+        return f"[red]{score_val} ?[/red]"
+    if result.benchmark_status == "self_reported":
+        return f"[bright_yellow]{score_val} !sr[/bright_yellow]"
+    if result.benchmark_status == "estimated":
+        return f"[yellow]{score_val} ~[/yellow]"
+    return f"[green]{score_val}[/green]"
+
+
+def _params_text(result: CompatibilityResult) -> str:
+    params = _format_params(result.model.parameter_count)
+    if result.model.is_moe and result.model.parameter_count_active:
+        params += f" ({_format_params(result.model.parameter_count_active)}a)"
+    return params
+
+
+def _engine_name(engine: str | None) -> str:
+    card = card_by_id(engine) if engine else None
+    return card.name if card else (engine or "")
+
+
+def _pack_cells(
+    result: CompatibilityResult, rank: int, show_status: bool, show_context: bool
+) -> list:
+    """A row that runs with a fixed-model engine from its own pack."""
+    model_link = Text(result.model.id, style="cyan")
+    model_link.stylize(f"link https://huggingface.co/{_artifact_model_id(result)}")
+    model_link.append(
+        f"\nwith {_engine_name(result.engine)}, {result.pack_name}", style="magenta"
+    )
+    cells: list = [
+        str(rank),
+        model_link,
+        effective_quant_type(result.model, result.gguf_variant),
+    ]
+    published = Text(_format_published_at(result.model.published_at))
+    if show_status:
+        model_link.append(f"\n{_params_text(result)}", style="dim")
+        tiers = pack_tiers(result)
+        if result.pack_tier == "memory":
+            fit = f"[green]{'+'.join(tiers)}[/]"
+        else:
+            fit = f"[yellow]{'+'.join(tiers[:-1])}[/]\n[yellow]+SSD[/]"
+        if result.vram_required_bytes:
+            fit += f"\n[dim]{_format_bytes(result.vram_required_bytes)}[/dim]"
+        if result.estimated_tok_per_sec:
+            speed = _format_speed(result)
+        else:
+            speed = "[grey50]?[/]"
+        if result.pack_docs_speed:
+            speed += f"\n[dim]docs {result.pack_docs_speed[0]:g}[/dim]"
+        cells += [
+            _format_weights(result)[0],
+            fit,
+            speed,
+            *([_context_text(result)] if show_context else []),
+            published,
+        ]
+    else:
+        cells += [_params_text(result), published, Text("-")]
+    cells.append(_score_text(result))
+    return cells
+
+
 def display_ranking(
     results: list[CompatibilityResult],
     *,
@@ -211,7 +278,11 @@ def display_ranking(
     empty_message: str | None = None,
     context_length: int | None = None,
 ) -> None:
-    """Display ranked model table."""
+    """Display ranked model table.
+
+    A row with ``pack_launch`` set runs with a fixed-model engine from its own
+    pack. It takes its rank like the others, and names the engine and pack.
+    """
     if not results:
         _console.console.print(
             f"[yellow]{empty_message or 'No compatible models found for your hardware.'}[/]"
@@ -253,19 +324,14 @@ def display_ranking(
     newest_ts = max((d.timestamp() for d in published_valid), default=None)
 
     for i, r in enumerate(results, 1):
+        if r.pack_launch:
+            table.add_row(*_pack_cells(r, i, show_status, show_context))
+            continue
         quant = effective_quant_type(r.model, r.gguf_variant)
         vram_str = _format_bytes(r.vram_required_bytes)
         speed_str = _format_speed(r)
 
-        score_val = f"{r.quality_score:.1f}"
-        if r.benchmark_status == "none":
-            score_str = f"[red]{score_val} ?[/red]"
-        elif r.benchmark_status == "self_reported":
-            score_str = f"[bright_yellow]{score_val} !sr[/bright_yellow]"
-        elif r.benchmark_status == "estimated":
-            score_str = f"[yellow]{score_val} ~[/yellow]"
-        else:
-            score_str = f"[green]{score_val}[/green]"
+        score_str = _score_text(r)
 
         fit_style = {
             "full_gpu": "[green]Full GPU[/]",
@@ -287,9 +353,7 @@ def display_ranking(
             ),
         )
 
-        params_str = _format_params(r.model.parameter_count)
-        if r.model.is_moe and r.model.parameter_count_active:
-            params_str += f" ({_format_params(r.model.parameter_count_active)}a)"
+        params_str = _params_text(r)
 
         model_link = Text(r.model.id, style="cyan")
         model_link.stylize(f"link https://huggingface.co/{_artifact_model_id(r)}")
@@ -321,6 +385,13 @@ def display_ranking(
         table.add_row(*row_cells)
 
     _console.console.print(table)
+    pack_rows = [(i, r) for i, r in enumerate(results, 1) if r.pack_launch]
+    if pack_rows:
+        _console.console.print(
+            "  [dim]with <engine> = runs with that engine from its own pack, as its "
+            "docs size it. Speed is llama.cpp's for the same file, a floor; docs = "
+            "the engine's own measurement.[/dim]"
+        )
 
     if show_status:
         has_estimated_weights = any(_format_weights(r)[1] for r in results)
@@ -435,8 +506,10 @@ def display_ranking(
                 f"generations of its line: {_older_names(r)}[/dim]"
             )
 
-    if context_length is not None:
+    if context_length is not None and not results[0].pack_launch:
         _print_recipe(results[0], context_length)
+    _print_pack_recipes(pack_rows)
+    _print_engine_alternatives(results)
 
 
 def _older_names(result: CompatibilityResult, limit: int = 3) -> str:
@@ -486,3 +559,48 @@ def _print_recipe(result: CompatibilityResult, context_length: int) -> None:
             console.print(Text(f"  {name} is not installed here; {hint}", style="dim"))
     for note in recipe.notes:
         console.print(Text(f"  {note}", style="dim"))
+
+
+def _print_engine_alternatives(results: list[CompatibilityResult]) -> None:
+    """The fixed-model engines that also run a top row's model, with their
+    command and the speed their docs report."""
+    console = _console.console
+    for rank, result in enumerate(results[:3], 1):
+        for alternative in result.engine_alternatives:
+            name = _engine_name(alternative.engine)
+            docs = ""
+            if alternative.docs_speed:
+                tok, hardware = alternative.docs_speed
+                docs = f", {tok:g} tok/s in its docs on {hardware}"
+            console.print()
+            console.print(
+                f"  [bold]#{rank} also runs with {escape(name)}[/] "
+                f"[dim]({escape(alternative.pack_name)}{escape(docs)}):[/dim]"
+            )
+            console.print(Text(f"    {alternative.launch}", style="cyan"))
+
+
+def _print_pack_recipes(rows: list[tuple[int, CompatibilityResult]]) -> None:
+    """How to start each row that runs with a fixed-model engine, by rank, and
+    how to install an engine that is missing."""
+    console = _console.console
+    hinted: set[str] = set()
+    for rank, result in rows:
+        name = _engine_name(result.engine)
+        installed = " (installed)" if result.engine_installed else ""
+        console.print()
+        console.print(f"  [bold]Run #{rank} with {escape(name)}{installed}:[/]")
+        console.print(Text(f"    {result.pack_launch}", style="bold cyan"))
+        card = card_by_id(result.engine) if result.engine else None
+        if (
+            result.engine_installed is False
+            and card
+            and card.id not in hinted
+            and not ram_bandwidth._is_wsl()
+        ):
+            hint = install_hint(card, _host_os())
+            if hint:
+                hinted.add(card.id)
+                console.print(
+                    Text(f"  {name} is not installed here; {hint}", style="dim")
+                )

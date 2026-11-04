@@ -27,7 +27,8 @@ EVIDENCE = ("verified", "community", "documented")
 STATUSES = frozenset({"active", "slowing", "dormant", "archived"})
 OSES = frozenset({"linux", "windows", "darwin"})
 ACCELS = frozenset({"cuda", "rocm", "metal", "sycl", "vulkan", "cpu"})
-MEMORY = frozenset({"gpu", "layer_offload", "expert_offload", "cpu"})
+# "lazy_lookup": reads a model's lookup tables a row at a time from disk.
+MEMORY = frozenset({"gpu", "layer_offload", "expert_offload", "cpu", "lazy_lookup"})
 
 # Unknown keys are refused, so a typo cannot drop a value without a word.
 _CARD_KEYS = frozenset(
@@ -35,7 +36,7 @@ _CARD_KEYS = frozenset(
         "id", "name", "kind", "url", "evidence", "upstream", "checked_at",
         "sources", "platforms", "gguf", "memory", "serve", "port", "api",
         "install", "detect_binaries", "detect_paths", "probe", "version_args",
-        "help_marker", "note",
+        "help_marker", "models", "wsl", "note",
     }
 )  # fmt: skip
 _UPSTREAM_KEYS = frozenset({"github", "version", "released_at", "status"})
@@ -44,6 +45,18 @@ _PLATFORM_KEYS = frozenset(
 )
 _GGUF_KEYS = frozenset({"extra", "missing"})
 _PROBE_KEYS = frozenset({"path", "contains"})
+_MODEL_KEYS = frozenset({"id", "name", "base", "platforms", "packs", "note"})
+_PACK_KEYS = frozenset(
+    {
+        "id", "name", "repo", "quant", "launch", "requires", "platforms",
+        "docs_speed", "note",
+    }
+)  # fmt: skip
+_DOCS_SPEED_KEYS = frozenset({"tok_per_sec", "hardware"})
+_REQUIRES_KEYS = frozenset(
+    {"disk_gb", "vram_gb", "ram_gb", "memory_gb", "ssd", "nvme", "unified_memory"}
+)
+_SSD_KEYS = frozenset({"ram_gb", "vram_gb"})
 
 _DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 _CC_RE = re.compile(r"(\d+)\.(\d+)")
@@ -71,6 +84,63 @@ class GgufSupport:
 
     extra: tuple[str, ...] = ()
     missing: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class Requires:
+    """What a pack needs, in GB as the engine's docs give them.
+
+    The tiers are the GPU, RAM and the SSD. ``ram_gb`` or ``memory_gb`` (RAM
+    and VRAM together) is what holds every expert in memory; ``ssd_ram_gb``
+    and ``ssd_vram_gb`` are the least the engine runs with when it reads the
+    experts that do not fit from the SSD.
+    """
+
+    disk_gb: float
+    vram_gb: float | None = None  # the smallest GPU the pack runs on
+    ram_gb: float | None = None
+    memory_gb: float | None = None
+    ssd_ram_gb: float | None = None
+    ssd_vram_gb: float | None = None
+    nvme: bool = False  # the docs ask for an NVMe drive
+    # Runs only where the GPU shares system RAM (a Mac, DGX Spark, Strix Halo),
+    # so RAM and VRAM are one pool and a discrete GPU's RAM does not count.
+    unified_memory: bool = False
+
+
+@dataclass(frozen=True)
+class DocsSpeed:
+    """Decode speed the engine's docs measured for a pack, and on what."""
+
+    tok_per_sec: float
+    hardware: str
+
+
+@dataclass(frozen=True)
+class Pack:
+    """One set of weights a fixed-model engine downloads for a model."""
+
+    id: str  # the engine's own name for it
+    name: str
+    repo: str | None  # the Hugging Face repo with the files
+    quant: str  # the GGUF quant type the experts use, for the quality estimate
+    launch: str
+    requires: Requires
+    platforms: tuple[Platform, ...] = ()  # narrower than the model's, when set
+    docs_speed: DocsSpeed | None = None
+    note: str | None = None
+
+
+@dataclass(frozen=True)
+class FixedModel:
+    """A model a fixed-model engine runs, and the packs it offers for it."""
+
+    id: str
+    name: str
+    base: str  # the original model's repo, which the catalog scores
+    packs: tuple[Pack, ...]
+    platforms: tuple[Platform, ...] = ()  # narrower than the card's, when set
+    note: str | None = None
 
 
 @dataclass(frozen=True)
@@ -103,6 +173,9 @@ class EngineCard:
     version_args: tuple[str, ...] = ()
     # Text only this engine's --help prints, for a binary name it shares.
     help_marker: str | None = None
+    # The models a fixed_model engine runs; runners leave this empty.
+    models: tuple[FixedModel, ...] = ()
+    runs_in_wsl: bool = True  # False when the docs say it does not run under WSL
     note: str | None = None
 
 
@@ -206,6 +279,120 @@ def _probe(raw, path: Path) -> tuple[str | None, str | None]:
     return probe_path, _text(raw, "contains", path)
 
 
+def _gb(raw: dict, key: str, path: Path, where: str) -> float | None:
+    value = raw.get(key)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+        raise _fail(path, f"{where} {key!r} must be a positive number of GB")
+    return float(value)
+
+
+def _requires(raw, path: Path, where: str) -> Requires:
+    if not isinstance(raw, dict):
+        raise _fail(path, f"{where} needs a 'requires' object")
+    _known_keys(raw, _REQUIRES_KEYS, f"{where} 'requires'", path)
+    ssd = raw.get("ssd") or {}
+    if not isinstance(ssd, dict):
+        raise _fail(path, f"{where} 'ssd' must be an object")
+    _known_keys(ssd, _SSD_KEYS, f"{where} 'ssd'", path)
+    disk = _gb(raw, "disk_gb", path, where)
+    if disk is None:
+        raise _fail(path, f"{where} needs 'disk_gb'")
+    requires = Requires(
+        disk_gb=disk,
+        vram_gb=_gb(raw, "vram_gb", path, where),
+        ram_gb=_gb(raw, "ram_gb", path, where),
+        memory_gb=_gb(raw, "memory_gb", path, where),
+        ssd_ram_gb=_gb(ssd, "ram_gb", path, where),
+        ssd_vram_gb=_gb(ssd, "vram_gb", path, where),
+        nvme=bool(raw.get("nvme", False)),
+        unified_memory=bool(raw.get("unified_memory", False)),
+    )
+    if (
+        requires.ram_gb is None
+        and requires.memory_gb is None
+        and requires.ssd_ram_gb is None
+    ):
+        raise _fail(path, f"{where} says no memory it runs with")
+    return requires
+
+
+def _repo(raw: dict, key: str, path: Path, *, optional: bool = False) -> str | None:
+    value = _text(raw, key, path, optional=optional)
+    if value is not None and not _GITHUB_RE.fullmatch(value):
+        raise _fail(path, f"{key!r} {value!r} is not owner/repo")
+    return value
+
+
+def _platforms(raw, path: Path, *, required: bool) -> tuple[Platform, ...]:
+    if raw is None and not required:
+        return ()
+    if not isinstance(raw, list) or not raw:
+        raise _fail(path, "'platforms' needs at least one entry")
+    return tuple(_platform(p, path) for p in raw)
+
+
+def _docs_speed(raw, path: Path, where: str) -> DocsSpeed | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise _fail(path, f"{where} 'docs_speed' must be an object")
+    _known_keys(raw, _DOCS_SPEED_KEYS, f"{where} 'docs_speed'", path)
+    speed = raw.get("tok_per_sec")
+    if isinstance(speed, bool) or not isinstance(speed, (int, float)) or speed <= 0:
+        raise _fail(path, f"{where} 'docs_speed' needs a positive tok_per_sec")
+    return DocsSpeed(float(speed), _text(raw, "hardware", path))
+
+
+def _pack(raw, path: Path, model_id: str) -> Pack:
+    if not isinstance(raw, dict):
+        raise _fail(path, f"each pack of {model_id!r} must be an object")
+    _known_keys(raw, _PACK_KEYS, f"a pack of {model_id!r}", path)
+    pack_id = _text(raw, "id", path)
+    return Pack(
+        id=pack_id,
+        name=_text(raw, "name", path),
+        repo=_repo(raw, "repo", path, optional=True),
+        quant=_text(raw, "quant", path).upper(),
+        launch=_text(raw, "launch", path),
+        requires=_requires(raw.get("requires"), path, f"pack {pack_id!r}"),
+        platforms=_platforms(raw.get("platforms"), path, required=False),
+        docs_speed=_docs_speed(raw.get("docs_speed"), path, f"pack {pack_id!r}"),
+        note=_text(raw, "note", path, optional=True),
+    )
+
+
+def _models(raw, path: Path) -> tuple[FixedModel, ...]:
+    if not isinstance(raw, list) or not raw:
+        raise _fail(path, "a fixed_model card needs at least one model")
+    models = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            raise _fail(path, "each model must be an object")
+        _known_keys(entry, _MODEL_KEYS, "a model", path)
+        model_id = _text(entry, "id", path)
+        packs = entry.get("packs")
+        if not isinstance(packs, list) or not packs:
+            raise _fail(path, f"model {model_id!r} needs at least one pack")
+        parsed = tuple(_pack(p, path, model_id) for p in packs)
+        if len({p.id for p in parsed}) != len(parsed):
+            raise _fail(path, f"model {model_id!r} repeats a pack id")
+        models.append(
+            FixedModel(
+                id=model_id,
+                name=_text(entry, "name", path),
+                base=_repo(entry, "base", path),
+                packs=parsed,
+                platforms=_platforms(entry.get("platforms"), path, required=False),
+                note=_text(entry, "note", path, optional=True),
+            )
+        )
+    if len({m.id for m in models}) != len(models):
+        raise _fail(path, "a model id appears twice")
+    return tuple(models)
+
+
 def parse_card(data: dict, path: Path) -> EngineCard:
     """Validate one card. Raises CardError naming the file and the field."""
     if not isinstance(data, dict):
@@ -233,15 +420,23 @@ def parse_card(data: dict, path: Path) -> EngineCard:
     if port is not None and not (isinstance(port, int) and 0 < port < 65536):
         raise _fail(path, f"'port' {port!r} is not a TCP port")
     probe_path, probe_contains = _probe(data.get("probe"), path)
-    github = _text(upstream, "github", path, optional=True)
-    if github is not None and not _GITHUB_RE.fullmatch(github):
-        raise _fail(path, f"'github' {github!r} is not owner/repo")
+    github = _repo(upstream, "github", path, optional=True)
+    kind = _choice(data, "kind", KINDS, path)
+    if kind == "fixed_model":
+        models = _models(data.get("models"), path)
+    elif "models" in data:
+        raise _fail(path, "only a fixed_model card lists 'models'")
+    else:
+        models = ()
+    wsl = data.get("wsl", True)
+    if not isinstance(wsl, bool):
+        raise _fail(path, "'wsl' is true or false")
     if probe_path is not None and port is None:
         raise _fail(path, "'probe' needs the card's 'port'")
     card = EngineCard(
         id=_text(data, "id", path),
         name=_text(data, "name", path),
-        kind=_choice(data, "kind", KINDS, path),
+        kind=kind,
         url=_text(data, "url", path),
         evidence=_choice(data, "evidence", EVIDENCE, path),
         status=_choice(upstream, "status", STATUSES, path),
@@ -250,7 +445,7 @@ def parse_card(data: dict, path: Path) -> EngineCard:
         github=github,
         checked_at=_date(data, "checked_at", path),
         sources=sources,
-        platforms=tuple(_platform(p, path) for p in platforms),
+        platforms=_platforms(platforms, path, required=True),
         gguf=_gguf(data.get("gguf"), path),
         memory=memory,
         serve=_text(data, "serve", path, optional=True),
@@ -263,6 +458,8 @@ def parse_card(data: dict, path: Path) -> EngineCard:
         probe_contains=probe_contains,
         version_args=_strings(data, "version_args", path),
         help_marker=_text(data, "help_marker", path, optional=True),
+        models=models,
+        runs_in_wsl=wsl,
         note=_text(data, "note", path, optional=True),
     )
     if path.stem != card.id:
@@ -300,10 +497,14 @@ def install_hint(card: EngineCard, os_name: str) -> str | None:
 __all__ = [
     "ACCELS",
     "CardError",
+    "DocsSpeed",
     "EVIDENCE",
     "EngineCard",
+    "FixedModel",
     "GgufSupport",
+    "Pack",
     "Platform",
+    "Requires",
     "card_by_id",
     "install_hint",
     "load_cards",

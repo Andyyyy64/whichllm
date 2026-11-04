@@ -1,0 +1,317 @@
+{
+  "id": "colibri",
+  "name": "colibri",
+  "kind": "fixed_model",
+  "url": "https://github.com/JustVugg/colibri",
+  "evidence": "documented",
+  "upstream": {
+    "github": "JustVugg/colibri",
+    "version": "2.1.0",
+    "released_at": "2026-10-31",
+    "status": "active"
+  },
+  "checked_at": "2026-11-04",
+  "sources": [
+    "https://github.com/JustVugg/colibri/blob/main/README.md",
+    "https://github.com/JustVugg/colibri/blob/main/c/setup_catalog.py",
+    "https://github.com/JustVugg/colibri/blob/main/c/setup_flow.py",
+    "https://github.com/JustVugg/colibri/blob/main/docs/quickstart.md",
+    "https://github.com/JustVugg/colibri/blob/main/docs/api.md",
+    "https://github.com/JustVugg/colibri/blob/main/GPU_BACKENDS.md",
+    "https://github.com/JustVugg/colibri/blob/main/docs/qwen38.md",
+    "https://github.com/JustVugg/colibri/blob/main/docs/deepseek-v41.md",
+    "https://github.com/JustVugg/colibri/blob/main/docs/inkling.md",
+    "https://github.com/JustVugg/colibri/blob/main/docs/glm53-flash.md"
+  ],
+  "platforms": [
+    {"os": ["linux", "windows"], "accel": "cpu", "requires_avx2": true, "note": "the prebuilt engines are x86-64-v3; a source build runs without AVX2"},
+    {"os": ["darwin"], "accel": "cpu", "note": "Apple silicon"},
+    {"os": ["linux", "windows"], "accel": "vulkan", "note": "any Vulkan 1.2 GPU"},
+    {"os": ["linux"], "accel": "cuda", "note": "built from source with the CUDA toolkit"},
+    {"os": ["windows"], "accel": "cuda", "min_compute_capability": "8.0", "note": "the release's CUDA build"},
+    {"os": ["linux"], "accel": "rocm", "note": "a HIP source build"},
+    {"os": ["windows"], "accel": "rocm", "note": "HIP DLL, validated on one configuration"},
+    {"os": ["darwin"], "accel": "metal", "note": "experimental"}
+  ],
+  "memory": ["cpu", "gpu", "expert_offload"],
+  "serve": "coli serve",
+  "port": 8000,
+  "api": ["openai", "anthropic"],
+  "install": {
+    "docs": "https://github.com/JustVugg/colibri#get-started-in-one-step",
+    "linux": "git clone https://github.com/JustVugg/colibri && cd colibri && ./start-here.sh",
+    "darwin": "git clone https://github.com/JustVugg/colibri && cd colibri && ./start-here.sh"
+  },
+  "detect_binaries": ["coli"],
+  "detect_paths": {
+    "linux": ["~/.local/share/colibri"],
+    "darwin": ["~/Library/Application Support/colibri"],
+    "windows": ["%LOCALAPPDATA%\\colibri"]
+  },
+  "probe": {
+    "path": "/v1/models",
+    "contains": "\"owned_by\":\"colibri\""
+  },
+  "version_args": ["--version"],
+  "models": [
+    {
+      "id": "qwen3.6-35b-a3b",
+      "name": "Qwen3.6-35B-A3B",
+      "base": "Qwen/Qwen3.6-35B-A3B",
+      "platforms": [
+        {"os": ["linux", "windows"], "accel": "cpu", "requires_avx2": true},
+        {"os": ["darwin"], "accel": "cpu"},
+        {"os": ["linux", "windows"], "accel": "vulkan"},
+        {"os": ["linux"], "accel": "cuda"},
+        {"os": ["windows"], "accel": "cuda", "min_compute_capability": "8.0"}
+      ],
+      "packs": [
+        {
+          "id": "qwen36-35b",
+          "name": "colibri int4",
+          "repo": "Kreuzzelg/qwen36-35b-a3b-colibri-i4-gs64",
+          "quant": "Q4_0",
+          "launch": "./start-here.sh --model qwen36-35b",
+          "requires": {"disk_gb": 23.1, "ram_gb": 20, "ssd": {"ram_gb": 10}},
+          "note": "int4 with a scale per 64 weights is 4.5 bits, rated as Q4_0."
+        }
+      ]
+    },
+    {
+      "id": "qwen3-coder-30b-a3b",
+      "name": "Qwen3-Coder-30B-A3B",
+      "base": "Qwen/Qwen3-Coder-30B-A3B-Instruct",
+      "platforms": [
+        {"os": ["linux", "windows"], "accel": "cpu", "requires_avx2": true},
+        {"os": ["darwin"], "accel": "cpu"},
+        {"os": ["linux", "windows"], "accel": "vulkan"},
+        {"os": ["linux"], "accel": "cuda"},
+        {"os": ["windows"], "accel": "cuda", "min_compute_capability": "8.0"}
+      ],
+      "packs": [
+        {
+          "id": "qwen3-coder-30b",
+          "name": "colibri int4",
+          "repo": "Justvugg/Qwen3-Coder-30B-A3B-colibri-int4",
+          "quant": "Q4_0",
+          "launch": "./start-here.sh --model qwen3-coder-30b",
+          "requires": {"disk_gb": 19.4, "ram_gb": 18, "ssd": {"ram_gb": 8}},
+          "note": "int4 with a scale per 64 weights is 4.5 bits, rated as Q4_0."
+        }
+      ]
+    },
+    {
+      "id": "deepseek-v4-flash-0731",
+      "name": "DeepSeek V4 Flash",
+      "base": "deepseek-ai/DeepSeek-V4-Flash-0731",
+      "platforms": [
+        {"os": ["linux", "windows"], "accel": "cpu", "requires_avx2": true},
+        {"os": ["darwin"], "accel": "cpu"},
+        {"os": ["linux", "windows"], "accel": "vulkan"},
+        {"os": ["linux"], "accel": "cuda", "min_compute_capability": "6.0"},
+        {"os": ["windows"], "accel": "cuda", "min_compute_capability": "8.0"}
+      ],
+      "note": "Runs the official checkpoint without conversion. Runs best with 32 GB of RAM.",
+      "packs": [
+        {
+          "id": "deepseek-v4-flash",
+          "name": "Official FP4 and FP8",
+          "repo": "deepseek-ai/DeepSeek-V4-Flash-0731",
+          "quant": "MXFP4",
+          "launch": "./start-here.sh --model deepseek-v4-flash",
+          "requires": {"disk_gb": 166.9, "ssd": {"ram_gb": 16}}
+        }
+      ]
+    },
+    {
+      "id": "qwen3.8-flash-next",
+      "name": "Qwen3.8-Flash-Next",
+      "base": "Qwen/Qwen3.8-Flash-Next",
+      "platforms": [
+        {"os": ["linux", "windows"], "accel": "cpu", "requires_avx2": true},
+        {"os": ["darwin"], "accel": "cpu"},
+        {"os": ["linux", "windows"], "accel": "vulkan"},
+        {"os": ["linux"], "accel": "cuda"}
+      ],
+      "note": "The n-gram table stays on disk. Runs best with 32 GB of RAM.",
+      "packs": [
+        {
+          "id": "qwen38-flash-next",
+          "name": "Official FP8",
+          "repo": "Qwen/Qwen3.8-Flash-Next-FP8",
+          "quant": "FP8",
+          "launch": "./start-here.sh --model qwen38-flash-next",
+          "requires": {"disk_gb": 185.6, "ssd": {"ram_gb": 24}}
+        }
+      ]
+    },
+    {
+      "id": "mimo-v2.6-flash",
+      "name": "MiMo-V2.6 Flash",
+      "base": "XiaomiMiMo/MiMo-V2.6-Flash-MOPD",
+      "platforms": [
+        {"os": ["linux", "windows"], "accel": "cpu", "requires_avx2": true},
+        {"os": ["darwin"], "accel": "cpu"},
+        {"os": ["linux", "windows"], "accel": "vulkan"}
+      ],
+      "note": "Runs best with 52 GB of RAM.",
+      "packs": [
+        {
+          "id": "mimo-v2.6-flash",
+          "name": "Official MXFP4 and FP8",
+          "repo": "XiaomiMiMo/MiMo-V2.6-Flash-MOPD",
+          "quant": "MXFP4",
+          "launch": "./start-here.sh --model mimo-v2.6-flash",
+          "requires": {"disk_gb": 171.8, "ssd": {"ram_gb": 32}}
+        }
+      ]
+    },
+    {
+      "id": "mimo-v2.6-pro",
+      "name": "MiMo-V2.6 Pro",
+      "base": "XiaomiMiMo/MiMo-V2.6-Pro-MOPD",
+      "platforms": [
+        {"os": ["linux", "windows"], "accel": "cpu", "requires_avx2": true},
+        {"os": ["darwin"], "accel": "cpu"},
+        {"os": ["linux", "windows"], "accel": "vulkan"}
+      ],
+      "note": "Runs best with 64 GB of RAM.",
+      "packs": [
+        {
+          "id": "mimo-v2.6-pro",
+          "name": "Official MXFP4 and FP8",
+          "repo": "XiaomiMiMo/MiMo-V2.6-Pro-MOPD",
+          "quant": "MXFP4",
+          "launch": "./start-here.sh --model mimo-v2.6-pro",
+          "requires": {"disk_gb": 563.6, "ssd": {"ram_gb": 54}}
+        }
+      ]
+    },
+    {
+      "id": "glm-5.2",
+      "name": "GLM-5.2",
+      "base": "zai-org/GLM-5.2",
+      "note": "Runs best with 24 GB of RAM.",
+      "packs": [
+        {
+          "id": "glm-5.2",
+          "name": "colibri int4 with an int8 MTP head",
+          "repo": "mastouri/GLM-5.2-colibri-int4-g64-with-int8-mtp",
+          "quant": "Q4_0",
+          "launch": "./start-here.sh --model glm-5.2",
+          "requires": {"disk_gb": 429.3, "ssd": {"ram_gb": 16}},
+          "note": "int4 with a scale per 64 weights is 4.5 bits, rated as Q4_0."
+        }
+      ]
+    },
+    {
+      "id": "glm-5.3",
+      "name": "GLM-5.3",
+      "base": "zai-org/GLM-5.3",
+      "note": "Runs best with 24 GB of RAM.",
+      "packs": [
+        {
+          "id": "glm-5.3",
+          "name": "colibri int4",
+          "repo": "Justvugg/GLM-5.3-colibri-int4-g64",
+          "quant": "Q4_0",
+          "launch": "./start-here.sh --model glm-5.3",
+          "requires": {"disk_gb": 419.3, "ssd": {"ram_gb": 16}},
+          "note": "int4 with a scale per 64 weights is 4.5 bits, rated as Q4_0."
+        }
+      ]
+    },
+    {
+      "id": "inkling",
+      "name": "Inkling",
+      "base": "thinkingmachines/Inkling",
+      "platforms": [
+        {"os": ["linux", "windows"], "accel": "cpu", "requires_avx2": true},
+        {"os": ["darwin"], "accel": "cpu"},
+        {"os": ["linux", "windows"], "accel": "vulkan"},
+        {"os": ["linux"], "accel": "cuda"},
+        {"os": ["darwin"], "accel": "metal"}
+      ],
+      "packs": [
+        {
+          "id": "inkling",
+          "name": "colibri int4 experts",
+          "repo": "nbeerbower/Inkling-colibri-int4",
+          "quant": "Q4_0",
+          "launch": "./start-here.sh --model inkling",
+          "requires": {"disk_gb": 514.1, "ssd": {"ram_gb": 120}, "nvme": true},
+          "note": "The CUDA build needs about 37 GB of free VRAM."
+        }
+      ]
+    },
+    {
+      "id": "kimi-k3",
+      "name": "Kimi K3",
+      "base": "moonshotai/Kimi-K3",
+      "platforms": [
+        {"os": ["linux", "windows"], "accel": "cpu", "requires_avx2": true},
+        {"os": ["darwin"], "accel": "cpu"},
+        {"os": ["linux", "windows"], "accel": "vulkan"},
+        {"os": ["linux"], "accel": "cuda"},
+        {"os": ["windows"], "accel": "cuda", "min_compute_capability": "8.0"},
+        {"os": ["darwin"], "accel": "metal"}
+      ],
+      "note": "Runs best with 64 GB of RAM.",
+      "packs": [
+        {
+          "id": "kimi-k3",
+          "name": "Official MXFP4",
+          "repo": "moonshotai/Kimi-K3",
+          "quant": "MXFP4",
+          "launch": "./start-here.sh --model kimi-k3",
+          "requires": {"disk_gb": 1561, "ssd": {"ram_gb": 32}}
+        }
+      ]
+    },
+    {
+      "id": "glm-5.3-flash",
+      "name": "GLM-5.3-Flash",
+      "base": "zai-org/GLM-5.3-Flash",
+      "platforms": [
+        {"os": ["linux", "windows"], "accel": "cpu", "requires_avx2": true},
+        {"os": ["darwin"], "accel": "cpu"},
+        {"os": ["linux", "windows"], "accel": "vulkan"},
+        {"os": ["linux"], "accel": "cuda"}
+      ],
+      "note": "A manual conversion of the 328 GB release, shard by shard.",
+      "packs": [
+        {
+          "id": "glm53-int4-g64",
+          "name": "Converted int4",
+          "repo": "zai-org/GLM-5.3-Flash",
+          "quant": "Q4_0",
+          "launch": "python3 tools/convert_glm53.py --outdir DIR --min-free-gb 30 && coli serve --model DIR",
+          "requires": {"disk_gb": 194.7, "ssd": {"ram_gb": 25}},
+          "note": "int4 with a scale per 64 weights is 4.5 bits, rated as Q4_0."
+        }
+      ]
+    },
+    {
+      "id": "deepseek-v4.1-flash-1017",
+      "name": "DeepSeek V4.1 Flash",
+      "base": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+      "platforms": [
+        {"os": ["linux", "windows"], "accel": "cpu", "requires_avx2": true},
+        {"os": ["darwin"], "accel": "cpu"},
+        {"os": ["linux", "windows"], "accel": "vulkan"}
+      ],
+      "note": "A one-off preparation step first. The 203 GB engram stays on disk.",
+      "packs": [
+        {
+          "id": "deepseek-v41-flash",
+          "name": "Official FP4 and FP8",
+          "repo": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+          "quant": "MXFP4",
+          "launch": "python3 c/tools/prepare_dsv41.py --model DIR && coli serve --model DIR",
+          "requires": {"disk_gb": 510.3, "ssd": {"ram_gb": 24.8}}
+        }
+      ]
+    }
+  ],
+  "note": "Streams the routed experts from disk through a RAM cache, with an optional GPU tier, so every model also runs on the CPU. It imports published GGUFs of 17 architectures too (coli import), which this card does not cover yet."
+}

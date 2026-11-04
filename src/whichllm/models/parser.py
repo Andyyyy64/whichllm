@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import statistics
 
 from whichllm.models.gguf import _extract_gguf_variants
@@ -252,10 +253,40 @@ def _resolve_active_params(
     return is_moe, active_params
 
 
+# Strata's own pack layout: experts and dense weights in pack/*.bin, which
+# only Strata reads.
+_STRATA_PACK_RE = re.compile(r"(^|/)pack/experts\.bin$")
+# A GGUF cut with split(1) loads nowhere until it is joined again.
+_RAW_GGUF_PART_RE = re.compile(r"\.gguf\.part-?\d+$")
+
+
+def _engine_only(data: dict) -> bool:
+    """True when the repo's weights are in a layout no general runner loads.
+
+    A GGUF next to a Strata pack is still a GGUF, so a repo with both stays.
+    Plain GGUFs next to raw split parts are the drafts and projectors of the
+    model in the parts.
+    """
+    names = [
+        sib.get("rfilename", "")
+        for sib in data.get("siblings") or []
+        if isinstance(sib, dict)
+    ]
+    if any(_RAW_GGUF_PART_RE.search(name) for name in names):
+        return True
+    return any(_STRATA_PACK_RE.search(name) for name in names) and not any(
+        name.endswith((".gguf", ".safetensors")) for name in names
+    )
+
+
 def _parse_model(data: dict) -> ModelInfo | None:
     """Parse HF API response into ModelInfo."""
     model_id = data.get("id", "")
     if not model_id:
+        return None
+    # The engines that read these are cards with their own packs; as a row
+    # of the ranking they would be weights nothing here can load.
+    if _engine_only(data):
         return None
 
     config = data.get("config", {}) or {}

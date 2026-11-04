@@ -1,0 +1,143 @@
+{
+  "id": "warp",
+  "name": "WARP",
+  "kind": "fixed_model",
+  "url": "https://github.com/sqliteai/warp",
+  "evidence": "documented",
+  "upstream": {
+    "github": "sqliteai/warp",
+    "version": "0.8.1",
+    "released_at": "2026-09-18",
+    "status": "slowing"
+  },
+  "checked_at": "2026-11-04",
+  "sources": [
+    "https://github.com/sqliteai/warp/blob/main/README.md",
+    "https://github.com/sqliteai/warp/blob/main/docs/BACKENDS.md",
+    "https://github.com/sqliteai/warp/blob/main/docs/FORMAT.md",
+    "https://github.com/sqliteai/warp/blob/main/docs/SERVE.md",
+    "https://github.com/sqliteai/warp/blob/main/docs/QWEN.md",
+    "https://github.com/sqliteai/warp/blob/main/docs/ENGINE.md",
+    "https://github.com/sqliteai/warp/releases/tag/v0.8.1"
+  ],
+  "platforms": [
+    {
+      "os": ["linux"],
+      "accel": "cpu",
+      "note": "x86_64 and arm64; AVX2, AVX-512 and NEON kernels are picked at run time over a portable C baseline"
+    },
+    {
+      "os": ["darwin"],
+      "accel": "cpu",
+      "note": "Apple silicon; the Metal build is off by default and slower"
+    },
+    {
+      "os": ["windows"],
+      "accel": "cpu",
+      "note": "x86_64 built with MinGW-w64"
+    }
+  ],
+  "memory": ["cpu", "expert_offload"],
+  "serve": "python3 -m serve MODEL.waste --port 8000",
+  "port": 8000,
+  "api": ["openai"],
+  "install": {
+    "docs": "https://github.com/sqliteai/warp#getting-started",
+    "linux": "git clone https://github.com/sqliteai/warp && cd warp && make",
+    "darwin": "git clone https://github.com/sqliteai/warp && cd warp && make"
+  },
+  "detect_binaries": ["waste"],
+  "probe": {
+    "path": "/health",
+    "contains": "WASTE"
+  },
+  "version_args": ["version"],
+  "models": [
+    {
+      "id": "kimi-k3",
+      "name": "Kimi K3",
+      "base": "moonshotai/Kimi-K3",
+      "note": "Converted from the published weights with about 1.42 TB of staging, or downloaded already converted over BitTorrent. 64 GB of RAM recommended.",
+      "packs": [
+        {
+          "id": "vq3r",
+          "name": "WARP VQ3R",
+          "repo": "moonshotai/Kimi-K3",
+          "quant": "IQ3_XXS",
+          "launch": "./waste chat ~/models/k3.waste",
+          "requires": {"disk_gb": 982, "ssd": {"ram_gb": 29.19}, "nvme": true},
+          "note": "VQ3R is WARP's own 3-bit vector quant of the experts, rated as IQ3_XXS, the GGUF type of the same size."
+        }
+      ]
+    },
+    {
+      "id": "glm-5.3-flash",
+      "name": "GLM-5.3-Flash",
+      "base": "zai-org/GLM-5.3-Flash",
+      "note": "16 GB of RAM is enough; images add 805 MB. Conversion needs 306 GiB of staging.",
+      "packs": [
+        {
+          "id": "vq3r",
+          "name": "WARP VQ3R",
+          "repo": "zai-org/GLM-5.3-Flash",
+          "quant": "IQ3_XXS",
+          "launch": "./waste chat ~/models/glm53.waste",
+          "requires": {"disk_gb": 112, "ssd": {"ram_gb": 5.14}, "nvme": true},
+          "note": "VQ3R is WARP's own 3-bit vector quant of the experts, rated as IQ3_XXS, the GGUF type of the same size."
+        }
+      ]
+    },
+    {
+      "id": "deepseek-v4.1-flash",
+      "name": "DeepSeek-V4.1-Flash",
+      "base": "deepseek-ai/DeepSeek-V4.1-Flash",
+      "note": "Text only. 16 GB of RAM is enough. Conversion needs 475 GiB of staging.",
+      "packs": [
+        {
+          "id": "vq3r",
+          "name": "WARP VQ3R",
+          "repo": "deepseek-ai/DeepSeek-V4.1-Flash",
+          "quant": "IQ3_XXS",
+          "launch": "./waste chat ~/models/ds41.waste",
+          "requires": {"disk_gb": 299, "ssd": {"ram_gb": 4.86}, "nvme": true},
+          "note": "VQ3R is WARP's own 3-bit vector quant of the experts, rated as IQ3_XXS, the GGUF type of the same size."
+        }
+      ]
+    },
+    {
+      "id": "qwen3.8-flash-next",
+      "name": "Qwen3.8-Flash-Next",
+      "base": "Qwen/Qwen3.8-Flash-Next",
+      "note": "Text only, contributed in 0.8.1. The server has no Qwen chat format, so it runs from the CLI. Conversion needs about 360 GB of staging.",
+      "packs": [
+        {
+          "id": "vq3r",
+          "name": "WARP VQ3R",
+          "repo": "Qwen/Qwen3.8-Flash-Next",
+          "quant": "IQ3_XXS",
+          "launch": "./waste run qwen38-flash-next.waste \"Hello\" --budget 8G",
+          "requires": {"disk_gb": 123.9, "ssd": {"ram_gb": 3.11}, "nvme": true},
+          "note": "VQ3R is WARP's own 3-bit vector quant of the experts, rated as IQ3_XXS, the GGUF type of the same size."
+        }
+      ]
+    },
+    {
+      "id": "kimi-linear-48b-a3b",
+      "name": "Kimi-Linear 48B-A3B",
+      "base": "moonshotai/Kimi-Linear-48B-A3B-Instruct",
+      "note": "The small one to start with. The docs name it Kimi-Linear-48B-A3B; WARP's chat addresses an instruct model.",
+      "packs": [
+        {
+          "id": "vq3r",
+          "name": "WARP VQ3R",
+          "repo": "moonshotai/Kimi-Linear-48B-A3B-Instruct",
+          "quant": "IQ3_XXS",
+          "launch": "./waste run kimi-linear.waste \"Hello\" --budget 8G",
+          "requires": {"disk_gb": 19, "ram_gb": 18.48, "ssd": {"ram_gb": 1.32}, "nvme": true},
+          "note": "VQ3R is WARP's own 3-bit vector quant of the experts, rated as IQ3_XXS, the GGUF type of the same size."
+        }
+      ]
+    }
+  ],
+  "note": "A C engine on the CPU only. It keeps the trunk in RAM and streams the chosen experts from NVMe. There are no ready packs: it converts the original Hugging Face weights to its own .waste format, which takes far more disk while it runs than the result."
+}

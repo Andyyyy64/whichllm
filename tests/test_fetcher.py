@@ -825,3 +825,51 @@ def test_trending_lists_use_the_hub_sort_key(monkeypatch):
     assert sorts.count("trendingScore") == 2
     assert "trending" not in sorts
     assert report.complete
+
+
+def _repo(model_id: str, *files: str) -> dict:
+    return {
+        "id": model_id,
+        "config": {"architectures": ["Qwen3NextForCausalLM"]},
+        "gguf": {"total": 230_000_000_000},
+        "siblings": [{"rfilename": name, "size": 40_000_000_000} for name in files],
+        "cardData": {"base_model": "Qwen/Qwen3.8-Flash-Next"},
+    }
+
+
+def test_a_strata_pack_without_a_gguf_is_not_a_model_to_rank():
+    pack = _repo(
+        "someone/Qwen3.8-Flash-Next-NVFP4-GPTQ-Strata",
+        "README.md",
+        "pack/dense.bin",
+        "pack/experts.bin",
+        "pack/index.txt",
+        "mtp/experts.bin",
+    )
+
+    assert _parse_model(pack) is None
+
+
+def test_a_gguf_next_to_a_strata_pack_is_still_ranked():
+    both = _repo(
+        "someone/Qwen3.8-Flash-Next-IQ3_S-Strata",
+        "Qwen3.8-Flash-Next-IQ3_S-merged.gguf",
+        "pack/dense.bin",
+        "pack/experts.bin",
+    )
+
+    parsed = _parse_model(both)
+
+    assert parsed is not None
+    assert [v.quant_type for v in parsed.gguf_variants] == ["IQ3_S"]
+
+
+def test_a_gguf_cut_with_split_is_not_a_model_to_rank():
+    parts = _repo(
+        "someone/DeepSeek-V4.1-Flash-1017-GSQ-strata",
+        "V41-GSQ-1017.gguf.part-00",
+        "V41-GSQ-1017.gguf.part-01",
+        "V41-MTP-Vision-1017.Q2_K.gguf",
+    )
+
+    assert _parse_model(parts) is None

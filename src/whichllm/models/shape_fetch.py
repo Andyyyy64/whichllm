@@ -31,8 +31,9 @@ SHAPE_CACHE_FILE = CACHE_DIR / "shapes.json"
 SHAPE_TTL_SECONDS = 7 * 24 * 3600
 # A missing, gated or unparseable config is retried sooner.
 MISSING_TTL_SECONDS = 24 * 3600
-# 2 adds max_context, so shapes cached before it are read again.
-SHAPE_CACHE_SCHEMA_VERSION = 2
+# 2 adds max_context and 3 lookup_params, so shapes cached before them are
+# read again.
+SHAPE_CACHE_SCHEMA_VERSION = 3
 
 # Families whose shape is looked up after one ranking pass, and requests
 # per family before giving up.

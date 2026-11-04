@@ -6,6 +6,51 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-11-04
+
+### Added
+
+- Engine cards describe fixed-model engines too, which run a short list of
+  large MoE models from their own packs. The first are Strata, Project Maya,
+  colibri, DwarfStar (ds4), WARP and TurboFieldfare. Each pack lists its
+  download and what it needs in GPU memory, RAM, or RAM and VRAM together, how
+  little RAM the engine gets by with while it reads experts from the SSD, and
+  whether it needs a GPU that shares system RAM. `whichllm engines` lists them
+  with how many of each engine's packs fit here, and says when one does not
+  run under WSL, as Project Maya does not.
+- The ranking includes models a fixed-model engine runs here when llama.cpp
+  cannot place them. On a 16 GB GPU with 56 GB of RAM, Qwen3.8-Flash-Next with
+  Strata ranks second. Such a row is scored like the others and takes its rank
+  by score, with the engine and its pack named under the model. Its speed is
+  what llama.cpp would reach with the same file, a floor, with the engine's own
+  measurement beside it where its docs have one, and the run line gives the
+  engine's launch command. When llama.cpp already ranks the model, the engine
+  is named under the run lines with its command instead. `--json` rows carry a
+  `pack` object, `engine_alternatives`, and the engine's command in the recipe.
+
+### Changed
+
+- A quant file an independent measurement placed at or above a better-known
+  type takes that type's quality penalty. ISTA-DASLab's GSQ-RCO IQ3_S and
+  IQ3_XXS of Qwen3.8-Flash-Next beat Unsloth's UD-IQ4_XS on perplexity in
+  Strata's measurement, so they carry the IQ4_XS penalty (5%) instead of 17%
+  and 18%.
+
+### Fixed
+
+- A model with a large lookup table, Qwen3.8-Flash-Next's n-gram table or
+  DeepSeek V4.1's Engram, was counted as if every token read the table and it
+  had to stay in memory. That put Qwen3.8-Flash-Next at 61.6B active
+  parameters instead of about 10B, so llama.cpp's row did not fit 63 GB of RAM
+  and was estimated at about 1 tok/s. The table now stays on disk the way
+  llama.cpp's `--lazy-mode` reads it, needing only disk space, and only
+  engines documented to do that are offered for such a model. DeepSeek V4.1's
+  separate Engram GGUF no longer passes for a build of the model.
+- Repos whose weights only one engine reads no longer show up as ordinary
+  models in the ranking. That covers a Strata pack with no GGUF next to it,
+  which ranked as a generic NVFP4 checkpoint, and a GGUF cut into
+  `.gguf.part` pieces, whose small MTP draft passed for the model.
+
 ## [0.6.2] - 2026-11-04
 
 ### Added

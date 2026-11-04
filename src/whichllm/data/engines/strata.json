@@ -1,0 +1,266 @@
+{
+  "id": "strata",
+  "name": "Strata",
+  "kind": "fixed_model",
+  "url": "https://github.com/Niko1221/Strata",
+  "evidence": "documented",
+  "upstream": {
+    "github": "Niko1221/Strata",
+    "version": "0.2.10",
+    "released_at": "2026-11-02",
+    "status": "active"
+  },
+  "checked_at": "2026-11-04",
+  "sources": [
+    "https://github.com/Niko1221/Strata/blob/main/docs/MODELS.md",
+    "https://github.com/Niko1221/Strata/blob/main/docs/INSTALL.md",
+    "https://github.com/Niko1221/Strata/blob/main/docs/DETAILS.md",
+    "https://github.com/Niko1221/Strata/blob/main/docs/DEEPSEEK41.md",
+    "https://github.com/Niko1221/Strata/blob/main/docs/OLDER_GPUS.md",
+    "https://github.com/Niko1221/Strata/blob/main/docs/AMD_HIP.md",
+    "https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF",
+    "https://huggingface.co/agentionai/Qwen3.8-Flash-Next-Gyro-GGUF"
+  ],
+  "platforms": [
+    {
+      "os": ["linux", "windows"],
+      "accel": "cuda",
+      "min_compute_capability": "7.5",
+      "note": "RTX 20 and newer; Pascal and Volta run an experimental CUDA 12 engine"
+    },
+    {
+      "os": ["linux", "windows"],
+      "accel": "rocm",
+      "note": "RX 6000 to 9000, Radeon AI PRO R9700 and Strix Halo"
+    },
+    {
+      "os": ["linux"],
+      "accel": "sycl",
+      "note": "Intel Arc"
+    },
+    {
+      "os": ["darwin"],
+      "accel": "metal",
+      "note": "Apple Silicon, macOS 15 or newer"
+    }
+  ],
+  "memory": ["gpu", "expert_offload"],
+  "serve": "strata launch",
+  "port": 8080,
+  "api": ["openai", "anthropic"],
+  "install": {
+    "docs": "https://github.com/Niko1221/Strata/blob/main/docs/INSTALL.md",
+    "linux": "curl -fsSL https://github.com/Niko1221/Strata/releases/latest/download/install.sh -o install.sh && sh install.sh",
+    "darwin": "curl -fsSL https://github.com/Niko1221/Strata/releases/latest/download/install.sh -o install.sh && sh install.sh",
+    "windows": "irm https://github.com/Niko1221/Strata/releases/latest/download/install.ps1 | iex"
+  },
+  "detect_binaries": ["strata"],
+  "detect_paths": {
+    "linux": ["~/.local/bin/strata", "~/.local/share/strata/components"],
+    "darwin": ["~/.local/bin/strata"],
+    "windows": ["%LOCALAPPDATA%\\Strata\\components"]
+  },
+  "version_args": ["--version"],
+  "models": [
+    {
+      "id": "qwen3.8-flash-next",
+      "name": "Qwen3.8-Flash-Next",
+      "base": "Qwen/Qwen3.8-Flash-Next",
+      "note": "Experts go to RAM and the 29 GB n-gram table stays on the SSD, so RAM needs the experts plus about 10 GB. The download adds a 6 GB draft layer on first start.",
+      "packs": [
+        {
+          "id": "q2_0",
+          "name": "ISTA-DASLab Q2_0",
+          "repo": "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF",
+          "quant": "Q2_0",
+          "launch": "strata launch --family qwen --model q2_0",
+          "docs_speed": {"tok_per_sec": 94, "hardware": "RTX 5070 12 GB, Ryzen 5 7600, 64 GB RAM"},
+          "requires": {"disk_gb": 72.4, "vram_gb": 12, "ram_gb": 44, "ssd": {"ram_gb": 32, "vram_gb": 24}, "nvme": true}
+        },
+        {
+          "id": "iq2_xs",
+          "name": "ISTA-DASLab IQ2_XS",
+          "repo": "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF",
+          "quant": "IQ2_XS",
+          "launch": "strata launch --family qwen --model iq2_xs",
+          "docs_speed": {"tok_per_sec": 79, "hardware": "RTX 5070 12 GB, Ryzen 5 7600, 64 GB RAM"},
+          "requires": {"disk_gb": 74, "vram_gb": 12, "ram_gb": 45.5, "ssd": {"ram_gb": 32, "vram_gb": 24}, "nvme": true}
+        },
+        {
+          "id": "iq3_xxs",
+          "name": "ISTA-DASLab IQ3_XXS",
+          "repo": "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF",
+          "quant": "IQ3_XXS",
+          "launch": "strata launch --family qwen --model iq3_xxs",
+          "docs_speed": {"tok_per_sec": 62, "hardware": "RTX 5070 12 GB, Ryzen 5 7600, 64 GB RAM"},
+          "requires": {"disk_gb": 81.8, "vram_gb": 12, "ram_gb": 53, "nvme": true}
+        },
+        {
+          "id": "iq3_s",
+          "name": "ISTA-DASLab IQ3_S",
+          "repo": "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF",
+          "quant": "IQ3_S",
+          "launch": "strata launch --family qwen --model iq3_s",
+          "docs_speed": {"tok_per_sec": 53, "hardware": "RTX 5070 12 GB, Ryzen 5 7600, 64 GB RAM"},
+          "requires": {"disk_gb": 89.6, "vram_gb": 12, "ram_gb": 60, "nvme": true}
+        },
+        {
+          "id": "coder-iq1_m",
+          "name": "ISTA-DASLab Coder IQ1_M",
+          "repo": "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-Coder-GGUF",
+          "quant": "IQ1_M",
+          "launch": "strata launch --family coder --model IQ1_M",
+          "docs_speed": {"tok_per_sec": 55, "hardware": "RTX 5070 12 GB, Ryzen 5 7600, 64 GB RAM"},
+          "requires": {"disk_gb": 64.4, "vram_gb": 12, "ram_gb": 33, "ssd": {"ram_gb": 32, "vram_gb": 12}, "nvme": true},
+          "note": "Keeps 256 of each layer's 512 experts, chosen on code; weaker outside code."
+        },
+        {
+          "id": "ud-iq4_xs",
+          "name": "Unsloth UD-IQ4_XS",
+          "repo": "unsloth/Qwen3.8-Flash-Next-GGUF",
+          "quant": "IQ4_XS",
+          "launch": "strata launch --family unsloth --model UD-IQ4_XS",
+          "requires": {"disk_gb": 94, "vram_gb": 12, "ram_gb": 72, "nvme": true}
+        },
+        {
+          "id": "ud-q4_k_xl",
+          "name": "Unsloth UD-Q4_K_XL",
+          "repo": "unsloth/Qwen3.8-Flash-Next-GGUF",
+          "quant": "Q4_K_XL",
+          "launch": "strata launch --family unsloth --model UD-Q4_K_XL",
+          "requires": {"disk_gb": 111, "vram_gb": 12, "ram_gb": 88, "ssd": {"ram_gb": 64}, "nvme": true}
+        },
+        {
+          "id": "ud-q5_k_xl",
+          "name": "Unsloth UD-Q5_K_XL",
+          "repo": "unsloth/Qwen3.8-Flash-Next-GGUF",
+          "quant": "Q5_K_XL",
+          "launch": "strata launch --family unsloth --model UD-Q5_K_XL",
+          "requires": {"disk_gb": 158, "vram_gb": 12, "ram_gb": 108, "nvme": true}
+        },
+        {
+          "id": "ud-q6_k_xl",
+          "name": "Unsloth UD-Q6_K_XL",
+          "repo": "unsloth/Qwen3.8-Flash-Next-GGUF",
+          "quant": "Q6_K_XL",
+          "launch": "strata launch --family unsloth --model UD-Q6_K_XL",
+          "requires": {"disk_gb": 169, "vram_gb": 12, "ram_gb": 118, "nvme": true}
+        },
+        {
+          "id": "q8_0",
+          "name": "Unsloth Q8_0",
+          "repo": "unsloth/Qwen3.8-Flash-Next-GGUF",
+          "quant": "Q8_0",
+          "launch": "strata launch --family unsloth --model Q8_0",
+          "requires": {"disk_gb": 188, "vram_gb": 12, "ram_gb": 136, "nvme": true}
+        },
+        {
+          "id": "gyro-s",
+          "name": "Gyro-S",
+          "repo": "agentionai/Qwen3.8-Flash-Next-Gyro-GGUF",
+          "quant": "TQ1_0",
+          "launch": "strata launch --family gyro --model Gyro-S",
+          "requires": {"disk_gb": 58.5, "memory_gb": 27.6, "nvme": true},
+          "note": "Trellis-coded experts, the smallest option and slower than Q2_0."
+        },
+        {
+          "id": "gyro-m",
+          "name": "Gyro-M",
+          "repo": "agentionai/Qwen3.8-Flash-Next-Gyro-GGUF",
+          "quant": "TQ2_0",
+          "launch": "strata launch --family gyro --model Gyro-M",
+          "requires": {"disk_gb": 92, "memory_gb": 35, "nvme": true},
+          "note": "About IQ3_XXS quality with about 20% less GPU memory, decodes 16 to 21% slower than Q2_0."
+        },
+        {
+          "id": "nvfp4",
+          "name": "NVFP4 (Strata's version)",
+          "repo": null,
+          "quant": "NVFP4",
+          "launch": "strata launch --family nvfp4 --model NVFP4",
+          "requires": {"disk_gb": 128, "vram_gb": 12, "ram_gb": 80, "nvme": true},
+          "platforms": [
+            {"os": ["linux", "windows"], "accel": "cuda", "min_compute_capability": "7.5", "note": "FP4 tensor cores on RTX 50, 8-bit precision on older cards"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "qwen3.6-35b-a3b",
+      "name": "Qwen3.6-35B-A3B",
+      "base": "Qwen/Qwen3.6-35B-A3B",
+      "platforms": [
+        {"os": ["linux", "windows"], "accel": "cuda", "min_compute_capability": "7.5"},
+        {"os": ["linux", "windows"], "accel": "rocm"}
+      ],
+      "note": "Keeps every expert it can on the GPU and computes the rest on the CPU. Not on Intel Arc or Mac.",
+      "packs": [
+        {
+          "id": "ud-q4_k_xl",
+          "name": "Unsloth UD-Q4_K_XL",
+          "repo": "unsloth/Qwen3.6-35B-A3B-MTP-GGUF",
+          "quant": "Q4_K_XL",
+          "launch": "strata launch --family qwen36 --model UD-Q4_K_XL",
+          "docs_speed": {"tok_per_sec": 59.7, "hardware": "RTX 3060 12 GB, most experts on the CPU"},
+          "requires": {"disk_gb": 23.8, "vram_gb": 12, "ram_gb": 32}
+        },
+        {
+          "id": "ud-q6_k_xl",
+          "name": "Unsloth UD-Q6_K_XL",
+          "repo": "unsloth/Qwen3.6-35B-A3B-MTP-GGUF",
+          "quant": "Q6_K_XL",
+          "launch": "strata launch --family qwen36 --model UD-Q6_K_XL",
+          "requires": {"disk_gb": 33.5, "vram_gb": 12, "ram_gb": 44}
+        },
+        {
+          "id": "q8_0",
+          "name": "Unsloth Q8_0",
+          "repo": "unsloth/Qwen3.6-35B-A3B-MTP-GGUF",
+          "quant": "Q8_0",
+          "launch": "strata launch --family qwen36 --model Q8_0",
+          "requires": {"disk_gb": 38.7, "vram_gb": 12, "ram_gb": 52}
+        }
+      ]
+    },
+    {
+      "id": "deepseek-v4.1-flash-1017",
+      "name": "DeepSeek-V4.1-Flash-1017",
+      "base": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+      "platforms": [
+        {"os": ["linux", "windows"], "accel": "cuda", "min_compute_capability": "8.6", "note": "RTX 30, 40 and 50 with 12 GB or more"},
+        {"os": ["linux"], "accel": "rocm", "note": "Radeon AI PRO R9700"},
+        {"os": ["windows"], "accel": "rocm", "note": "Ryzen AI Max (Strix Halo)"},
+        {"os": ["darwin"], "accel": "metal", "note": "64 GB or more, text only"}
+      ],
+      "note": "Its own engine, fetched by strata launch. An 8K context. The 111 GB n-gram table and an 8 GB drafter are in each download.",
+      "packs": [
+        {
+          "id": "ist-das-1.75bpw",
+          "name": "ISTA-DAS 1.75 bpw",
+          "repo": "ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-GGUF",
+          "quant": "IQ1_M",
+          "launch": "strata launch --family deepseek41 --model ist-das-1.75bpw",
+          "requires": {"disk_gb": 239, "vram_gb": 12, "memory_gb": 121, "ssd": {"ram_gb": 46, "vram_gb": 12}, "nvme": true}
+        },
+        {
+          "id": "ist-das-2.00bpw",
+          "name": "ISTA-DAS 2.00 bpw",
+          "repo": "ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-GGUF",
+          "quant": "IQ2_XXS",
+          "launch": "strata launch --family deepseek41 --model ist-das-2.00bpw",
+          "docs_speed": {"tok_per_sec": 5, "hardware": "RTX 5070 12 GB, Ryzen 5 7600, 64 GB RAM"},
+          "requires": {"disk_gb": 257, "vram_gb": 12, "memory_gb": 138, "ssd": {"ram_gb": 46, "vram_gb": 12}, "nvme": true}
+        },
+        {
+          "id": "ist-das-2.25bpw",
+          "name": "ISTA-DAS 2.25 bpw",
+          "repo": "ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-GGUF",
+          "quant": "IQ2_XS",
+          "launch": "strata launch --family deepseek41 --model ist-das-2.25bpw",
+          "requires": {"disk_gb": 274, "vram_gb": 12, "memory_gb": 155, "ssd": {"ram_gb": 46, "vram_gb": 12}, "nvme": true}
+        }
+      ]
+    }
+  ],
+  "note": "Runs a short list of large MoE models from its own packs and keeps their experts in RAM. Packs from ISTA-DASLab, Unsloth and agentionai are ordinary GGUFs, so llama.cpp loads most of them too, but needs more memory."
+}

@@ -46,6 +46,19 @@ def _recipe_json(
 ) -> dict | None:
     if context_length is None:
         return None
+    if result.pack_launch:
+        # A fixed-model engine starts its own pack; llama.cpp, LM Studio and
+        # Ollama recipes do not apply.
+        return {
+            "gguf_repo": result.artifact_model.id if result.artifact_model else None,
+            "quant": effective_quant_type(result.model, result.gguf_variant),
+            "llama_cpp": None,
+            "lm_studio": None,
+            "ollama": None,
+            "notes": [],
+            "engine": result.engine,
+            "command": result.pack_launch,
+        }
     recipe = build_recipe(result, context_length)
     return asdict(recipe) if recipe else None
 
@@ -87,6 +100,32 @@ def display_hardware_json(hardware: HardwareInfo) -> None:
     _console.console.print_json(json.dumps(output, ensure_ascii=False))
 
 
+def _pack_json(result: CompatibilityResult) -> dict | None:
+    """The fixed-model engine pack a row runs from, or None for other rows."""
+    if not result.pack_launch:
+        return None
+    docs = result.pack_docs_speed
+    return {
+        "name": result.pack_name,
+        "tier": result.pack_tier,
+        "docs_tok_per_sec": docs[0] if docs else None,
+        "docs_hardware": docs[1] if docs else None,
+    }
+
+
+def _alternatives_json(result: CompatibilityResult) -> list[dict]:
+    return [
+        {
+            "engine": a.engine,
+            "pack": a.pack_name,
+            "command": a.launch,
+            "docs_tok_per_sec": a.docs_speed[0] if a.docs_speed else None,
+            "docs_hardware": a.docs_speed[1] if a.docs_speed else None,
+        }
+        for a in result.engine_alternatives
+    ]
+
+
 def display_json(
     results: list[CompatibilityResult],
     hardware: HardwareInfo,
@@ -96,7 +135,8 @@ def display_json(
     """Output ranking results as JSON.
 
     ``data`` says where the scores came from: the index's build time and its
-    benchmark sources, or a live fetch.
+    benchmark sources, or a live fetch. A row that runs with a fixed-model
+    engine carries its ``pack``, and its recipe is the engine's own command.
     """
     output = {
         "hardware": hardware_json(hardware),
@@ -144,6 +184,8 @@ def display_json(
                 "engine": r.engine,
                 "engines": list(r.engines),
                 "engine_installed": r.engine_installed,
+                "pack": _pack_json(r),
+                "engine_alternatives": _alternatives_json(r),
                 "recipe": _recipe_json(r, context_length),
                 "can_run": r.can_run,
                 "warnings": r.warnings,
