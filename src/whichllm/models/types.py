@@ -11,6 +11,9 @@ class GGUFVariant:
     quant_type: str  # "Q4_K_M", "Q8_0" etc
     file_size_bytes: int
     is_estimated: bool = False
+    # The upload this file must come from, when an official repo's row takes
+    # one particular upload's file instead of any upload of its quant.
+    repo: str | None = None
 
 
 @dataclass

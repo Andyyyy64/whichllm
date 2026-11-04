@@ -86,8 +86,14 @@ Strata's run, where Unsloth's UD-IQ4_XS measured 4.120, so both carry the
 IQ4_XS penalty (5%) instead of 17% and 18%. A quantizer's own evaluation is not
 enough on its own, and a file below every measured type keeps its own penalty.
 
-Extreme low-bit variants are excluded by default when better candidates exist.
-They can still be requested explicitly with `--quant`.
+Extreme low-bit variants are excluded by default when better candidates exist,
+judged by the type a file is rated as, so ISTA-DASLab's IQ3_XXS stays a
+candidate. They can still be requested explicitly with `--quant`. An official
+repo's row can take a measured file from one of its uploads, as that very file,
+so the row keeps the official model's benchmark evidence while the rating and
+the recipe are the file's. On a 16 GB GPU with 39 GB of RAM, that is how
+Qwen3.8-Flash-Next ranks with ISTA-DASLab's IQ3_XXS, the best of its builds
+that fits there.
 
 ## Evidence confidence
 

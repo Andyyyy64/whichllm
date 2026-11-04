@@ -13,6 +13,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   Qwen3.8-Flash-Next, rated as IQ4_XS, was dropped before it was scored. On
   a 16 GB GPU with 39 GB of RAM, where it is the best of their builds that
   fits, the model only showed up through a repo that cannot run there.
+- An official repo's row can take an upload's file that a measurement rates
+  above its type, as that very file, with the file's rating and recipe. That
+  file used to count only as its uploader's repo, whose benchmark evidence is
+  inherited and weighs less. On a 16 GB GPU with 39 GB of RAM,
+  Qwen3.8-Flash-Next now ranks second with ISTA-DASLab's IQ3_XXS at about
+  30 tok/s, behind Qwen3.8-27B, and first with `--profile coding`.
 - MLX weights no longer rank as FP16 safetensors on Linux or Windows. MLX
   runs on Apple Silicon only, and a Mac's ranking takes GGUF files, so an MLX
   repo is not a candidate anywhere. It is recognized by the Hub's `mlx` tag,
