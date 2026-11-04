@@ -95,6 +95,7 @@ def _row(
         family_likes=family_likes,
         benchmark_avg=bench_avg,
         benchmark_source=evidence.source,
+        artifact_repo=pack.repo,
     )
     largest = max((gpu.vram_bytes for gpu in hardware.gpus), default=0)
     card: EngineCard = option.card
@@ -215,8 +216,11 @@ def rank_pack_rows(
     return rows[: max(limit, 0)]
 
 
-def _preference(row: CompatibilityResult) -> tuple[bool, float]:
-    return row.pack_tier == "memory", row.quality_score
+def _preference(row: CompatibilityResult) -> tuple[bool, float, int]:
+    """Memory before SSD, then score; between packs rated alike, the larger
+    file, which keeps more bits."""
+    size = row.gguf_variant.file_size_bytes if row.gguf_variant else 0
+    return row.pack_tier == "memory", row.quality_score, size
 
 
 def merge_pack_rows(

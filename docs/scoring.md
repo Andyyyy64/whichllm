@@ -76,6 +76,16 @@ Examples:
 A label an uploader extended (`Q6_K_L`, `UD-Q4_K_XL`, `IQ1_M_XL`) takes the
 penalty of its format, so a 1-bit file cannot pass for a 4-bit one.
 
+The penalty belongs to a format in general, and a careful quantizer can do far
+better at the same label. `src/whichllm/data/quant_quality.json` lists files
+whose quality an independent measurement placed at or above a better-known
+type: on the same model and harness, the file matches or beats files of that
+type on perplexity. Such a file takes that type's penalty. ISTA-DASLab's GSQ-RCO
+IQ3_S and IQ3_XXS of Qwen3.8-Flash-Next measured perplexity 4.097 and 4.119 in
+Strata's run, where Unsloth's UD-IQ4_XS measured 4.120, so both carry the
+IQ4_XS penalty (5%) instead of 17% and 18%. A quantizer's own evaluation is not
+enough on its own, and a file below every measured type keeps its own penalty.
+
 Extreme low-bit variants are excluded by default when better candidates exist.
 They can still be requested explicitly with `--quant`.
 
