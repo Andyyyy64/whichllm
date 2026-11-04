@@ -192,6 +192,24 @@ def test_cpu_only_backend_filters_out_non_gguf_models():
     assert results[0].model.id == "Qwen/Qwen3-8B-GGUF"
 
 
+def test_mlx_weights_are_not_ranked_off_apple():
+    # Named like a 4-bit bitsandbytes checkpoint, which CUDA would run.
+    mlx = ModelInfo(
+        id="mlx-community/Qwen3-8B-4bit",
+        family_id="qwen3-8b",
+        name="Qwen3-8B-4bit",
+        parameter_count=8_000_000_000,
+        downloads=1000,
+        likes=100,
+        tags=("mlx", "safetensors", "4-bit"),
+        weight_bytes=4_600_000_000,
+    )
+    hw = _make_hardware(vram_gb=24, bandwidth_gbps=900.0)
+
+    assert effective_quant_type(mlx, None) == "MLX"
+    assert rank_models([mlx], hw, top_n=5) == []
+
+
 def _gguf_model(model_id: str, family_id: str, downloads: int) -> ModelInfo:
     return ModelInfo(
         id=model_id,

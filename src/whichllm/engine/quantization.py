@@ -71,6 +71,9 @@ def effective_quant_type(model: ModelInfo, variant: GGUFVariant | None) -> str:
     """Return effective quantization type for a model+variant pair."""
     if variant:
         return variant.quant_type.upper()
+    # The Hub tags MLX weights whatever the repo is called.
+    if any(tag.casefold() == "mlx" for tag in model.tags):
+        return "MLX"
     return infer_non_gguf_quant_type(model.id)
 
 
@@ -112,6 +115,20 @@ def measured_ratings() -> dict[tuple[str, str], str]:
     }
 
 
+def rated_quant_type(
+    model: ModelInfo, variant: GGUFVariant | None, repo: str | None = None
+) -> str:
+    """The quant type a file is judged as: its own, or its measured rating.
+
+    ``repo`` is the repository the file comes from, when it is not
+    ``model``'s own.
+    """
+    quant_type = effective_quant_type(model, variant).upper()
+    return measured_ratings().get(
+        ((repo or model.id).casefold(), quant_type), quant_type
+    )
+
+
 def quant_quality_penalty(
     model: ModelInfo, variant: GGUFVariant | None, repo: str | None = None
 ) -> float:
@@ -120,10 +137,7 @@ def quant_quality_penalty(
     ``repo`` is the repository the file comes from, when it is not
     ``model``'s own; a file with a measured rating takes that type's penalty.
     """
-    quant_type = effective_quant_type(model, variant).upper()
-    rated = measured_ratings().get(((repo or model.id).casefold(), quant_type))
-    if rated is not None:
-        quant_type = rated
+    quant_type = rated_quant_type(model, variant, repo)
     key = quant_table_key(quant_type, QUANT_QUALITY_PENALTY)
     if key in QUANT_QUALITY_PENALTY:
         return QUANT_QUALITY_PENALTY[key]

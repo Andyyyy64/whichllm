@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed
+
+- A file a measurement rates as a better quant type is now a candidate even
+  when its own type is below 3 bits. ISTA-DASLab's IQ3_XXS of
+  Qwen3.8-Flash-Next, rated as IQ4_XS, was dropped before it was scored. On
+  a 16 GB GPU with 39 GB of RAM, where it is the best of their builds that
+  fits, the model only showed up through a repo that cannot run there.
+- MLX weights no longer rank as FP16 safetensors on Linux or Windows. MLX
+  runs on Apple Silicon only, and a Mac's ranking takes GGUF files, so an MLX
+  repo is not a candidate anywhere. It is recognized by the Hub's `mlx` tag,
+  whatever the repo is called.
+- A Strata pack whose GGUFs are Strata's own pieces (its n-gram table, dense
+  weights and token embeddings) no longer passes for a model. Its GGUFs
+  carry Strata's own architecture, which llama.cpp does not load.
+
 ## [0.6.3] - 2026-11-04
 
 ### Added

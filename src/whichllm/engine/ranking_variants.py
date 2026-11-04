@@ -9,7 +9,7 @@ from whichllm.constants import (
     QUANT_BYTES_PER_WEIGHT,
     QUANT_PREFERENCE_ORDER,
 )
-from whichllm.engine.quantization import effective_quant_type
+from whichllm.engine.quantization import effective_quant_type, rated_quant_type
 from whichllm.engine.ranking_sources import _OFFICIAL_ORGS
 from whichllm.models.artifacts import resolve_ranked_gguf_artifact
 from whichllm.models.gguf import holds_the_whole_model
@@ -120,7 +120,8 @@ def _iter_candidate_variants(
     else:
         # Sub-3-bit GGUFs lose 25-60% of model quality and rarely produce
         # a meaningfully better candidate than a smaller model at Q4_K_M.
-        # Exclude them unless explicitly requested via --quant.
+        # Exclude them unless explicitly requested via --quant. A file a
+        # measurement rates as a better type is judged as that type.
         _EXTREME_QUANTS = {
             "Q2_K",
             "Q2_0",
@@ -135,7 +136,7 @@ def _iter_candidate_variants(
             "IQ1_S",
         }
         filtered = [
-            v for v in candidates if v.quant_type.upper() not in _EXTREME_QUANTS
+            v for v in candidates if rated_quant_type(model, v) not in _EXTREME_QUANTS
         ]
         if filtered:
             candidates = filtered
