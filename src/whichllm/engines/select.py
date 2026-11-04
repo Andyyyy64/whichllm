@@ -7,6 +7,7 @@ from pathlib import Path
 
 from whichllm.engine.quantization import effective_quant_type
 from whichllm.engine.types import CompatibilityResult
+from whichllm.engine.lookup import lazy_lookup_params
 from whichllm.engines.availability import availability
 from whichllm.engines.cards import EVIDENCE, EngineCard
 from whichllm.engines.detect import Installed
@@ -55,17 +56,23 @@ def reads_quant(card: EngineCard, quant: str, cards: tuple[EngineCard, ...]) -> 
 def engines_for(
     result: CompatibilityResult, hardware: HardwareInfo, cards: tuple[EngineCard, ...]
 ) -> list[EngineCard]:
-    """Engines that run here, read the row's quant and hold its placement."""
+    """Engines that run here, read the row's quant and hold its placement.
+
+    The memory estimate leaves a large lookup table on disk, so a model with
+    one needs an engine documented to read it from there.
+    """
     quant = _gguf_quant(result)
     if quant is None:
         return []
     kind = result.placement.kind if result.placement else result.fit_type
-    memory = _MEMORY_FOR_PLACEMENT.get(kind, "gpu")
+    needed = {_MEMORY_FOR_PLACEMENT.get(kind, "gpu")}
+    if lazy_lookup_params(result.artifact_model or result.model):
+        needed.add("lazy_lookup")
     return [
         card
         for card in cards
         if card.kind == "runner"
-        and memory in card.memory
+        and needed <= set(card.memory)
         and reads_quant(card, quant, cards)
         and availability(card, hardware).runs
     ]

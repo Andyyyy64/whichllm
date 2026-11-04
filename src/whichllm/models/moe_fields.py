@@ -20,18 +20,21 @@ def fill_moe_from_shape(model: ModelInfo) -> bool:
     shape = model.shape
     if shape is None or not shape.num_experts or shape.num_experts < 2:
         return False
-    if model.is_moe and model.parameter_count_active:
+    # A lookup table counted as dense weights puts the active count far too
+    # high (Qwen3.8-Flash-Next at 61.6B instead of about 10B), so a shape
+    # with one recounts it.
+    if model.is_moe and model.parameter_count_active and not shape.lookup_params:
         return False
 
+    from whichllm.engine.lookup import lookup_params
     from whichllm.engine.moe import active_expert_fraction, routed_expert_params
 
     model.is_moe = True
-    if not model.parameter_count_active and model.parameter_count > 0:
+    if model.parameter_count > 0:
         routed = routed_expert_params(model)
         if routed is not None:
             routed = min(routed, int(model.parameter_count * _MAX_EXPERT_FRACTION))
             fraction = active_expert_fraction(model)
-            model.parameter_count_active = int(
-                model.parameter_count - routed + routed * fraction
-            )
+            dense = model.parameter_count - lookup_params(model) - routed
+            model.parameter_count_active = int(max(dense, 0) + routed * fraction)
     return True

@@ -26,6 +26,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- A model with a large lookup table, Qwen3.8-Flash-Next's n-gram table or
+  DeepSeek V4.1's Engram, was counted as if every token read the table and it
+  had to stay in memory. That put Qwen3.8-Flash-Next at 61.6B active
+  parameters instead of about 10B, so llama.cpp's row did not fit 63 GB of RAM
+  and was estimated at about 1 tok/s. The table now stays on disk the way
+  llama.cpp's `--lazy-mode` reads it, needing only disk space, and only
+  engines documented to do that are offered for such a model. DeepSeek V4.1's
+  separate Engram GGUF no longer passes for a build of the model.
 - Repos whose weights only one engine reads no longer show up as ordinary
   models in the ranking. That covers a Strata pack with no GGUF next to it,
   which ranked as a generic NVFP4 checkpoint, and a GGUF cut into

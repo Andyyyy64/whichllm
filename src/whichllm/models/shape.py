@@ -58,6 +58,9 @@ class ModelShape:
     first_dense_layers: int = 0
     # The longest context the checkpoint was built for (max_position_embeddings).
     max_context: int | None = None
+    # Parameters in lookup tables a token reads only a few rows of
+    # (Qwen3.8-Flash-Next's n-gram table, DeepSeek V4.1's Engram).
+    lookup_params: int = 0
 
     def kv_cache_bytes(self, context_length: int) -> int:
         """K/V and recurrent cache bytes for one sequence of this length."""
@@ -208,6 +211,30 @@ def _max_context(text: dict, config: dict) -> int | None:
     return None
 
 
+def _lookup_params(text: dict) -> int:
+    """Parameters of the n-gram lookup tables a config declares.
+
+    Qwen3.8-Flash-Next has one table of ``ngram_vocab_size_base`` rows (padded
+    to ``make_ngram_vocab_size_divisible_by``) of ``ple_embed_dim``: 20M x 2560,
+    the 51.2B ISTA-DASLab counts. DeepSeek V4.1 has an Engram table per Engram
+    layer, ``engram_num_embeddings`` rows of ``engram_head_dim``: 768M x 256,
+    196.6B, which its 111 GB IQ4_NL Engram file matches.
+    """
+    total = 0
+    rows = _positive_int(text.get("ngram_vocab_size_base"))
+    width = _positive_int(text.get("ple_embed_dim"))
+    if rows and width:
+        step = _positive_int(text.get("make_ngram_vocab_size_divisible_by")) or 1
+        total += -(-rows // step) * step * width
+    layers = text.get("engram_num_embeddings")
+    head_dim = _positive_int(text.get("engram_head_dim"))
+    if isinstance(layers, list) and layers and head_dim:
+        counts = [_positive_int(n) for n in layers]
+        if all(counts):
+            total += sum(counts) * head_dim
+    return total
+
+
 def parse_model_shape(config: dict) -> ModelShape | None:
     """Parse a raw config.json; None when the layout is not understood."""
     if not isinstance(config, dict):
@@ -297,4 +324,5 @@ def parse_model_shape(config: dict) -> ModelShape | None:
         shared_expert_intermediate_size=shared if num_experts else None,
         first_dense_layers=_positive_int(text.get("first_k_dense_replace")) or 0,
         max_context=_max_context(text, config),
+        lookup_params=_lookup_params(text),
     )
