@@ -15,12 +15,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   Qwen3.5-122B-A10B on one GPU with the experts spread over VRAM, RAM and the
   SSD. It lists the 15 packs its setup installs with one command. Each of the
   author's packs is named for the PC it targets, such as 16G64G, and fits in
-  memory on a machine of that size. On a 16 GB GPU with 64 GB of RAM outside
-  WSL, the ranking names Abyss under Qwen3.8-Flash-Next with the 70.7 tok/s
-  its docs measured. Abyss ships several patch releases a day, so its card
-  sets `"track": "minor"`, and the weekly upstream check lists it for a new
-  minor version or once it was last checked 30 days ago.
-
+  memory on a machine of that size, except the two of DeepSeek V4.1, whose
+  experts are partly read from the SSD there. On a 16 GB GPU with 64 GB of
+  RAM outside WSL, the ranking names Abyss under Qwen3.8-Flash-Next with the
+  70.7 tok/s its docs measured. Abyss ships several patch releases a day, so
+  its card sets `"track": "minor"`, and the weekly upstream check lists it
+  for a new minor version or once it was last checked 30 days ago.
 - Project Maya's card lists GLM-5.3, the 744B model Maya runs since 1.1.57,
   with Unsloth's UD-IQ2_M pack (238.6 GB, 256 GB of RAM and VRAM together).
   MiniMax-M3.1-Flash gets its experimental Mac build.
