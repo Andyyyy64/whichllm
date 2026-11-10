@@ -6,11 +6,11 @@
   "evidence": "documented",
   "upstream": {
     "github": "lemonade-sdk/lemonade",
-    "version": "2026.44.1",
-    "released_at": "2026-10-28",
+    "version": "2026.45.3",
+    "released_at": "2026-11-04",
     "status": "active"
   },
-  "checked_at": "2026-11-04",
+  "checked_at": "2026-11-11",
   "sources": [
     "https://github.com/lemonade-sdk/lemonade",
     "https://github.com/lemonade-sdk/lemonade/blob/main/docs/dev/backends-reference.md",
