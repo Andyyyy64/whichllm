@@ -20,6 +20,9 @@ from whichllm.hardware.types import GPUInfo, HardwareInfo
 # Cards give sizes in GB the way the engines' docs do. They are compared as
 # GiB, the unit a "64 GB" PC reports its RAM in.
 _GiB = 1024**3
+# A "12 GB" card reports a little under 12 GiB (an RTX 5070 has 11.9, an RTX
+# 5090 31.8), so a GPU within 3% of the size a pack names counts as that size.
+_NOMINAL_VRAM = 0.97
 
 
 @dataclass(frozen=True)
@@ -61,12 +64,21 @@ def _have(value_bytes: int) -> str:
     return f"{value_bytes / _GiB:.0f} GB"
 
 
+def _has_gpu(largest: int, need_gb: float) -> bool:
+    return largest >= need_gb * _GiB * _NOMINAL_VRAM
+
+
 def _short_of(need: Requires, ram: int) -> str:
     """What memory the pack is missing, for a machine where it does not run."""
     if need.ssd_ram_gb is not None:
         if ram < need.ssd_ram_gb * _GiB:
             return f"needs {_gb(need.ssd_ram_gb)} of RAM, this machine has {_have(ram)}"
         # Enough RAM for the SSD tier, but not the GPU it was documented with.
+        if need.ram_gb is None and need.memory_gb is None:
+            return (
+                f"needs {_gb(need.ssd_ram_gb)} of RAM with a "
+                f"{_gb(need.ssd_vram_gb or 0)} GPU"
+            )
         return (
             f"needs {_gb(need.ram_gb or need.memory_gb or 0)} of RAM, or "
             f"{_gb(need.ssd_ram_gb)} with a {_gb(need.ssd_vram_gb or 0)} GPU"
@@ -89,7 +101,7 @@ def pack_fit(pack: Pack, hardware: HardwareInfo) -> PackFit:
             None, "needs a GPU that shares system RAM (a Mac, DGX Spark or Strix Halo)"
         )
     largest = max((gpu.vram_bytes for gpu in hardware.gpus), default=0)
-    if need.vram_gb is not None and largest < need.vram_gb * _GiB:
+    if need.vram_gb is not None and not _has_gpu(largest, need.vram_gb):
         where = f"the largest here has {_have(largest)}" if largest else "none here"
         return PackFit(None, f"needs a GPU with {_gb(need.vram_gb)}, {where}")
     ram = _ram_bytes(hardware)
@@ -105,7 +117,7 @@ def pack_fit(pack: Pack, hardware: HardwareInfo) -> PackFit:
     if (
         need.ssd_ram_gb is not None
         and ram >= need.ssd_ram_gb * _GiB
-        and largest >= (need.ssd_vram_gb or 0) * _GiB
+        and _has_gpu(largest, need.ssd_vram_gb or 0)
     ):
         reason = "reads the experts that do not fit from the SSD, much slower"
         if need.nvme:

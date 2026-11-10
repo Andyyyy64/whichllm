@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+
+- An engine card for Abyss, a fork of Project Maya that runs DeepSeek V4 and
+  V4.1 Flash, GLM-5.3-Flash, Qwen3.8-Flash-Next, Ornith-1.5 and
+  Qwen3.5-122B-A10B on one GPU with the experts spread over VRAM, RAM and the
+  SSD. It lists the 15 packs its setup installs with one command. Each of the
+  author's packs is named for the PC it targets, such as 16G64G, and fits in
+  memory on a machine of that size. On a 16 GB GPU with 64 GB of RAM outside
+  WSL, the ranking names Abyss under Qwen3.8-Flash-Next with the 70.7 tok/s
+  its docs measured. Abyss ships several patch releases a day, so its card
+  sets `"track": "minor"`, and the weekly upstream check lists it for a new
+  minor version or once it was last checked 30 days ago.
+
+### Fixed
+
+- A GPU that reports a little under its nominal size meets a pack that names
+  that size. An RTX 5070 "12 GB" reports 11.9 GiB, so Strata's packs, which
+  need a 12 GB GPU, were refused on it with "needs a GPU with 12 GB, the
+  largest here has 12 GB". A GPU within 3% of the size now counts.
+
 ## [0.6.4] - 2026-11-05
 
 ### Fixed

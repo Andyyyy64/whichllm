@@ -2,6 +2,7 @@
 
 import copy
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -96,6 +97,7 @@ def test_strata_and_maya_carry_their_models():
         ),
         (lambda d: d["models"][0].update(base="not a repo"), "owner/repo"),
         (lambda d: d["models"][0]["packs"][0].update(size=1), "unknown key"),
+        (lambda d: d["upstream"].update(track="patch"), "'track' is 'patch'"),
     ],
 )
 def test_a_broken_fixed_model_card_is_refused(change, message):
@@ -143,6 +145,14 @@ def test_a_small_gpu_is_refused():
     fit = pack_fit(_pack("strata", "qwen3.8-flash-next", "q2_0"), _machine(vram_gb=8))
 
     assert fit.reason == "needs a GPU with 12 GB, the largest here has 8 GB"
+
+
+def test_a_gpu_a_little_under_its_nominal_size_counts_as_that_size():
+    pack = _pack("strata", "qwen3.8-flash-next", "q2_0")
+    # An RTX 5070 "12 GB" reports 11.9 GiB, an RTX 4090 "24 GB" 23.99.
+    assert pack_fit(pack, _machine(vram_gb=11.94)).tier == "memory"
+    assert pack_fit(pack, _machine(vram_gb=23.99, ram_gb=32)).tier == "ssd"
+    assert pack_fit(pack, _machine(vram_gb=11)).tier is None
 
 
 def test_too_little_free_disk_is_refused():
@@ -202,6 +212,68 @@ def test_maya_has_no_mac_build_outside_glm():
     assert maya["glm-5.3-flash"].fit.runs
     assert maya["minimax-m3.1-flash"].fit.reason == "no macOS build"
     assert maya["deepseek-v4.1-flash-1017"].fit.reason == "no macOS build"
+
+
+_NAMED_PC_RE = re.compile(r"-(\d+)G(\d+)G-GGUF$")
+
+
+def _abyss_packs_named_for_a_pc():
+    for model in BY_ID["abyss"].models:
+        for pack in model.packs:
+            named = _NAMED_PC_RE.search(pack.repo)
+            if named:
+                yield pytest.param(
+                    model.id,
+                    pack,
+                    int(named.group(1)),
+                    int(named.group(2)),
+                    id=f"{model.id}:{pack.id}",
+                )
+
+
+@pytest.mark.parametrize(
+    ("model", "pack", "gpu_gb", "ram_gb"), _abyss_packs_named_for_a_pc()
+)
+def test_an_abyss_pack_runs_on_the_pc_it_is_named_for(model, pack, gpu_gb, ram_gb):
+    # What such a PC reports: a "64 GB" one has about 62.5 GiB, a "16 GB" GPU 15.8.
+    named = _machine(vram_gb=gpu_gb - 0.2, ram_gb=ram_gb * 0.975, os="linux")
+    smaller = _machine(vram_gb=gpu_gb - 0.2, ram_gb=ram_gb * 0.7, os="linux")
+
+    fit = pack_fit(pack, named)
+
+    # V4.1's experts do not fit the 32 GB + 96 GB PC its packs are named for.
+    assert fit.tier == ("ssd" if model == "deepseek-v4.1-flash-1017" else "memory")
+    assert pack_fit(pack, smaller).tier != "memory"
+
+
+def test_abyss_names_the_setup_a_v41_pack_was_measured_on():
+    pack = _pack("abyss", "deepseek-v4.1-flash-1017", "132G")
+
+    assert pack_fit(pack, _machine(vram_gb=24, ram_gb=128)).reason == (
+        "needs 84 GB of RAM with a 32 GB GPU"
+    )
+    assert pack_fit(pack, _machine(vram_gb=32, ram_gb=64)).reason == (
+        "needs 84 GB of RAM, this machine has 64 GB"
+    )
+
+
+def test_abyss_reads_its_default_file_from_the_ssd_on_a_16_gb_gpu():
+    pack = _pack("abyss", "deepseek-v4-flash-0731", "UD-Q2_K_XL")
+
+    assert pack_fit(pack, _machine(vram_gb=32, ram_gb=94)).tier == "memory"
+    assert pack_fit(pack, _machine(vram_gb=16, ram_gb=62.5)).tier == "ssd"
+
+
+def test_abyss_does_not_run_under_wsl_or_on_a_mac():
+    linux = _machine(vram_gb=16, ram_gb=62.5, os="linux")
+    mac = _machine(vram_gb=96, ram_gb=128, vendor="apple", os="darwin")
+    abyss = [BY_ID["abyss"]]
+
+    assert {o.fit.reason for o in pack_options(abyss, linux, wsl=True)} == {
+        "does not run under WSL"
+    }
+    assert {o.fit.reason for o in pack_options(abyss, mac)} == {"no macOS build"}
+    assert any(o.fit.tier == "memory" for o in pack_options(abyss, linux))
 
 
 def test_maya_does_not_run_under_wsl():

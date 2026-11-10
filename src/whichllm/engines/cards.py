@@ -25,6 +25,9 @@ KINDS = frozenset({"runner", "fixed_model", "distributed"})
 # benchmarks with a source, or the engine's docs alone. Strongest first.
 EVIDENCE = ("verified", "community", "documented")
 STATUSES = frozenset({"active", "slowing", "dormant", "archived"})
+# What the weekly upstream check compares: every release, or only the minor
+# version, for an engine that ships patch releases several times a day.
+TRACKS = frozenset({"release", "minor"})
 OSES = frozenset({"linux", "windows", "darwin"})
 ACCELS = frozenset({"cuda", "rocm", "metal", "sycl", "vulkan", "cpu"})
 # "lazy_lookup": reads a model's lookup tables a row at a time from disk.
@@ -39,7 +42,7 @@ _CARD_KEYS = frozenset(
         "help_marker", "models", "wsl", "note",
     }
 )  # fmt: skip
-_UPSTREAM_KEYS = frozenset({"github", "version", "released_at", "status"})
+_UPSTREAM_KEYS = frozenset({"github", "version", "released_at", "status", "track"})
 _PLATFORM_KEYS = frozenset(
     {"os", "accel", "min_compute_capability", "requires_avx2", "note"}
 )
@@ -176,6 +179,7 @@ class EngineCard:
     # The models a fixed_model engine runs; runners leave this empty.
     models: tuple[FixedModel, ...] = ()
     runs_in_wsl: bool = True  # False when the docs say it does not run under WSL
+    track: str = "release"  # see TRACKS
     note: str | None = None
 
 
@@ -460,8 +464,13 @@ def parse_card(data: dict, path: Path) -> EngineCard:
         help_marker=_text(data, "help_marker", path, optional=True),
         models=models,
         runs_in_wsl=wsl,
+        track=_choice(upstream, "track", TRACKS, path)
+        if "track" in upstream
+        else "release",
         note=_text(data, "note", path, optional=True),
     )
+    if card.track == "minor" and card.version is None:
+        raise _fail(path, "'track' minor needs the card's 'version'")
     if path.stem != card.id:
         raise _fail(path, f"the file is named after the id, {card.id!r}")
     return card

@@ -103,6 +103,30 @@ def test_a_build_newer_than_the_stable_release_is_current():
     assert "latest release is v0.9.0" in upstream.check_card(card, newer, TODAY)
 
 
+def test_a_card_that_tracks_minor_versions_ignores_patch_releases():
+    card = dataclasses.replace(
+        BY_ID["abyss"], version="1.3.129", released_at="2026-11-01"
+    )
+    path = "/repos/zephel01/Abyss"
+    patch = _client({path: _repo(), f"{path}/releases/latest": _release("v1.3.140")})
+    minor = _client({path: _repo(), f"{path}/releases/latest": _release("v1.4.0")})
+
+    fresh = dataclasses.replace(card, checked_at="2026-11-01")
+    old = dataclasses.replace(card, checked_at="2026-10-01")
+
+    assert card.track == "minor"
+    assert upstream.check_card(fresh, patch, TODAY) is None
+    assert upstream.check_card(old, patch, TODAY) == (
+        "Last checked 2026-10-01, 39 days ago. It follows minor versions, and "
+        "the latest release is v1.3.140 from 2026-11-08."
+    )
+    assert "latest release is v1.4.0" in upstream.check_card(fresh, minor, TODAY)
+
+
+def test_other_cards_follow_every_release():
+    assert {c.id for c in load_cards() if c.track == "minor"} == {"abyss"}
+
+
 def test_a_repository_without_releases_counts_its_last_push():
     card = dataclasses.replace(BY_ID["ik_llama.cpp"], checked_at="2026-11-04")
     path = "/repos/ikawrakow/ik_llama.cpp"
