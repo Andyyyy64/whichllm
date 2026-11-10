@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-11-11
+
 ### Added
 
 - An engine card for Abyss, a fork of Project Maya that runs DeepSeek V4 and
