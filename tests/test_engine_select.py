@@ -70,7 +70,8 @@ def _rtx() -> HardwareInfo:
         ("ik_llama.cpp", "IQ4_KS", True),
         ("ik_llama.cpp", "IQ4_KS_R4", True),
         ("ik_llama.cpp", "Q4_K_M", True),
-        ("ik_llama.cpp", "NVFP4", False),
+        ("ik_llama.cpp", "NVFP4", True),
+        ("ik_llama.cpp", "TQ2_0", False),
         ("llama.cpp", "NVFP4", True),
     ],
 )

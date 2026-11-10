@@ -75,7 +75,9 @@ def test_ik_quants_do_not_load_in_mainline():
 
     assert cards["llama.cpp"].gguf.extra == ()
     assert "IQ4_KS" in cards["ik_llama.cpp"].gguf.extra
-    assert "NVFP4" in cards["ik_llama.cpp"].gguf.missing
+    assert "TQ2_0" in cards["ik_llama.cpp"].gguf.missing
+    # ik_llama.cpp loads mainline NVFP4 files since November 2026.
+    assert "NVFP4" not in cards["ik_llama.cpp"].gguf.missing
 
 
 @pytest.mark.parametrize(

@@ -69,6 +69,7 @@ def test_strata_and_maya_carry_their_models():
     }
     assert maya == {
         "zai-org/GLM-5.3-Flash",
+        "zai-org/GLM-5.3",
         "deepseek-ai/DeepSeek-V4.1-Flash-1017",
         "MiniMaxAI/MiniMax-M3.1-Flash",
     }
@@ -155,6 +156,23 @@ def test_a_gpu_a_little_under_its_nominal_size_counts_as_that_size():
     assert pack_fit(pack, _machine(vram_gb=11)).tier is None
 
 
+def test_ram_a_little_under_its_nominal_size_counts_as_that_size():
+    maya = _pack("project-maya", "glm-5.3-flash", "glm-maya-s")
+    coder = _pack("strata", "qwen3.8-flash-next", "coder-iq1_m")
+    # A "32 GB" PC reports about 31.2 GiB, and Maya runs from 32 GB of RAM.
+    assert pack_fit(maya, _machine(vram_gb=16, ram_gb=31.2)).tier == "ssd"
+    assert pack_fit(maya, _machine(vram_gb=16, ram_gb=24)).reason == (
+        "needs 32 GB of RAM, this machine has 24 GB"
+    )
+    # Strata's Coder needs 33 GB of RAM, more than a 32 GB PC has even on paper,
+    # but it reads from the SSD with 32.
+    assert pack_fit(coder, _machine(vram_gb=12, ram_gb=31.2)).tier == "ssd"
+    # A 24 GB GPU with 64 GB is the PC Maya's docs give for Maya-XS, 88 GB together.
+    xs = _pack("project-maya", "glm-5.3-flash", "glm-maya-xs")
+    assert pack_fit(xs, _machine(vram_gb=23.99, ram_gb=62.7)).tier == "memory"
+    assert pack_fit(xs, _machine(vram_gb=15.9, ram_gb=62.7)).tier == "ssd"
+
+
 def test_too_little_free_disk_is_refused():
     fit = pack_fit(_pack("strata", "qwen3.8-flash-next", "q2_0"), _machine(disk_gb=50))
 
@@ -164,7 +182,9 @@ def test_too_little_free_disk_is_refused():
 def test_ram_and_vram_together_hold_a_maya_pack():
     pack = _pack("project-maya", "glm-5.3-flash", "glm-maya-s")
 
-    assert pack_fit(pack, _machine(vram_gb=24, ram_gb=96)).tier == "memory"
+    # Maya's docs recommend 128 GB of VRAM and RAM together for Maya-S.
+    assert pack_fit(pack, _machine(vram_gb=32, ram_gb=96)).tier == "memory"
+    assert pack_fit(pack, _machine(vram_gb=24, ram_gb=96)).tier == "ssd"
     assert pack_fit(pack, _machine(vram_gb=16, ram_gb=64)).tier == "ssd"
     assert pack_fit(pack, _machine(vram_gb=16, ram_gb=16)).reason == (
         "needs 32 GB of RAM, this machine has 16 GB"
@@ -174,11 +194,13 @@ def test_ram_and_vram_together_hold_a_maya_pack():
 def test_unified_memory_counts_once():
     pack = _pack("project-maya", "glm-5.3-flash", "glm-maya-s")
     big_mac = _machine(vram_gb=96, ram_gb=128, vendor="apple", os="darwin")
-    # 64 GB of RAM and a 48 GB GPU would hold the 96.5 GB pack, but on a Mac
-    # the GPU's 48 GB are part of the 64.
-    mac = _machine(vram_gb=48, ram_gb=64, vendor="apple", os="darwin")
+    # 96 GB of RAM and a 48 GB GPU would hold the 128 GB the pack needs, but
+    # on a Mac the GPU's 48 GB are part of the 96.
+    mac = _machine(vram_gb=48, ram_gb=96, vendor="apple", os="darwin")
+    pc = _machine(vram_gb=48, ram_gb=96)
 
     assert pack_fit(pack, big_mac).tier == "memory"
+    assert pack_fit(pack, pc).tier == "memory"
     assert pack_fit(pack, mac).tier == "ssd"
 
 
@@ -203,14 +225,15 @@ def test_options_follow_each_models_platforms():
     assert deepseek.fit.reason == ("needs CUDA compute capability 8.6, this GPU is 7.5")
 
 
-def test_maya_has_no_mac_build_outside_glm():
+def test_maya_has_a_mac_build_for_glm_flash_and_minimax_only():
     options = pack_options(
         load_cards(), _machine(vram_gb=96, ram_gb=128, vendor="apple", os="darwin")
     )
     maya = {o.model.id: o for o in options if o.card.id == "project-maya"}
 
     assert maya["glm-5.3-flash"].fit.runs
-    assert maya["minimax-m3.1-flash"].fit.reason == "no macOS build"
+    assert maya["minimax-m3.1-flash"].fit.runs
+    assert maya["glm-5.3"].fit.reason == "no macOS build"
     assert maya["deepseek-v4.1-flash-1017"].fit.reason == "no macOS build"
 
 
