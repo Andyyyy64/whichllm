@@ -79,8 +79,14 @@ def _short_of(need: Requires, ram: int) -> str:
                 f"needs {_gb(need.ssd_ram_gb)} of RAM with a "
                 f"{_gb(need.ssd_vram_gb or 0)} GPU"
             )
+        if need.ram_gb is None:
+            return (
+                f"needs {_gb(need.memory_gb or 0)} of RAM and VRAM together, or "
+                f"{_gb(need.ssd_ram_gb)} of RAM with a "
+                f"{_gb(need.ssd_vram_gb or 0)} GPU"
+            )
         return (
-            f"needs {_gb(need.ram_gb or need.memory_gb or 0)} of RAM, or "
+            f"needs {_gb(need.ram_gb)} of RAM, or "
             f"{_gb(need.ssd_ram_gb)} with a {_gb(need.ssd_vram_gb or 0)} GPU"
         )
     if need.ram_gb is not None and ram < need.ram_gb * _GiB:

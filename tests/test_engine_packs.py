@@ -257,6 +257,14 @@ def test_abyss_names_the_setup_a_v41_pack_was_measured_on():
     )
 
 
+def test_a_pool_figure_is_not_called_ram_alone():
+    pack = _pack("abyss", "glm-5.3-flash", "32G128G")
+
+    assert pack_fit(pack, _machine(vram_gb=24, ram_gb=94)).reason == (
+        "needs 155 GB of RAM and VRAM together, or 84 GB of RAM with a 32 GB GPU"
+    )
+
+
 def test_abyss_reads_its_default_file_from_the_ssd_on_a_16_gb_gpu():
     pack = _pack("abyss", "deepseek-v4-flash-0731", "UD-Q2_K_XL")
 
