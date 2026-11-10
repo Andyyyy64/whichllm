@@ -150,7 +150,7 @@
           "quant": "IQ3_XXS",
           "launch": "./setup-deepseek.sh --model qwen35",
           "docs_speed": {"tok_per_sec": 41.2, "hardware": "Radeon AI PRO R9700 limited to 16 GB, 64 GB memory limit"},
-          "requires": {"disk_gb": 51.4, "memory_gb": 74, "nvme": true}
+          "requires": {"disk_gb": 51.1, "memory_gb": 74, "nvme": true}
         }
       ]
     },
