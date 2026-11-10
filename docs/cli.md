@@ -244,8 +244,8 @@ checked. The evidence column says how much stands behind it. `verified` means
 whichllm's own `bench` runs match the estimates, `community` means public
 benchmarks exist, and `documented` means only the engine's docs. The cards
 cover llama.cpp, ik_llama.cpp, Ollama, LM Studio, KoboldCpp, Jan and Lemonade,
-and the fixed-model engines Strata, Project Maya, colibri, DwarfStar (ds4),
-WARP and TurboFieldfare.
+and the fixed-model engines Strata, Project Maya, Abyss, colibri, DwarfStar
+(ds4), WARP and TurboFieldfare.
 
 A fixed-model engine's card also lists the models it runs and its packs for
 each, with the download and what the pack needs in GPU memory, RAM, or RAM

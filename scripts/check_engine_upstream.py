@@ -27,6 +27,9 @@ from whichllm.engines.cards import EngineCard, load_cards
 API = "https://api.github.com"
 # A card with no repository to compare is re-checked by hand this often.
 STALE_DAYS = 60
+# A card that tracks minor versions is re-read this often, whatever patch
+# releases its upstream has shipped since.
+MINOR_TRACK_DAYS = 30
 # Young repositories are created this recently and have this many stars.
 NEW_REPO_DAYS = 14
 NEW_REPO_MIN_STARS = 100
@@ -60,6 +63,10 @@ def _day(stamp: str) -> str:
 
 def _version(tag: str) -> str:
     return tag[1:] if tag[:1] in ("v", "V") else tag
+
+
+def _minor(tag: str) -> str:
+    return ".".join(_version(tag).split(".")[:2])
 
 
 def _clean(text: str | None) -> str:
@@ -116,6 +123,16 @@ def check_card(card: EngineCard, client: httpx.Client, today: dt.date) -> str | 
     # weeks, so a card that names a build newer than that release is current.
     if card.released_at is not None and card.released_at >= release.date:
         return None
+    if card.track == "minor" and _minor(release.tag) == _minor(card.version):
+        # Abyss ships several patch releases a day, which would list its card
+        # every week. Its patches still add models, so the card comes due by age.
+        age = (today - dt.date.fromisoformat(card.checked_at)).days
+        if age < MINOR_TRACK_DAYS:
+            return None
+        return (
+            f"Last checked {card.checked_at}, {age} days ago. It follows minor "
+            f"versions, and the latest release is {release.tag} from {release.date}."
+        )
     since = f" from {card.released_at}" if card.released_at else ""
     return (
         f"The card says {card.version}{since}. The latest release is "

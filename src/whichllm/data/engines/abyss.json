@@ -1,0 +1,256 @@
+{
+  "id": "abyss",
+  "name": "Abyss",
+  "kind": "fixed_model",
+  "url": "https://github.com/zephel01/Abyss",
+  "evidence": "documented",
+  "upstream": {
+    "github": "zephel01/Abyss",
+    "version": "1.3.129",
+    "released_at": "2026-11-10",
+    "status": "active",
+    "track": "minor"
+  },
+  "checked_at": "2026-11-10",
+  "sources": [
+    "https://github.com/zephel01/Abyss/blob/main/README.md",
+    "https://github.com/zephel01/Abyss/blob/main/docs/MODELS.md",
+    "https://github.com/zephel01/Abyss/blob/main/docs/MANUAL.md",
+    "https://github.com/zephel01/Abyss/blob/main/docs/maya/README.md",
+    "https://huggingface.co/zephel01/Qwen3.8-Flash-Next-E448-IQ2_M-12G32G-GGUF",
+    "https://huggingface.co/zephel01/Qwen3.8-Flash-Next-IQ3_M-16G64G-GGUF",
+    "https://huggingface.co/zephel01/Qwen3.8-Flash-Next-IQ3_M-24G64G-GGUF",
+    "https://huggingface.co/zephel01/Ornith-1.5-122B-IQ3_XXS-16G64G-GGUF",
+    "https://huggingface.co/zephel01/Ornith-1.5-122B-IQ4_XS-24G64G-GGUF",
+    "https://huggingface.co/zephel01/Ornith-1.5-397B-IQ2_XXS-32G128G-GGUF",
+    "https://huggingface.co/zephel01/Qwen3.5-122B-A10B-IQ3_XXS-16G64G-GGUF",
+    "https://huggingface.co/zephel01/DeepSeek-V4-Flash-0731-IQ1_S-16G64G-GGUF",
+    "https://huggingface.co/zephel01/DeepSeek-V4-Flash-0731-IQ2_XXS-32G64G-GGUF",
+    "https://huggingface.co/zephel01/DeepSeek-V4-Flash-0731-IQ2_M-32G96G-GGUF",
+    "https://huggingface.co/zephel01/DeepSeek-V4.1-Flash-1017-IQ2_XXS-32G96G-GGUF",
+    "https://huggingface.co/zephel01/GLM-5.3-Flash-IQ2_XS-32G96G-GGUF",
+    "https://huggingface.co/zephel01/GLM-5.3-Flash-IQ3_XXS-32G128G-GGUF"
+  ],
+  "platforms": [
+    {
+      "os": ["linux"],
+      "accel": "cuda",
+      "min_compute_capability": "7.0",
+      "note": "RTX 5090 and RTX 3090 measured, builds with CUDA 13; a V100 builds with CUDA 12 and has not been run; DGX Spark is in beta"
+    },
+    {
+      "os": ["windows"],
+      "accel": "cuda",
+      "min_compute_capability": "7.0",
+      "note": "Windows 11, run by users; the author tests on Linux"
+    },
+    {
+      "os": ["linux", "windows"],
+      "accel": "rocm",
+      "note": "experimental; Radeon AI PRO R9700 and Radeon 8060S run, RX 7900 XT and RX 9070 XT in users' reports"
+    }
+  ],
+  "wsl": false,
+  "memory": ["gpu", "expert_offload"],
+  "serve": "../Abyss-tools/abyss.sh start",
+  "port": 8082,
+  "api": ["openai", "anthropic"],
+  "install": {
+    "docs": "https://github.com/zephel01/Abyss#-quick-start",
+    "linux": "git clone https://github.com/zephel01/Abyss.git && cd Abyss && ./setup-deepseek.sh"
+  },
+  "models": [
+    {
+      "id": "qwen3.8-flash-next",
+      "name": "Qwen3.8-Flash-Next",
+      "base": "Qwen/Qwen3.8-Flash-Next",
+      "note": "The 28.8 GB per-layer embedding table is read a few rows a token from the SSD. The MTP drafter is in the GGUF.",
+      "packs": [
+        {
+          "id": "12G32G",
+          "name": "zephel01 E448-IQ2_M 12G32G",
+          "repo": "zephel01/Qwen3.8-Flash-Next-E448-IQ2_M-12G32G-GGUF",
+          "quant": "IQ2_M",
+          "launch": "./setup-deepseek.sh --model qwen38 --quant 12G32G",
+          "docs_speed": {"tok_per_sec": 56.0, "hardware": "RTX 5090 limited to 12 GB, 28 GB memory limit, no drafter"},
+          "requires": {"disk_gb": 67.5, "memory_gb": 40, "nvme": true},
+          "note": "Keeps 448 of each layer's 512 experts."
+        },
+        {
+          "id": "16G64G",
+          "name": "zephel01 IQ3_M 16G64G",
+          "repo": "zephel01/Qwen3.8-Flash-Next-IQ3_M-16G64G-GGUF",
+          "quant": "IQ3_M",
+          "launch": "./setup-deepseek.sh --model qwen38",
+          "docs_speed": {"tok_per_sec": 70.7, "hardware": "RTX 5090 limited to 16 GB, 58 GB memory limit, with its MTP drafter"},
+          "requires": {"disk_gb": 86.9, "memory_gb": 74, "nvme": true}
+        },
+        {
+          "id": "24G64G",
+          "name": "zephel01 IQ3_M 24G64G",
+          "repo": "zephel01/Qwen3.8-Flash-Next-IQ3_M-24G64G-GGUF",
+          "quant": "IQ3_M",
+          "launch": "./setup-deepseek.sh --model qwen38 --quant 24G64G",
+          "docs_speed": {"tok_per_sec": 69.9, "hardware": "RTX 5090 limited to 24 GB, 58 GB memory limit, with its MTP drafter"},
+          "requires": {"disk_gb": 93.7, "memory_gb": 82, "nvme": true}
+        }
+      ]
+    },
+    {
+      "id": "ornith-1.5-122b",
+      "name": "Ornith-1.5-122B",
+      "base": "ornith-ai/Ornith-1.5-122B",
+      "note": "The NextN drafter is in the GGUF.",
+      "packs": [
+        {
+          "id": "IQ3_XXS-B",
+          "name": "zephel01 IQ3_XXS 16G64G",
+          "repo": "zephel01/Ornith-1.5-122B-IQ3_XXS-16G64G-GGUF",
+          "quant": "IQ3_XXS",
+          "launch": "./setup-deepseek.sh --model ornith",
+          "docs_speed": {"tok_per_sec": 42.6, "hardware": "Radeon AI PRO R9700 limited to 16 GB, 64 GB memory limit, with its NextN drafter"},
+          "requires": {"disk_gb": 51.7, "memory_gb": 74, "nvme": true}
+        },
+        {
+          "id": "24G64G",
+          "name": "zephel01 IQ4_XS 24G64G",
+          "repo": "zephel01/Ornith-1.5-122B-IQ4_XS-24G64G-GGUF",
+          "quant": "IQ4_XS",
+          "launch": "./setup-deepseek.sh --model ornith --quant 24G64G",
+          "docs_speed": {"tok_per_sec": 52.4, "hardware": "RTX 5090 limited to 24 GB, 58 GB memory limit, with its NextN drafter"},
+          "requires": {"disk_gb": 68.9, "memory_gb": 82, "nvme": true}
+        }
+      ]
+    },
+    {
+      "id": "ornith-1.5-397b",
+      "name": "Ornith-1.5-397B",
+      "base": "ornith-ai/Ornith-1.5-397B",
+      "packs": [
+        {
+          "id": "32G128G",
+          "name": "zephel01 IQ2_XXS 32G128G",
+          "repo": "zephel01/Ornith-1.5-397B-IQ2_XXS-32G128G-GGUF",
+          "quant": "IQ2_XXS",
+          "launch": "./setup-deepseek.sh --model ornith --quant 32G128G",
+          "docs_speed": {"tok_per_sec": 42.0, "hardware": "RTX 5090 32 GB, 123 GB RAM, with its NextN drafter"},
+          "requires": {"disk_gb": 114.2, "memory_gb": 155, "nvme": true}
+        }
+      ]
+    },
+    {
+      "id": "qwen3.5-122b-a10b",
+      "name": "Qwen3.5-122B-A10B",
+      "base": "Qwen/Qwen3.5-122B-A10B",
+      "packs": [
+        {
+          "id": "IQ3_XXS-B2",
+          "name": "zephel01 IQ3_XXS 16G64G",
+          "repo": "zephel01/Qwen3.5-122B-A10B-IQ3_XXS-16G64G-GGUF",
+          "quant": "IQ3_XXS",
+          "launch": "./setup-deepseek.sh --model qwen35",
+          "docs_speed": {"tok_per_sec": 41.2, "hardware": "Radeon AI PRO R9700 limited to 16 GB, 64 GB memory limit"},
+          "requires": {"disk_gb": 51.4, "memory_gb": 74, "nvme": true}
+        }
+      ]
+    },
+    {
+      "id": "deepseek-v4-flash-0731",
+      "name": "DeepSeek-V4-Flash-0731",
+      "base": "deepseek-ai/DeepSeek-V4-Flash-0731",
+      "note": "The optional DSpark drafter is a 6.9 GB download and takes about 6.5 GB of VRAM; the docs advise against it on a 16 GB GPU.",
+      "packs": [
+        {
+          "id": "16G64G",
+          "name": "zephel01 IQ1_S 16G64G",
+          "repo": "zephel01/DeepSeek-V4-Flash-0731-IQ1_S-16G64G-GGUF",
+          "quant": "IQ1_S",
+          "launch": "./setup-deepseek.sh --quant 16G64G",
+          "docs_speed": {"tok_per_sec": 84.5, "hardware": "RTX 5090 limited to 16 GB, 58 GB memory limit"},
+          "requires": {"disk_gb": 61.7, "memory_gb": 74, "nvme": true}
+        },
+        {
+          "id": "32G64G",
+          "name": "zephel01 IQ2_XXS 32G64G",
+          "repo": "zephel01/DeepSeek-V4-Flash-0731-IQ2_XXS-32G64G-GGUF",
+          "quant": "IQ2_XXS",
+          "launch": "./setup-deepseek.sh --quant 32G64G",
+          "docs_speed": {"tok_per_sec": 90.0, "hardware": "RTX 5090 32 GB, 58 GB memory limit"},
+          "requires": {"disk_gb": 72.0, "memory_gb": 90, "nvme": true}
+        },
+        {
+          "id": "32G96G",
+          "name": "zephel01 IQ2_M 32G96G",
+          "repo": "zephel01/DeepSeek-V4-Flash-0731-IQ2_M-32G96G-GGUF",
+          "quant": "IQ2_M",
+          "launch": "./setup-deepseek.sh --quant 32G96G",
+          "docs_speed": {"tok_per_sec": 69.1, "hardware": "RTX 5090 32 GB, 84 GB memory limit"},
+          "requires": {"disk_gb": 96.8, "memory_gb": 116, "nvme": true}
+        },
+        {
+          "id": "UD-Q2_K_XL",
+          "name": "Unsloth UD-Q2_K_XL",
+          "repo": "unsloth/DeepSeek-V4-Flash-0731-GGUF",
+          "quant": "Q2_K_XL",
+          "launch": "./setup-deepseek.sh",
+          "docs_speed": {"tok_per_sec": 65.1, "hardware": "RTX 5090 32 GB, 84 GB memory limit"},
+          "requires": {"disk_gb": 96.8, "memory_gb": 116, "ssd": {"ram_gb": 58, "vram_gb": 16}, "nvme": true},
+          "note": "The setup's default file. With a 16 GB GPU and a 58 GB memory limit it waits for the SSD and the docs measured 21.3 tok/s."
+        }
+      ]
+    },
+    {
+      "id": "deepseek-v4.1-flash-1017",
+      "name": "DeepSeek-V4.1-Flash-1017",
+      "base": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+      "note": "Sizes include the 135 GB Engram table, read a few rows a token from the SSD. The experts do not fit a 32 GB GPU with 96 GB of RAM, so about one is read from the SSD each token.",
+      "packs": [
+        {
+          "id": "132G",
+          "name": "zephel01 IQ2_XXS 32G96G, 132G",
+          "repo": "zephel01/DeepSeek-V4.1-Flash-1017-IQ2_XXS-32G96G-GGUF",
+          "quant": "IQ2_XXS",
+          "launch": "./setup-deepseek.sh --model v41",
+          "docs_speed": {"tok_per_sec": 67.5, "hardware": "RTX 5090 32 GB, 60 GB RAM tier, with the DSpark drafter and the lossy tail skip"},
+          "requires": {"disk_gb": 275.8, "ssd": {"ram_gb": 84, "vram_gb": 32}, "nvme": true}
+        },
+        {
+          "id": "139G",
+          "name": "zephel01 IQ2_XXS 32G96G, 139G",
+          "repo": "zephel01/DeepSeek-V4.1-Flash-1017-IQ2_XXS-32G96G-GGUF",
+          "quant": "IQ2_XXS",
+          "launch": "./setup-deepseek.sh --model v41 --quant 139G",
+          "docs_speed": {"tok_per_sec": 57.9, "hardware": "RTX 5090 32 GB, 60 GB RAM tier, with the DSpark drafter and the lossy tail skip"},
+          "requires": {"disk_gb": 283.0, "ssd": {"ram_gb": 84, "vram_gb": 32}, "nvme": true},
+          "note": "The quality build, with layers 35 to 39 one step higher."
+        }
+      ]
+    },
+    {
+      "id": "glm-5.3-flash",
+      "name": "GLM-5.3-Flash",
+      "base": "zai-org/GLM-5.3-Flash",
+      "packs": [
+        {
+          "id": "32G96G",
+          "name": "zephel01 IQ2_XS 32G96G",
+          "repo": "zephel01/GLM-5.3-Flash-IQ2_XS-32G96G-GGUF",
+          "quant": "IQ2_XS",
+          "launch": "./setup-deepseek.sh --model glm",
+          "docs_speed": {"tok_per_sec": 75.7, "hardware": "RTX 5090 32 GB, 60 GB RAM tier"},
+          "requires": {"disk_gb": 94.1, "memory_gb": 116, "nvme": true}
+        },
+        {
+          "id": "32G128G",
+          "name": "zephel01 IQ3_XXS 32G128G",
+          "repo": "zephel01/GLM-5.3-Flash-IQ3_XXS-32G128G-GGUF",
+          "quant": "IQ3_XXS",
+          "launch": "./setup-deepseek.sh --model glm --quant 32G128G",
+          "requires": {"disk_gb": 127.9, "memory_gb": 155, "ssd": {"ram_gb": 84, "vram_gb": 32}, "nvme": true},
+          "note": "Not measured with 128 GB of RAM, where the docs estimate 40 to 45 tok/s. With 96 GB it waits for the SSD and the docs measured 23.2 tok/s."
+        }
+      ]
+    }
+  ],
+  "note": "A fork of Project Maya that adds DeepSeek V4 and V4.1, Qwen3.8-Flash-Next and Ornith. Each pack is named for the PC it targets, such as 16G64G for a 16 GB GPU with 64 GB of RAM, and memory_gb is that GPU plus the memory limit the author measures such a PC with: 28, 58, 84 and 123 GB for 32, 64, 96 and 128 GB of RAM. The speeds are the author's, on a Ryzen AI Max+ 395 whose RAM is about three times as fast as a usual DDR5 desktop's, so expect less on one. It also loads other GGUFs of these models, packed by hand. Patch releases come several times a day."
+}
