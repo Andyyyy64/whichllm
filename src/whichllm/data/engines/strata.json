@@ -6,11 +6,11 @@
   "evidence": "documented",
   "upstream": {
     "github": "Niko1221/Strata",
-    "version": "0.2.10",
-    "released_at": "2026-11-02",
+    "version": "0.2.13",
+    "released_at": "2026-11-09",
     "status": "active"
   },
-  "checked_at": "2026-11-04",
+  "checked_at": "2026-11-11",
   "sources": [
     "https://github.com/Niko1221/Strata/blob/main/docs/MODELS.md",
     "https://github.com/Niko1221/Strata/blob/main/docs/INSTALL.md",
@@ -230,7 +230,7 @@
         {"os": ["linux", "windows"], "accel": "cuda", "min_compute_capability": "8.6", "note": "RTX 30, 40 and 50 with 12 GB or more"},
         {"os": ["linux"], "accel": "rocm", "note": "Radeon AI PRO R9700"},
         {"os": ["windows"], "accel": "rocm", "note": "Ryzen AI Max (Strix Halo)"},
-        {"os": ["darwin"], "accel": "metal", "note": "64 GB or more, text only"}
+        {"os": ["darwin"], "accel": "metal", "note": "64 GB or more"}
       ],
       "note": "Its own engine, fetched by strata launch. An 8K context. The 111 GB n-gram table and an 8 GB drafter are in each download.",
       "packs": [
@@ -262,5 +262,5 @@
       ]
     }
   ],
-  "note": "Runs a short list of large MoE models from its own packs and keeps their experts in RAM. Packs from ISTA-DASLab, Unsloth and agentionai are ordinary GGUFs, so llama.cpp loads most of them too, but needs more memory."
+  "note": "Runs a short list of large MoE models from its own packs and keeps their experts in RAM. Packs from ISTA-DASLab, Unsloth and agentionai are ordinary GGUFs, so llama.cpp loads most of them too, but needs more memory. Since 0.2.11 it also runs seven of Unsloth's re-uploaded Qwen3.8-Flash-Next files, UD-IQ1_M to UD-IQ4_XS-v31, whose memory needs its docs do not give yet."
 }

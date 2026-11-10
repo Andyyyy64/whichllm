@@ -6,6 +6,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-11-11
+
+### Added
+
+- An engine card for Abyss, a fork of Project Maya that runs DeepSeek V4 and
+  V4.1 Flash, GLM-5.3-Flash, Qwen3.8-Flash-Next, Ornith-1.5 and
+  Qwen3.5-122B-A10B on one GPU with the experts spread over VRAM, RAM and the
+  SSD. It lists the 15 packs its setup installs with one command. Each of the
+  author's packs is named for the PC it targets, such as 16G64G, and fits in
+  memory on a machine of that size, except the two of DeepSeek V4.1, whose
+  experts are partly read from the SSD there. On a 16 GB GPU with 64 GB of
+  RAM outside WSL, the ranking names Abyss under Qwen3.8-Flash-Next with the
+  70.7 tok/s its docs measured. Abyss ships several patch releases a day, so
+  its card sets `"track": "minor"`, and the weekly upstream check lists it
+  for a new minor version or once it was last checked 30 days ago.
+- Project Maya's card lists GLM-5.3, the 744B model Maya runs since 1.1.57,
+  with Unsloth's UD-IQ2_M pack (238.6 GB, 256 GB of RAM and VRAM together).
+  MiniMax-M3.1-Flash gets its experimental Mac build.
+
+### Changed
+
+- The engine cards the first weekly upstream check listed are re-read against
+  their sources. llama.cpp is at b12247, Ollama at 0.40.16, Lemonade at
+  2026.45.3, Strata at 0.2.13 and Project Maya at 1.1.57.
+- Project Maya's packs take the memory its new docs/MEMORY.md recommends for
+  keeping the whole model in memory, VRAM and RAM together. Maya-S of
+  GLM-5.3-Flash needs 128 GB, not the 96.5 GB of its file, and Maya-S of
+  DeepSeek V4.1 needs 224 GB, not 340 GB, since the Engram tables stay on the
+  SSD. Windows and AMD are no longer marked experimental. Its card tracks
+  minor versions, as Abyss's does.
+- ik_llama.cpp loads mainline NVFP4 GGUFs now, and Pascal and Volta GPUs work
+  with some flash-attention steps on the CPU. Strata's DeepSeek V4.1 on a Mac
+  reads pictures too.
+
+### Fixed
+
+- A PC that reports a little under the size it is sold as meets a pack that
+  names that size. An RTX 5070 "12 GB" reports 11.9 GiB of VRAM, so Strata's
+  packs, which need a 12 GB GPU, were refused on it with "needs a GPU with
+  12 GB, the largest here has 12 GB". A "32 GB" PC reports about 31.2 GiB of
+  RAM, so packs that run from 32 GB of RAM, as all of Project Maya's do, were
+  refused with "needs 32 GB of RAM, this machine has 31 GB". An amount within
+  4% of the size now counts, for VRAM, RAM and the two together.
+
 ## [0.6.4] - 2026-11-05
 
 ### Fixed

@@ -26,6 +26,10 @@ def _load_script():
 upstream = _load_script()
 BY_ID = {card.id: card for card in load_cards()}
 TODAY = dt.date(2026, 11, 9)
+# A fixed version, so these tests do not move when the card is refreshed.
+OLLAMA = dataclasses.replace(
+    BY_ID["ollama"], version="0.40.14", released_at="2026-11-03"
+)
 
 
 def _client(routes: dict[str, object], searches: list[dict] | None = None):
@@ -59,7 +63,7 @@ def test_every_github_card_names_owner_and_repo():
 
 
 def test_a_newer_release_puts_the_card_on_the_list():
-    card = BY_ID["ollama"]
+    card = OLLAMA
     client = _client(
         {
             "/repos/ollama/ollama": _repo(),
@@ -76,7 +80,7 @@ def test_a_newer_release_puts_the_card_on_the_list():
 
 
 def test_the_same_release_with_a_v_prefix_matches():
-    card = BY_ID["ollama"]
+    card = OLLAMA
     client = _client(
         {
             "/repos/ollama/ollama": _repo(),
@@ -101,6 +105,32 @@ def test_a_build_newer_than_the_stable_release_is_current():
 
     assert upstream.check_card(card, older, TODAY) is None
     assert "latest release is v0.9.0" in upstream.check_card(card, newer, TODAY)
+
+
+def test_a_card_that_tracks_minor_versions_ignores_patch_releases():
+    card = dataclasses.replace(
+        BY_ID["abyss"], version="1.3.129", released_at="2026-11-01"
+    )
+    path = "/repos/zephel01/Abyss"
+    patch = _client({path: _repo(), f"{path}/releases/latest": _release("v1.3.140")})
+    minor = _client({path: _repo(), f"{path}/releases/latest": _release("v1.4.0")})
+
+    fresh = dataclasses.replace(card, checked_at="2026-11-01")
+    old = dataclasses.replace(card, checked_at="2026-10-01")
+
+    assert card.track == "minor"
+    assert upstream.check_card(fresh, patch, TODAY) is None
+    assert upstream.check_card(old, patch, TODAY) == (
+        "Last checked 2026-10-01, 39 days ago. It follows minor versions, and "
+        "the latest release is v1.3.140 from 2026-11-08."
+    )
+    assert "latest release is v1.4.0" in upstream.check_card(fresh, minor, TODAY)
+
+
+def test_only_the_cards_with_daily_patch_releases_track_minor_versions():
+    minor = {c.id for c in load_cards() if c.track == "minor"}
+
+    assert minor == {"abyss", "project-maya"}
 
 
 def test_a_repository_without_releases_counts_its_last_push():
@@ -163,7 +193,7 @@ def test_young_repositories_leave_out_carded_ones_and_untrusted_text():
 
 
 def test_the_report_lists_cards_and_repositories():
-    cards = (BY_ID["ollama"], BY_ID["llama.cpp"])
+    cards = (OLLAMA, BY_ID["llama.cpp"])
     client = _client(
         {
             "/repos/ollama/ollama": _repo(),
@@ -195,7 +225,7 @@ def test_the_report_lists_cards_and_repositories():
 
 
 def test_nothing_to_report_counts_zero():
-    card = BY_ID["ollama"]
+    card = OLLAMA
     client = _client(
         {
             "/repos/ollama/ollama": _repo(),

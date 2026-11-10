@@ -6,14 +6,17 @@
   "evidence": "documented",
   "upstream": {
     "github": "mw00/project-maya",
-    "version": "1.1.52",
-    "released_at": "2026-11-03",
-    "status": "active"
+    "version": "1.1.57",
+    "released_at": "2026-11-09",
+    "status": "active",
+    "track": "minor"
   },
-  "checked_at": "2026-11-04",
+  "checked_at": "2026-11-11",
   "sources": [
     "https://github.com/mw00/project-maya/blob/main/README.md",
     "https://github.com/mw00/project-maya/blob/main/docs/MODELS.md",
+    "https://github.com/mw00/project-maya/blob/main/docs/MEMORY.md",
+    "https://github.com/mw00/project-maya/blob/main/docs/GLM53.md",
     "https://github.com/mw00/project-maya/blob/main/docs/SETUP.md",
     "https://huggingface.co/peasantsmith/GLM-5.3-Flash-Maya-GGUF",
     "https://huggingface.co/peasantsmith/DeepSeek-V4.1-Flash-1017-Maya-GGUF",
@@ -30,17 +33,17 @@
       "os": ["windows"],
       "accel": "cuda",
       "min_compute_capability": "7.0",
-      "note": "experimental"
+      "note": "Windows 10 and 11"
     },
     {
       "os": ["linux", "windows"],
       "accel": "rocm",
-      "note": "experimental, RX 7900, Radeon AI PRO R9700 and RX 9070, Strix Halo"
+      "note": "RX 7900, Radeon AI PRO R9700 and RX 9070, Strix Halo and Gorgon Halo"
     },
     {
       "os": ["darwin"],
       "accel": "metal",
-      "note": "GLM-5.3-Flash only, experimental"
+      "note": "GLM-5.3-Flash and MiniMax-M3.1-Flash only, experimental"
     }
   ],
   "wsl": false,
@@ -59,8 +62,8 @@
       "base": "zai-org/GLM-5.3-Flash",
       "platforms": [
         {"os": ["linux"], "accel": "cuda", "min_compute_capability": "7.0"},
-        {"os": ["windows"], "accel": "cuda", "min_compute_capability": "7.0", "note": "experimental"},
-        {"os": ["linux", "windows"], "accel": "rocm", "note": "experimental"},
+        {"os": ["windows"], "accel": "cuda", "min_compute_capability": "7.0"},
+        {"os": ["linux", "windows"], "accel": "rocm"},
         {"os": ["darwin"], "accel": "metal", "note": "experimental, not yet run with the real model"}
       ],
       "note": "The hottest experts stay on the GPU, the next in RAM and the rest on the NVMe drive. The download adds a 1.1 GB picture encoder.",
@@ -71,7 +74,7 @@
           "repo": "peasantsmith/GLM-5.3-Flash-Maya-GGUF",
           "quant": "IQ2_XXS",
           "launch": "./setup.sh --model glm-maya-s",
-          "requires": {"disk_gb": 97.6, "memory_gb": 96.5, "ssd": {"ram_gb": 32}, "nvme": true}
+          "requires": {"disk_gb": 97.6, "memory_gb": 128, "ssd": {"ram_gb": 32}, "nvme": true}
         },
         {
           "id": "glm-maya-s24",
@@ -79,7 +82,7 @@
           "repo": "peasantsmith/GLM-5.3-Flash-Maya-GGUF",
           "quant": "IQ2_XXS",
           "launch": "./setup.sh --model glm-maya-s24",
-          "requires": {"disk_gb": 95.8, "memory_gb": 94.7, "ssd": {"ram_gb": 32}, "nvme": true},
+          "requires": {"disk_gb": 95.8, "memory_gb": 128, "ssd": {"ram_gb": 32}, "nvme": true},
           "note": "For GPUs of 24 GB or less, 4-bit attention leaves more of the card for experts."
         },
         {
@@ -88,7 +91,7 @@
           "repo": "peasantsmith/GLM-5.3-Flash-Maya-GGUF",
           "quant": "IQ1_S",
           "launch": "./setup.sh --model glm-maya-xs",
-          "requires": {"disk_gb": 74.5, "memory_gb": 73.4, "ssd": {"ram_gb": 32}, "nvme": true}
+          "requires": {"disk_gb": 74.5, "memory_gb": 88, "ssd": {"ram_gb": 32}, "nvme": true}
         },
         {
           "id": "glm-maya-m",
@@ -96,7 +99,7 @@
           "repo": "peasantsmith/GLM-5.3-Flash-Maya-GGUF",
           "quant": "IQ2_S",
           "launch": "./setup.sh --model glm-maya-m",
-          "requires": {"disk_gb": 117.1, "memory_gb": 116, "ssd": {"ram_gb": 32}, "nvme": true}
+          "requires": {"disk_gb": 117.1, "memory_gb": 160, "ssd": {"ram_gb": 32}, "nvme": true}
         },
         {
           "id": "glm-maya-l",
@@ -104,7 +107,28 @@
           "repo": "peasantsmith/GLM-5.3-Flash-Maya-GGUF",
           "quant": "IQ3_S",
           "launch": "./setup.sh --model glm-maya-l",
-          "requires": {"disk_gb": 157.4, "memory_gb": 156.3, "ssd": {"ram_gb": 32}, "nvme": true}
+          "requires": {"disk_gb": 157.4, "memory_gb": 192, "ssd": {"ram_gb": 32}, "nvme": true}
+        }
+      ]
+    },
+    {
+      "id": "glm-5.3",
+      "name": "GLM-5.3",
+      "base": "zai-org/GLM-5.3",
+      "platforms": [
+        {"os": ["linux"], "accel": "cuda", "min_compute_capability": "7.0"},
+        {"os": ["windows"], "accel": "cuda", "min_compute_capability": "7.0"},
+        {"os": ["linux", "windows"], "accel": "rocm"}
+      ],
+      "note": "The 744B model on GLM-5.3-Flash's engine, since 1.1.57. Text only.",
+      "packs": [
+        {
+          "id": "GLM-5.3-UD-IQ2_M",
+          "name": "Unsloth UD-IQ2_M",
+          "repo": "unsloth/GLM-5.3-GGUF",
+          "quant": "IQ2_M",
+          "launch": "./maya.sh --setup --model GLM-5.3-UD-IQ2_M",
+          "requires": {"disk_gb": 238.6, "memory_gb": 256, "ssd": {"ram_gb": 32}, "nvme": true}
         }
       ]
     },
@@ -114,10 +138,10 @@
       "base": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
       "platforms": [
         {"os": ["linux"], "accel": "cuda", "min_compute_capability": "7.0"},
-        {"os": ["windows"], "accel": "cuda", "min_compute_capability": "7.0", "note": "experimental"},
-        {"os": ["linux", "windows"], "accel": "rocm", "note": "experimental"}
+        {"os": ["windows"], "accel": "cuda", "min_compute_capability": "7.0"},
+        {"os": ["linux", "windows"], "accel": "rocm"}
       ],
-      "note": "On its own engine. Sizes include the Engram tables.",
+      "note": "On its own engine. Sizes include the Engram tables, which stay on the SSD and do not count toward memory.",
       "packs": [
         {
           "id": "deepseek-maya-s",
@@ -125,7 +149,7 @@
           "repo": "peasantsmith/DeepSeek-V4.1-Flash-1017-Maya-GGUF",
           "quant": "IQ2_XXS",
           "launch": "./setup.sh --model deepseek-maya-s",
-          "requires": {"disk_gb": 340, "memory_gb": 340, "ssd": {"ram_gb": 32}, "nvme": true}
+          "requires": {"disk_gb": 340, "memory_gb": 224, "ssd": {"ram_gb": 32}, "nvme": true}
         },
         {
           "id": "deepseek-maya-xs",
@@ -134,7 +158,7 @@
           "quant": "IQ1_S",
           "launch": "./setup.sh --model deepseek-maya-xs",
           "requires": {"disk_gb": 277, "memory_gb": 128, "ssd": {"ram_gb": 32}, "nvme": true},
-          "note": "The whole model in a 128 GB PC's memory, with the Engram tables on the SSD."
+          "note": "The whole model in a 128 GB PC's memory."
         }
       ]
     },
@@ -144,8 +168,9 @@
       "base": "MiniMaxAI/MiniMax-M3.1-Flash",
       "platforms": [
         {"os": ["linux"], "accel": "cuda", "min_compute_capability": "7.0"},
-        {"os": ["windows"], "accel": "cuda", "min_compute_capability": "7.0", "note": "experimental"},
-        {"os": ["linux", "windows"], "accel": "rocm", "note": "experimental"}
+        {"os": ["windows"], "accel": "cuda", "min_compute_capability": "7.0"},
+        {"os": ["linux", "windows"], "accel": "rocm"},
+        {"os": ["darwin"], "accel": "metal", "note": "experimental"}
       ],
       "packs": [
         {
@@ -163,10 +188,10 @@
           "repo": "peasantsmith/MiniMax-M3.1-Flash-Maya-GGUF",
           "quant": "IQ2_XXS",
           "launch": "./setup.sh --model minimax-maya-s",
-          "requires": {"disk_gb": 122.5, "memory_gb": 122.5, "ssd": {"ram_gb": 32}, "nvme": true}
+          "requires": {"disk_gb": 122.5, "memory_gb": 160, "ssd": {"ram_gb": 32}, "nvme": true}
         }
       ]
     }
   ],
-  "note": "Runs three large MoE models on engines built for each. The engine pins all but about 6 GB of free RAM while it runs."
+  "note": "Runs four large MoE models on engines built for each. memory_gb is the VRAM and RAM together that its docs recommend for keeping the whole model in memory, and every model also runs from 32 GB of RAM, reading the rest from the SSD. The engine pins all but about 6 GB of free RAM while it runs."
 }

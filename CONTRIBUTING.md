@@ -96,6 +96,10 @@ uv run --locked python scripts/check_engine_upstream.py --out report.md
 When you update a card, re-read its sources rather than copying the release
 notes, then set `upstream.version`, `upstream.released_at` and `checked_at`.
 
+A card whose upstream ships patch releases almost daily, as Abyss and Project
+Maya do, sets `"track": "minor"` under `upstream`. The check then lists it for a new
+minor or major version, or once `checked_at` is 30 days old.
+
 ## Code Style
 - Follow existing code conventions
 - Use type hints

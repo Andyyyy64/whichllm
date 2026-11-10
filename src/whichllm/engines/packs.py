@@ -17,9 +17,13 @@ from whichllm.engines.availability import Availability, availability
 from whichllm.engines.cards import EngineCard, FixedModel, Pack, Platform, Requires
 from whichllm.hardware.types import GPUInfo, HardwareInfo
 
-# Cards give sizes in GB the way the engines' docs do. They are compared as
-# GiB, the unit a "64 GB" PC reports its RAM in.
 _GiB = 1024**3
+# Cards give sizes in GB the way the engines' docs do, and the docs name the
+# size a PC is sold as. A PC reports a little less: a "64 GB" one has about
+# 62.7 GiB of RAM, a "32 GB" one 31.2, a "16 GB" one 15.5, and an RTX 5070
+# "12 GB" has 11.9 GiB of VRAM. An amount within 4% of the size a pack names
+# counts as that size.
+_NOMINAL = 0.96
 
 
 @dataclass(frozen=True)
@@ -61,17 +65,32 @@ def _have(value_bytes: int) -> str:
     return f"{value_bytes / _GiB:.0f} GB"
 
 
+def _holds(have_bytes: int, need_gb: float) -> bool:
+    return have_bytes >= need_gb * _GiB * _NOMINAL
+
+
 def _short_of(need: Requires, ram: int) -> str:
     """What memory the pack is missing, for a machine where it does not run."""
     if need.ssd_ram_gb is not None:
-        if ram < need.ssd_ram_gb * _GiB:
+        if not _holds(ram, need.ssd_ram_gb):
             return f"needs {_gb(need.ssd_ram_gb)} of RAM, this machine has {_have(ram)}"
         # Enough RAM for the SSD tier, but not the GPU it was documented with.
+        if need.ram_gb is None and need.memory_gb is None:
+            return (
+                f"needs {_gb(need.ssd_ram_gb)} of RAM with a "
+                f"{_gb(need.ssd_vram_gb or 0)} GPU"
+            )
+        if need.ram_gb is None:
+            return (
+                f"needs {_gb(need.memory_gb or 0)} of RAM and VRAM together, or "
+                f"{_gb(need.ssd_ram_gb)} of RAM with a "
+                f"{_gb(need.ssd_vram_gb or 0)} GPU"
+            )
         return (
-            f"needs {_gb(need.ram_gb or need.memory_gb or 0)} of RAM, or "
+            f"needs {_gb(need.ram_gb)} of RAM, or "
             f"{_gb(need.ssd_ram_gb)} with a {_gb(need.ssd_vram_gb or 0)} GPU"
         )
-    if need.ram_gb is not None and ram < need.ram_gb * _GiB:
+    if need.ram_gb is not None and not _holds(ram, need.ram_gb):
         return f"needs {_gb(need.ram_gb)} of RAM, this machine has {_have(ram)}"
     return f"needs {_gb(need.memory_gb or 0)} of RAM and VRAM together"
 
@@ -89,7 +108,7 @@ def pack_fit(pack: Pack, hardware: HardwareInfo) -> PackFit:
             None, "needs a GPU that shares system RAM (a Mac, DGX Spark or Strix Halo)"
         )
     largest = max((gpu.vram_bytes for gpu in hardware.gpus), default=0)
-    if need.vram_gb is not None and largest < need.vram_gb * _GiB:
+    if need.vram_gb is not None and not _holds(largest, need.vram_gb):
         where = f"the largest here has {_have(largest)}" if largest else "none here"
         return PackFit(None, f"needs a GPU with {_gb(need.vram_gb)}, {where}")
     ram = _ram_bytes(hardware)
@@ -97,15 +116,15 @@ def pack_fit(pack: Pack, hardware: HardwareInfo) -> PackFit:
     pool = ram + sum(g.vram_bytes for g in hardware.gpus if not _unified(g))
     holds = []
     if need.ram_gb is not None:
-        holds.append(ram >= need.ram_gb * _GiB)
+        holds.append(_holds(ram, need.ram_gb))
     if need.memory_gb is not None:
-        holds.append(pool >= need.memory_gb * _GiB)
+        holds.append(_holds(pool, need.memory_gb))
     if holds and all(holds):
         return PackFit("memory")
     if (
         need.ssd_ram_gb is not None
-        and ram >= need.ssd_ram_gb * _GiB
-        and largest >= (need.ssd_vram_gb or 0) * _GiB
+        and _holds(ram, need.ssd_ram_gb)
+        and _holds(largest, need.ssd_vram_gb or 0)
     ):
         reason = "reads the experts that do not fit from the SSD, much slower"
         if need.nvme:
