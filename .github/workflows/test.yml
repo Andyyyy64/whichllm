@@ -5,9 +5,16 @@ on:
     branches: [main, "v[0-9]*"]
   pull_request:
     branches: [main, "v[0-9]*"]
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   test:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -23,3 +30,48 @@ jobs:
         run: uv sync --locked --dev
       - name: Run tests
         run: uv run --locked pytest
+
+  # A fresh `pip install whichllm` gets the newest release of every dependency,
+  # not the ones in uv.lock. typer 0.29 removed an argument whichllm used, and
+  # every fresh install failed at import for three days while the locked tests
+  # passed. This job runs on every push and once a day, since a dependency can
+  # break whichllm on a day nothing is pushed.
+  newest-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          python-version: "3.13"
+      - name: Install with the newest dependencies
+        run: uv sync --upgrade --dev
+      - name: List what was installed
+        run: uv pip list
+      - name: Start the CLI
+        run: |
+          uv run --no-sync whichllm --version
+          uv run --no-sync whichllm --help
+      - name: Run tests
+        run: uv run --no-sync pytest
+
+  report-failure:
+    needs: newest-dependencies
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title='Tests fail with the newest dependencies'
+          number=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "$title in:title" --json number --jq '.[0].number')
+          body="The daily run against the newest release of every dependency failed: $RUN_URL. A fresh install may be broken."
+          if [ -n "$number" ]; then
+            gh issue comment "$number" -R "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh issue create -R "$GITHUB_REPOSITORY" --title "$title" --body "$body"
+          fi
