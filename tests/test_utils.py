@@ -3,8 +3,9 @@
 from pathlib import Path
 
 import pytest
+import typer
 
-from whichllm.utils import _cache_dir, parse_context_length, CONTEXT_LENGTH
+from whichllm.utils import _cache_dir, context_length_option, parse_context_length
 
 
 def test_cache_dir_defaults_to_dot_cache(monkeypatch):
@@ -73,9 +74,46 @@ def test_parse_rejects_negative():
         parse_context_length("-1")
 
 
-def test_click_type_passes_int_through():
-    assert CONTEXT_LENGTH.convert(4096, None, None) == 4096
+def test_the_option_parser_passes_the_int_default_through():
+    assert context_length_option(4096) == 4096
 
 
-def test_click_type_parses_shorthand():
-    assert CONTEXT_LENGTH.convert("64k", None, None) == 64 * 1024
+def test_the_option_parser_parses_shorthand():
+    assert context_length_option("64k") == 64 * 1024
+
+
+def test_the_option_parser_reports_a_bad_value_as_a_usage_error():
+    with pytest.raises(typer.BadParameter, match="Invalid context length 'lots'"):
+        context_length_option("lots")
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["--context-length", "lots"],
+        ["plan", "some/model", "-c", "lots"],
+        ["run", "-c", "lots"],
+        ["upgrade", "RTX 4090", "-c", "lots"],
+    ],
+)
+def test_every_command_refuses_a_bad_context_length_with_the_reason(args):
+    from typer.testing import CliRunner
+
+    from whichllm.cli import app
+
+    result = CliRunner().invoke(app, args)
+
+    assert result.exit_code == 2
+    assert "Invalid context length 'lots'" in " ".join(result.output.split())
+
+
+def test_no_option_uses_an_argument_typer_removed():
+    # typer 0.29 removed click_type from Option() and Argument(), and every
+    # fresh install broke at import. uv.lock holds an older typer, so only the
+    # CI job with the newest dependencies would notice it coming back.
+    from pathlib import Path
+
+    import whichllm
+
+    for path in Path(whichllm.__file__).parent.rglob("*.py"):
+        assert "click_type=" not in path.read_text(encoding="utf-8"), path.name
