@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.6.6] - 2026-11-12
+
 ### Fixed
 
 - whichllm starts again on a fresh install. typer 0.29.0, released on
