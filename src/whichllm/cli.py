@@ -29,7 +29,7 @@ from whichllm.cli_commands import (
     upgrade_command,
 )
 from whichllm.cli_shared import _print_version, _tolerate_narrow_encodings
-from whichllm.utils import CONTEXT_LENGTH
+from whichllm.utils import context_length_option
 
 _tolerate_narrow_encodings()
 
@@ -60,7 +60,8 @@ def main(
         4096,
         "--context-length",
         "-c",
-        click_type=CONTEXT_LENGTH,
+        parser=context_length_option,
+        metavar="CONTEXT_LENGTH",
         help="Context length for KV cache estimation (e.g. 4096, 64k, 128k)",
     ),
     quant: Optional[str] = typer.Option(
@@ -212,7 +213,8 @@ def plan(
         4096,
         "--context-length",
         "-c",
-        click_type=CONTEXT_LENGTH,
+        parser=context_length_option,
+        metavar="CONTEXT_LENGTH",
         help="Context length for KV cache estimation (e.g. 4096, 64k, 128k)",
     ),
     quant: Optional[str] = typer.Option(
@@ -243,7 +245,8 @@ def upgrade(
         8192,
         "--context-length",
         "-c",
-        click_type=CONTEXT_LENGTH,
+        parser=context_length_option,
+        metavar="CONTEXT_LENGTH",
         help="Context length for ranking (e.g. 8192, 64k, 128k)",
     ),
     top: int = typer.Option(3, "--top", "-n", help="Best-N models to compare per GPU"),
@@ -282,7 +285,8 @@ def run(
         4096,
         "--context-length",
         "-c",
-        click_type=CONTEXT_LENGTH,
+        parser=context_length_option,
+        metavar="CONTEXT_LENGTH",
         help="Context length (e.g. 4096, 64k, 128k)",
     ),
     quant: Optional[str] = typer.Option(
@@ -330,7 +334,8 @@ def bench(
         4096,
         "--context-length",
         "-c",
-        click_type=CONTEXT_LENGTH,
+        parser=context_length_option,
+        metavar="CONTEXT_LENGTH",
         help="Context length (e.g. 4096, 64k, 128k)",
     ),
     quant: Optional[str] = typer.Option(
@@ -392,7 +397,8 @@ def report(
         4096,
         "--context-length",
         "-c",
-        click_type=CONTEXT_LENGTH,
+        parser=context_length_option,
+        metavar="CONTEXT_LENGTH",
         help="Context length for --manual (e.g. 4096, 64k, 128k)",
     ),
 ):

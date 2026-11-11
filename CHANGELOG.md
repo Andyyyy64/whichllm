@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed
+
+- whichllm starts again on a fresh install. typer 0.29.0, released on
+  2026-11-09, removed the `click_type` argument that `--context-length` used,
+  so `pip install whichllm` or `uvx whichllm` since then stopped at import
+  with "TypeError: Option() got an unexpected keyword argument 'click_type'".
+  That hit every release, 0.6.5 included. Homebrew installs, which pin their
+  dependencies, were not affected. The option now uses typer's `parser`, and
+  behaves the same from typer 0.15 to 0.29.1. The lower bound moves from
+  typer 0.9, which no longer works with current click, to 0.15.
+- The tests run every day against the newest release of every dependency,
+  not only the locked ones, and a failure opens an issue.
+
 ## [0.6.5] - 2026-11-11
 
 ### Added

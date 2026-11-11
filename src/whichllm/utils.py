@@ -5,7 +5,7 @@ import re
 from importlib.metadata import version, PackageNotFoundError
 from pathlib import Path
 
-import click
+import typer
 
 
 def _current_version() -> str:
@@ -51,21 +51,19 @@ def parse_context_length(value: str) -> int:
     return result
 
 
-class ContextLengthType(click.ParamType):
-    """Click parameter type that accepts integers or shorthand like 64k."""
+def context_length_option(value: int | str) -> int:
+    """``parse_context_length`` as the parser of a typer option.
 
-    name = "context_length"
-
-    def convert(self, value, param, ctx):
-        if isinstance(value, int):
-            return value
-        try:
-            return parse_context_length(str(value))
-        except ValueError as e:
-            self.fail(str(e), param, ctx)
-
-
-CONTEXT_LENGTH = ContextLengthType()
+    The option's default arrives as an int. A bad value is a usage error that
+    says why. This takes the place of a click ``ParamType``: typer 0.29 removed
+    ``click_type``, and ``parser`` works from typer 0.15 on.
+    """
+    if isinstance(value, int):
+        return value
+    try:
+        return parse_context_length(str(value))
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
 
 
 def _cache_dir() -> Path:
