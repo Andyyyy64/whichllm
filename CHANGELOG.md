@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed
+
+- A pack no longer counts as fitting a PC one size too small. On a 16 GB GPU
+  with 64 GB of RAM and enough free disk, the ranking named Abyss's 24G64G
+  pack of Qwen3.8-Flash-Next, built for a 24 GB GPU, with the 69.9 tok/s its
+  docs measured on one, and `whichllm engines` counted 8 of Abyss's 15 packs
+  where 6 fit. Two things added up. Abyss's card gave each pack's memory as
+  the GPU plus the memory limit the author tests with, 58 GB for a 64 GB PC,
+  while whichllm counts all of a PC's RAM. And the 4% allowance for a PC that
+  reports under the size it is sold as was taken off what a pack needs, also
+  where the need was a measured figure and no PC size. The allowance is now
+  on the machine's side. RAM or VRAM within 4% under a size PCs are sold with
+  counts as that size, and a pack's need is compared as written. Abyss's
+  packs give the GPU and RAM of the PC they are named for, together. Strata's
+  Coder pack, which needs 33 GB of RAM, no longer counts as in memory on a
+  32 GB PC that reports 31.9 GB, and reads from the SSD there as its docs say.
+  Its DeepSeek V4.1 packs of 121 and 155 GB no longer count as in memory on a
+  24 GB GPU with 96 and 128 GB of RAM.
+
 ## [0.6.6] - 2026-11-12
 
 ### Fixed
