@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed
+
+- whichllm on Windows no longer takes itself for WSL when it runs from a
+  folder on a WSL share, `\\wsl.localhost\...`. There Windows resolves
+  `/proc/version` to the distro's own file, which says "microsoft". So
+  `whichllm engines` said Abyss and Project Maya do not run under WSL, the
+  ranking left out their packs, and install hints for engines were hidden.
+  Only Linux is checked for WSL now.
+
 ## [0.6.7] - 2026-11-12
 
 ### Fixed

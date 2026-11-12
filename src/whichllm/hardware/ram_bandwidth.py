@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import platform
 import re
 import subprocess
 import time
@@ -188,6 +189,10 @@ def _read_udev_modules(path: Path) -> list[object]:
 
 
 def _is_wsl() -> bool:
+    # WSL is Linux. On Windows "/proc/version" is a path on the current drive, and
+    # from a folder on a WSL share (\\wsl.localhost\...) it is the distro's own file.
+    if platform.system() != "Linux":
+        return False
     if os.environ.get("WSL_DISTRO_NAME"):
         return True
     try:
