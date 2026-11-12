@@ -129,7 +129,7 @@ def test_a_recent_nvidia_card_runs_every_cuda_engine_on_cuda():
     cuda = {
         row.card.id: row
         for row in rows.values()
-        if any(p.accel == "cuda" for p in row.card.platforms)
+        if any(p.accel == "cuda" and "linux" in p.os for p in row.card.platforms)
     }
 
     assert len(cuda) >= 9
@@ -140,9 +140,11 @@ def test_a_recent_nvidia_card_runs_every_cuda_engine_on_cuda():
 def test_engines_without_a_cuda_build_say_what_they_run_on():
     rows = _by_id(_machine(gpu=_nvidia("NVIDIA GeForce RTX 5080", (12, 0))))
 
-    # WARP runs on the CPU only, and TurboFieldfare only on a Mac.
+    # WARP runs on the CPU only, and TurboFieldfare only on a Mac. llama-modchip
+    # builds its GPU engine on Windows alone, as an experimental -Cuda switch.
     assert rows["warp"].platform.accel == "cpu"
     assert rows["warp"].reason == "no cuda build"
+    assert rows["llama-modchip"].platform.accel == "cpu"
     assert not rows["turbo-fieldfare"].runs
 
 
