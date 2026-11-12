@@ -156,6 +156,33 @@ def test_a_gpu_a_little_under_its_nominal_size_counts_as_that_size():
     assert pack_fit(pack, _machine(vram_gb=11)).tier is None
 
 
+def test_a_need_is_compared_as_written():
+    coder = _pack("strata", "qwen3.8-flash-next", "coder-iq1_m")
+    iq3_s = _pack("strata", "qwen3.8-flash-next", "iq3_s")
+    # A 32 GB PC with no integrated GPU reports 31.9 GiB. It counts as 32 GB,
+    # and the Coder pack needs 33.
+    assert pack_fit(coder, _machine(vram_gb=12, ram_gb=31.9)).tier == "ssd"
+    # 59 GB is no size a PC is sold with, so it stays 59.
+    assert pack_fit(iq3_s, _machine(ram_gb=59)).reason == (
+        "needs 60 GB of RAM, this machine has 59 GB"
+    )
+    assert pack_fit(iq3_s, _machine(ram_gb=62.7)).tier == "memory"
+    # 24 + 96 GB is 120, and Strata's smallest DeepSeek pack is 121 GB.
+    deepseek = _pack("strata", "deepseek-v4.1-flash-1017", "ist-das-1.75bpw")
+    assert pack_fit(deepseek, _machine(vram_gb=23.99, ram_gb=93.8)).tier == "ssd"
+    assert pack_fit(deepseek, _machine(vram_gb=31.8, ram_gb=93.8)).tier == "memory"
+
+
+def test_a_ram_budget_is_taken_as_given():
+    maya = _pack("project-maya", "glm-5.3-flash", "glm-maya-s")
+    machine = _machine(vram_gb=16, ram_gb=64)
+    machine.ram_budget_bytes = int(31.2 * _GiB)
+
+    assert pack_fit(maya, machine).reason == (
+        "needs 32 GB of RAM, this machine has 31 GB"
+    )
+
+
 def test_ram_a_little_under_its_nominal_size_counts_as_that_size():
     maya = _pack("project-maya", "glm-5.3-flash", "glm-maya-s")
     coder = _pack("strata", "qwen3.8-flash-next", "coder-iq1_m")
@@ -238,6 +265,8 @@ def test_maya_has_a_mac_build_for_glm_flash_and_minimax_only():
 
 
 _NAMED_PC_RE = re.compile(r"-(\d+)G(\d+)G-GGUF$")
+_PC_GPUS = (8, 12, 16, 24, 32)
+_PC_RAMS = (16, 32, 64, 96, 128)
 
 
 def _abyss_packs_named_for_a_pc():
@@ -260,23 +289,45 @@ def _abyss_packs_named_for_a_pc():
 def test_an_abyss_pack_runs_on_the_pc_it_is_named_for(model, pack, gpu_gb, ram_gb):
     # What such a PC reports: a "64 GB" one has about 62.5 GiB, a "16 GB" GPU 15.8.
     named = _machine(vram_gb=gpu_gb - 0.2, ram_gb=ram_gb * 0.975, os="linux")
-    smaller = _machine(vram_gb=gpu_gb - 0.2, ram_gb=ram_gb * 0.7, os="linux")
+    # The next PC down, one GPU size or one RAM size smaller, at its full size.
+    less_gpu = _machine(
+        vram_gb=_PC_GPUS[_PC_GPUS.index(gpu_gb) - 1], ram_gb=ram_gb, os="linux"
+    )
+    less_ram = _machine(
+        vram_gb=gpu_gb, ram_gb=_PC_RAMS[_PC_RAMS.index(ram_gb) - 1], os="linux"
+    )
 
     fit = pack_fit(pack, named)
 
     # V4.1's experts do not fit the 32 GB + 96 GB PC its packs are named for.
     assert fit.tier == ("ssd" if model == "deepseek-v4.1-flash-1017" else "memory")
-    assert pack_fit(pack, smaller).tier != "memory"
+    assert pack_fit(pack, less_gpu).tier != "memory"
+    assert pack_fit(pack, less_ram).tier != "memory"
+
+
+def test_a_16_gb_gpu_with_64_gb_gets_the_16g64g_pack_not_the_24g64g():
+    # An RTX 5080 PC as Windows reports it. Its 15.9 + 63.3 GiB are within 4% of
+    # the 82 GB the card once gave the 24G64G pack, a 24 GB GPU plus the 58 GB
+    # memory limit the author tests a 64 GB PC with.
+    pc = _machine(vram_gb=15.9, ram_gb=63.3)
+
+    assert pack_fit(_pack("abyss", "qwen3.8-flash-next", "16G64G"), pc).tier == "memory"
+    assert pack_fit(_pack("abyss", "qwen3.8-flash-next", "24G64G"), pc).reason == (
+        "needs 88 GB of RAM and VRAM together"
+    )
+    assert pack_fit(_pack("abyss", "ornith-1.5-122b", "24G64G"), pc).tier is None
+    fitting = [o for o in pack_options([BY_ID["abyss"]], pc) if o.fit.runs]
+    assert len(fitting) == 6
 
 
 def test_abyss_names_the_setup_a_v41_pack_was_measured_on():
     pack = _pack("abyss", "deepseek-v4.1-flash-1017", "132G")
 
     assert pack_fit(pack, _machine(vram_gb=24, ram_gb=128)).reason == (
-        "needs 84 GB of RAM with a 32 GB GPU"
+        "needs 96 GB of RAM with a 32 GB GPU"
     )
     assert pack_fit(pack, _machine(vram_gb=32, ram_gb=64)).reason == (
-        "needs 84 GB of RAM, this machine has 64 GB"
+        "needs 96 GB of RAM, this machine has 64 GB"
     )
 
 
@@ -284,7 +335,7 @@ def test_a_pool_figure_is_not_called_ram_alone():
     pack = _pack("abyss", "glm-5.3-flash", "32G128G")
 
     assert pack_fit(pack, _machine(vram_gb=24, ram_gb=94)).reason == (
-        "needs 155 GB of RAM and VRAM together, or 84 GB of RAM with a 32 GB GPU"
+        "needs 160 GB of RAM and VRAM together, or 96 GB of RAM with a 32 GB GPU"
     )
 
 

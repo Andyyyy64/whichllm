@@ -18,12 +18,15 @@ from whichllm.engines.cards import EngineCard, FixedModel, Pack, Platform, Requi
 from whichllm.hardware.types import GPUInfo, HardwareInfo
 
 _GiB = 1024**3
-# Cards give sizes in GB the way the engines' docs do, and the docs name the
-# size a PC is sold as. A PC reports a little less: a "64 GB" one has about
-# 62.7 GiB of RAM, a "32 GB" one 31.2, a "16 GB" one 15.5, and an RTX 5070
-# "12 GB" has 11.9 GiB of VRAM. An amount within 4% of the size a pack names
-# counts as that size.
-_NOMINAL = 0.96
+# A PC reports a little less than the size it is sold as: a "64 GB" one has
+# about 62.7 GiB of RAM, a "32 GB" one 31.2, and an RTX 5070 "12 GB" has 11.9
+# GiB of VRAM. Cards give sizes the way the engines' docs do, and the docs name
+# the PC, so RAM or VRAM within 4% under a size PCs are sold with counts as that
+# size. A pack's need is compared as written: one that needs 33 GB of RAM does
+# not fit a 32 GB PC.
+_UNDER = 0.96
+_RAM_SIZES = (8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024)
+_VRAM_SIZES = (4, 6, 8, 10, 11, 12, 16, 20, 24, 32, 40, 48, 80, 96)
 
 
 @dataclass(frozen=True)
@@ -51,28 +54,39 @@ def _unified(gpu: GPUInfo) -> bool:
     return gpu.vendor == "apple" or gpu.shared_memory
 
 
-def _ram_bytes(hardware: HardwareInfo) -> int:
+def _sold_as(have_bytes: int, sizes: tuple[int, ...]) -> float:
+    """The amount in GB, as the size it is sold as when it is just under one."""
+    have = have_bytes / _GiB
+    for size in sizes:
+        if size * _UNDER <= have <= size:
+            return float(size)
+    return have
+
+
+def _vram_gb(gpu: GPUInfo) -> float:
+    return _sold_as(gpu.vram_bytes, _VRAM_SIZES)
+
+
+def _ram_gb(hardware: HardwareInfo) -> float:
+    ram = _sold_as(hardware.ram_bytes, _RAM_SIZES)
     if hardware.ram_budget_bytes is not None:
-        return min(hardware.ram_bytes, hardware.ram_budget_bytes)
-    return hardware.ram_bytes
+        # A budget is the user's own figure, taken as given.
+        return min(ram, hardware.ram_budget_bytes / _GiB)
+    return ram
 
 
 def _gb(value: float) -> str:
     return f"{value:g} GB"
 
 
-def _have(value_bytes: int) -> str:
-    return f"{value_bytes / _GiB:.0f} GB"
+def _have(value_gb: float) -> str:
+    return f"{value_gb:.0f} GB"
 
 
-def _holds(have_bytes: int, need_gb: float) -> bool:
-    return have_bytes >= need_gb * _GiB * _NOMINAL
-
-
-def _short_of(need: Requires, ram: int) -> str:
+def _short_of(need: Requires, ram: float) -> str:
     """What memory the pack is missing, for a machine where it does not run."""
     if need.ssd_ram_gb is not None:
-        if not _holds(ram, need.ssd_ram_gb):
+        if ram < need.ssd_ram_gb:
             return f"needs {_gb(need.ssd_ram_gb)} of RAM, this machine has {_have(ram)}"
         # Enough RAM for the SSD tier, but not the GPU it was documented with.
         if need.ram_gb is None and need.memory_gb is None:
@@ -90,7 +104,7 @@ def _short_of(need: Requires, ram: int) -> str:
             f"needs {_gb(need.ram_gb)} of RAM, or "
             f"{_gb(need.ssd_ram_gb)} with a {_gb(need.ssd_vram_gb or 0)} GPU"
         )
-    if need.ram_gb is not None and not _holds(ram, need.ram_gb):
+    if need.ram_gb is not None and ram < need.ram_gb:
         return f"needs {_gb(need.ram_gb)} of RAM, this machine has {_have(ram)}"
     return f"needs {_gb(need.memory_gb or 0)} of RAM and VRAM together"
 
@@ -99,32 +113,30 @@ def pack_fit(pack: Pack, hardware: HardwareInfo) -> PackFit:
     """Which tier the pack runs from here, or why it does not run."""
     need = pack.requires
     if hardware.disk_free_bytes > 0 and need.disk_gb * _GiB > hardware.disk_free_bytes:
-        return PackFit(
-            None,
-            f"needs {_gb(need.disk_gb)} of disk, {_have(hardware.disk_free_bytes)} free",
-        )
+        free = _have(hardware.disk_free_bytes / _GiB)
+        return PackFit(None, f"needs {_gb(need.disk_gb)} of disk, {free} free")
     if need.unified_memory and not any(_unified(g) for g in hardware.gpus):
         return PackFit(
             None, "needs a GPU that shares system RAM (a Mac, DGX Spark or Strix Halo)"
         )
-    largest = max((gpu.vram_bytes for gpu in hardware.gpus), default=0)
-    if need.vram_gb is not None and not _holds(largest, need.vram_gb):
+    largest = max((_vram_gb(gpu) for gpu in hardware.gpus), default=0.0)
+    if need.vram_gb is not None and largest < need.vram_gb:
         where = f"the largest here has {_have(largest)}" if largest else "none here"
         return PackFit(None, f"needs a GPU with {_gb(need.vram_gb)}, {where}")
-    ram = _ram_bytes(hardware)
+    ram = _ram_gb(hardware)
     # A GPU that shares the system RAM adds nothing to the pool.
-    pool = ram + sum(g.vram_bytes for g in hardware.gpus if not _unified(g))
+    pool = ram + sum(_vram_gb(g) for g in hardware.gpus if not _unified(g))
     holds = []
     if need.ram_gb is not None:
-        holds.append(_holds(ram, need.ram_gb))
+        holds.append(ram >= need.ram_gb)
     if need.memory_gb is not None:
-        holds.append(_holds(pool, need.memory_gb))
+        holds.append(pool >= need.memory_gb)
     if holds and all(holds):
         return PackFit("memory")
     if (
         need.ssd_ram_gb is not None
-        and _holds(ram, need.ssd_ram_gb)
-        and _holds(largest, need.ssd_vram_gb or 0)
+        and ram >= need.ssd_ram_gb
+        and largest >= (need.ssd_vram_gb or 0)
     ):
         reason = "reads the experts that do not fit from the SSD, much slower"
         if need.nvme:
