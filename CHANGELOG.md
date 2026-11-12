@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.6.7] - 2026-11-12
+
 ### Fixed
 
 - A pack no longer counts as fitting a PC one size too small. On a 16 GB GPU
