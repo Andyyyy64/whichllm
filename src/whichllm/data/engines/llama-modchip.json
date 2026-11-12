@@ -1,0 +1,63 @@
+{
+  "id": "llama-modchip",
+  "name": "llama-modchip",
+  "kind": "runner",
+  "url": "https://github.com/synchopate/llama-modchip",
+  "evidence": "documented",
+  "upstream": {
+    "github": "synchopate/llama-modchip",
+    "version": "2.5.4",
+    "released_at": "2026-11-13",
+    "status": "active"
+  },
+  "checked_at": "2026-11-14",
+  "sources": [
+    "https://github.com/synchopate/llama-modchip",
+    "https://github.com/synchopate/llama-modchip/blob/main/install.sh",
+    "https://github.com/synchopate/llama-modchip/blob/main/FAQ.md",
+    "https://github.com/synchopate/llama-modchip/blob/main/docs/HARDWARE_OPTIMIZATIONS.md",
+    "https://github.com/synchopate/llama-modchip/blob/main/docs/WINDOWS_PORT.md",
+    "https://github.com/synchopate/llama-modchip/blob/main/windows/build_patched_engine.ps1",
+    "https://github.com/synchopate/llama-modchip/blob/main/apple-silicon/README.md",
+    "https://github.com/synchopate/llama-modchip/blob/main/gateway/sse_gateway.py",
+    "https://github.com/synchopate/llama-modchip/releases/tag/v2.5.4"
+  ],
+  "platforms": [
+    {
+      "os": ["linux"],
+      "accel": "cpu",
+      "note": "Prebuilt x86_64 binaries for AVX2 and AVX-512 VBMI, or built from source, which also covers ARM64 such as Graviton3"
+    },
+    {
+      "os": ["windows"],
+      "accel": "cpu",
+      "note": "MinGW-w64 UCRT64 build of the patched engine, from windows/build_patched_engine.ps1"
+    },
+    {
+      "os": ["darwin"],
+      "accel": "metal",
+      "note": "Apple silicon; apple-silicon/setup.sh builds the patched engine and the Fractal-64 Q2_0 Metal kernel"
+    },
+    {
+      "os": ["windows"],
+      "accel": "cuda",
+      "note": "Experimental -Cuda switch of windows/build_patched_engine.ps1. install.sh builds no GPU engine, and the CUDA and Vulkan binaries windows/AVVIA_MODCHIP.bat downloads for standard GGUFs are mainline llama.cpp's"
+    }
+  ],
+  "gguf": {
+    "extra": ["VQ3_0"]
+  },
+  "memory": ["gpu", "layer_offload", "expert_offload", "cpu"],
+  "serve": "llama-server-nemotron -m {file}",
+  "port": 8789,
+  "api": ["openai", "anthropic"],
+  "install": {
+    "docs": "https://github.com/synchopate/llama-modchip#quickstart",
+    "linux": "git clone https://github.com/synchopate/llama-modchip && cd llama-modchip && ./install.sh --prebuilt",
+    "darwin": "git clone https://github.com/synchopate/llama-modchip && cd llama-modchip && ./apple-silicon/setup.sh",
+    "windows": "git clone https://github.com/synchopate/llama-modchip && cd llama-modchip && powershell -ExecutionPolicy Bypass -File windows\\build_patched_engine.ps1"
+  },
+  "detect_binaries": ["llama-server-nemotron", "llama-server-modchip-linux-x86_64"],
+  "version_args": ["--version"],
+  "note": "A llama.cpp fork for MoE models on the CPU, with its own quant types: LUT-VQ3-64 is VQ3_0 (3.00 bpw) and decodes only on x86-64 AVX-512 VBMI, while Fractal-64 (3.75 bpw) reuses type 42 with a 30-byte block, so mainline llama.cpp sizes it at 18 and refuses the file. It ships CPU builds and a Metal build, and standard GGUFs still load; neither of its own types has a CUDA or Vulkan shader yet. The installer keeps the server in the clone's workspace/bin, not on PATH, and starts it on port 8789; the JSON API is llama-server's, and the bundled SSE gateway on 8787 adds the Anthropic messages endpoint."
+}
