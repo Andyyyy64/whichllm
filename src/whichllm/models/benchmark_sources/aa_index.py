@@ -17,6 +17,7 @@ import json
 import logging
 import math
 import re
+import statistics
 
 import httpx
 
@@ -39,7 +40,7 @@ AA_NAME_TO_HF_IDS: dict[str, list[str]] = read_json("aa_names.json")["names"]
 # the 2026-06-29 refresh (most open-weights values dropped by about a third;
 # the values read on 2026-09-14 already match the 2026-10-27 ones). The window is
 # anchored by the same two-point fit as before: top open frontier on AA
-# (MiMo-V2.6-Pro = 46.3 on AA_LEADERBOARD_URL, not mapped here) → 95 normalized,
+# (MiMo-V2.6-Pro = 46.3 on AA_LEADERBOARD_URL, index v4.3.2) → 95 normalized,
 # and 8B-class (Qwen3-8B = 6.0, an AA estimate, /models/qwen3-8b-instruct) → 40
 # normalized, both read 2026-10-27. This keeps a strong 8B model
 # competitive with frozen-OLLB 7B scores while leaving headroom for
@@ -52,9 +53,16 @@ _AA_INDEX_MAX = 50.0
 _SNAPSHOT = read_json("aa_index.json")
 
 # The AA index version the bounds and snapshot were read on. Raw values from
-# another version are on a different scale, so fetch_aa_index_scores() returns
-# the snapshot when the leaderboard reports any other (or no) version.
+# another version are on a different scale: fetch_aa_index_scores() converts
+# v5.x values onto this one (see AA_V5_PAIRS) and returns the snapshot when the
+# leaderboard reports any other (or no) version.
 AA_INDEX_VERSION: str = _SNAPSHOT["index_version"]
+# Releases read on both v4.3.2 and v5, data/aa_index.json "v5". A least squares
+# line through them, v4.3.2 = slope * v5 + intercept, converts live v5.x values.
+AA_V5_PAIRS: list[dict] = _SNAPSHOT["v5"]["pairs"]
+_V5_SLOPE, _V5_INTERCEPT = statistics.linear_regression(
+    [pair["v5"] for pair in AA_V5_PAIRS], [pair["v4_3_2"] for pair in AA_V5_PAIRS]
+)
 # The day the curated snapshot was read.
 AA_SNAPSHOT_READ_AT: str = _SNAPSHOT["read_at"]
 _AA_VERSION_RE = re.compile(r"Artificial Analysis Intelligence Index v(\d+(?:\.\d+)*)")
@@ -204,15 +212,21 @@ async def fetch_aa_index_scores(client: httpx.AsyncClient) -> dict[str, float]:
     Returns ``{hf_id: normalized_score_0_100}`` for every model AA reports
     that we can map back to a HuggingFace repo via :data:`AA_NAME_TO_HF_IDS`.
 
-    Returns the curated snapshot instead when the leaderboard reports an
-    index version other than :data:`AA_INDEX_VERSION`, or none.
+    Values on index v5.x are converted onto the :data:`AA_INDEX_VERSION`
+    scale through :data:`AA_V5_PAIRS`. Returns the curated snapshot instead
+    when the leaderboard reports any other index version, or none.
 
     Raises on HTTP / parse failure.
     """
     resp = await get_with_retries(client, AA_LEADERBOARD_URL)
     resp.raise_for_status()
     versions = set(_AA_VERSION_RE.findall(resp.text))
-    if versions != {AA_INDEX_VERSION}:
+    version = next(iter(versions)) if len(versions) == 1 else None
+    if version == AA_INDEX_VERSION:
+        slope, intercept = 1.0, 0.0
+    elif version is not None and version.split(".")[0] == "5":
+        slope, intercept = _V5_SLOPE, _V5_INTERCEPT
+    else:
         logger.debug(
             f"AA index: leaderboard reports version {', '.join(sorted(versions)) or 'unknown'}, "
             f"bounds are calibrated on v{AA_INDEX_VERSION}; using the snapshot"
@@ -250,7 +264,7 @@ async def fetch_aa_index_scores(client: httpx.AsyncClient) -> dict[str, float]:
         )
         if not hf_ids:
             continue
-        normalized = _normalize_aa_index(score)
+        normalized = _normalize_aa_index(score * slope + intercept)
         for hf_id in hf_ids:
             if hf_id not in live or normalized > live[hf_id]:
                 live[hf_id] = normalized

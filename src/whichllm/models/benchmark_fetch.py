@@ -126,8 +126,8 @@ async def fetch_benchmark_data(model_ids: Iterable[str] = ()) -> BenchmarkData:
         _source(
             "Artificial Analysis Intelligence Index",
             "general",
-            f"v{AA_INDEX_VERSION} "
-            + ("live, over the " if aa_live else "")
+            f"v{AA_INDEX_VERSION} scale, "
+            + ("live over the " if aa_live else "")
             + f"{AA_SNAPSHOT_READ_AT} snapshot",
             aa_result,
             estimated=len(benchmark_sources.AA_PEER_IDS),

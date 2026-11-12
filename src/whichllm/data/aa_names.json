@@ -10,6 +10,12 @@
   "Kimi K2-Thinking": [
    "moonshotai/Kimi-K2-Thinking"
   ],
+  "Kimi K3.1 Pro": [
+   "moonshotai/Kimi-K3.1-Pro"
+  ],
+  "Kimi K3": [
+   "moonshotai/Kimi-K3"
+  ],
   "DeepSeek V3": [
    "deepseek-ai/DeepSeek-V3"
   ],
@@ -36,6 +42,9 @@
   ],
   "DeepSeek V4 Flash 0731": [
    "deepseek-ai/DeepSeek-V4-Flash-0731"
+  ],
+  "DeepSeek V4.1 Flash 1017": [
+   "deepseek-ai/DeepSeek-V4.1-Flash-1017"
   ],
   "DeepSeek R1": [
    "deepseek-ai/DeepSeek-R1"
@@ -67,6 +76,12 @@
   "MiMo V2 Flash": [
    "XiaomiMiMo/MiMo-V2-Flash"
   ],
+  "MiMo-V2.6-Pro": [
+   "XiaomiMiMo/MiMo-V2.6-Pro-RL"
+  ],
+  "MiMo-V2.6-Flash": [
+   "XiaomiMiMo/MiMo-V2.6-Flash-RL"
+  ],
   "GLM-4.5": [
    "zai-org/GLM-4.5"
   ],
@@ -90,6 +105,12 @@
    "zai-org/GLM-5.1",
    "zai-org/GLM-5.1-FP8"
   ],
+  "GLM-5.3": [
+   "zai-org/GLM-5.3"
+  ],
+  "GLM-5.3-Flash": [
+   "zai-org/GLM-5.3-Flash"
+  ],
   "gpt-oss-20b": [
    "openai/gpt-oss-20b"
   ],
@@ -101,6 +122,9 @@
   ],
   "Qwen3.8 27B": [
    "Qwen/Qwen3.8-27B"
+  ],
+  "Qwen3.8-Flash-Next": [
+   "Qwen/Qwen3.8-Flash-Next"
   ],
   "Qwen3.6 35B-A3B": [
    "Qwen/Qwen3.6-35B-A3B"
@@ -180,6 +204,15 @@
   "Mistral Large 2": [
    "mistralai/Mistral-Large-Instruct-2411"
   ],
+  "Mistral Large 4": [
+   "mistralai/Mistral-Large-4-1T-A52B"
+  ],
+  "Mistral Medium 3.5": [
+   "mistralai/Mistral-Medium-3.5-128B"
+  ],
+  "Mistral Small 4": [
+   "mistralai/Mistral-Small-4-119B-2603"
+  ],
   "Devstral Small": [
    "mistralai/Devstral-Small-2505"
   ],
@@ -192,11 +225,20 @@
   "Command R+": [
    "CohereForAI/c4ai-command-r-plus"
   ],
+  "Command A+": [
+   "CohereLabs/command-a-plus-05-2026-bf16"
+  ],
   "MiniMax-M2": [
    "MiniMaxAI/MiniMax-M2"
   ],
   "MiniMax-M2.5": [
    "MiniMaxAI/MiniMax-M2.5"
+  ],
+  "MiniMax-M3.1-Flash": [
+   "MiniMaxAI/MiniMax-M3.1-Flash"
+  ],
+  "MiniMax-M3": [
+   "MiniMaxAI/MiniMax-M3"
   ],
   "Nemotron 3 Super 120B-A12B": [
    "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16"
@@ -204,6 +246,57 @@
   "Nemotron 3 Nano 30B-A3B": [
    "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
    "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8"
+  ],
+  "Nemotron 3.5 Super VL": [
+   "nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-BF16"
+  ],
+  "Nemotron 3 Ultra 550B A55B": [
+   "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-BF16"
+  ],
+  "Nemotron 3.5 Lightning": [
+   "nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16"
+  ],
+  "NVIDIA Nemotron 3 Nano 4B": [
+   "nvidia/NVIDIA-Nemotron-3-Nano-4B-BF16"
+  ],
+  "Ling 3.1 Flash 1019": [
+   "inclusionAI/Ling-3.1-flash-1019"
+  ],
+  "Step 5 Preview": [
+   "stepfun-ai/Step-5-Preview"
+  ],
+  "Muse Spark Open": [
+   "meta-models/Muse-Spark-Open-816B-A42B"
+  ],
+  "Muse Glimmer": [
+   "meta-models/Muse-Glimmer-30B"
+  ],
+  "Nanbeige4.3-33B": [
+   "Nanbeige/Nanbeige4.3-33B"
+  ],
+  "K2 Horizon 375B A23B": [
+   "IFM/K2-Horizon-375B-A23B"
+  ],
+  "Beam 1.0": [
+   "reflection/Beam-1.0-501B-A23B"
+  ],
+  "Inkling Small": [
+   "thinkingmachines/Inkling-Small"
+  ],
+  "Inkling": [
+   "thinkingmachines/Inkling"
+  ],
+  "K-EXAONE 2.0": [
+   "LGAI-EXAONE/K-EXAONE-2.0-750B-A37B"
+  ],
+  "Granite 4.2 8B": [
+   "ibm-granite/granite-4.2-8b"
+  ],
+  "Granite 4.2 3B": [
+   "ibm-granite/granite-4.2-3b"
+  ],
+  "North Mini Code": [
+   "CohereLabs/North-Mini-Code-1.0"
   ]
  },
  "notes": {
@@ -211,6 +304,8 @@
   "Kimi K2 0905": "AA's row links its weights to Kimi-K2-Instruct-0905.",
   "DeepSeek V4 Pro 0424": "AA splits DeepSeek V4 into dated releases; each row's modelWeightsSourceUrl names its own repo. 0424 and 0420 are the original undated repos.",
   "DeepSeek V4 Flash 0420": "See DeepSeek V4 Pro 0424.",
-  "Command R+": "AA's only Command R+ row is \"Command-R+ (Apr '24)\", whose weights link to c4ai-command-r-plus. No AA row evaluates the 08-2024 release, so it is left unmapped."
+  "Command R+": "AA's only Command R+ row is \"Command-R+ (Apr '24)\", whose weights link to c4ai-command-r-plus. No AA row evaluates the 08-2024 release, so it is left unmapped.",
+  "MiMo-V2.6-Pro": "AA's row links its weights to MiMo-V2.6-Pro-RL (modelWeightsSourceUrl, read 2026-11-12).",
+  "MiMo-V2.6-Flash": "AA's row links its weights to MiMo-V2.6-Flash-RL (modelWeightsSourceUrl, read 2026-11-12)."
  }
 }
