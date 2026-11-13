@@ -169,6 +169,7 @@ def test_fetch_converts_v5_values_onto_the_calibrated_scale(version):
         ("Inkling (Xhigh)", "thinkingmachines/Inkling"),
         ("Inkling Small", "thinkingmachines/Inkling-Small"),
         ("MiMo-V2.6-Pro", "XiaomiMiMo/MiMo-V2.6-Pro-RL"),
+        ("Muse Glimmer", "RadixArk/Muse-Glimmer-NVFP4"),
         ("Qwen3.8-Flash-Next", "Qwen/Qwen3.8-Flash-Next"),
     ],
 )

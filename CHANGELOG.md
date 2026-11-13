@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Changed
+
+- Artificial Analysis Intelligence Index scores are read live again. AA moved
+  to index v5, on another scale, and since then every fetch fell back to the
+  2026-10-27 snapshot, so no new release got a live index score. v5 values are
+  now converted onto the v4.3.2 scale by a line through five releases read on
+  both versions, and 31 more open-weights releases on the v5 leaderboard map
+  to their Hugging Face repos. Qwen3.8-Flash-Next goes from 75.4 to 91.9 and
+  ranks first on a 16, 24 or 32 GB GPU with 64 GB of RAM, ahead of
+  Qwen3.8-27B. Kimi K3.1 Pro converts past the top of the scale and is held at
+  100. A score held at either end no longer helps put AA's per-benchmark
+  results on the general scale. (#309)
+
 ## [0.6.8] - 2026-11-13
 
 ### Added

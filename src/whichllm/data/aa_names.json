@@ -11,7 +11,8 @@
    "moonshotai/Kimi-K2-Thinking"
   ],
   "Kimi K3.1 Pro": [
-   "moonshotai/Kimi-K3.1-Pro"
+   "moonshotai/Kimi-K3.1-Pro",
+   "KarLexAI/Kimi-K3.1-Pro-GGUF"
   ],
   "Kimi K3": [
    "moonshotai/Kimi-K3"
@@ -257,10 +258,12 @@
    "nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16"
   ],
   "NVIDIA Nemotron 3 Nano 4B": [
-   "nvidia/NVIDIA-Nemotron-3-Nano-4B-BF16"
+   "nvidia/NVIDIA-Nemotron-3-Nano-4B-BF16",
+   "nvidia/NVIDIA-Nemotron-3-Nano-4B-GGUF"
   ],
   "Ling 3.1 Flash 1019": [
-   "inclusionAI/Ling-3.1-flash-1019"
+   "inclusionAI/Ling-3.1-flash-1019",
+   "AMAImedia/Ling-3.1-Flash-1019-FP8-GGUF"
   ],
   "Step 5 Preview": [
    "stepfun-ai/Step-5-Preview"
@@ -269,7 +272,8 @@
    "meta-models/Muse-Spark-Open-816B-A42B"
   ],
   "Muse Glimmer": [
-   "meta-models/Muse-Glimmer-30B"
+   "meta-models/Muse-Glimmer-30B",
+   "RadixArk/Muse-Glimmer-NVFP4"
   ],
   "Nanbeige4.3-33B": [
    "Nanbeige/Nanbeige4.3-33B"
@@ -293,7 +297,8 @@
    "ibm-granite/granite-4.2-8b"
   ],
   "Granite 4.2 3B": [
-   "ibm-granite/granite-4.2-3b"
+   "ibm-granite/granite-4.2-3b",
+   "bartowski/granite-4.2-3b-GGUF"
   ],
   "North Mini Code": [
    "CohereLabs/North-Mini-Code-1.0"
