@@ -371,6 +371,8 @@ def estimate_speed_uncertainty(
     uses_multi_gpu: bool = False,
     identical_gpus: bool = False,
     cpu_name: str = "",
+    tensor_parallel: bool = False,
+    paged_experts: bool = False,
 ) -> tuple[str, tuple[float, float] | None, list[str]]:
     """Return confidence metadata for the speed point estimate.
 
@@ -411,7 +413,20 @@ def estimate_speed_uncertainty(
                 "GPU memory bandwidth is unknown, so speed is especially uncertain."
             )
 
-        if placement is not None and placement.kind == "expert_offload":
+        if (
+            placement is not None
+            and placement.kind == "expert_offload"
+            and paged_experts
+        ):
+            confidence = "low"
+            notes.append(
+                "SGLang pages experts in from RAM and computes them on the GPU. "
+                "At one request its measurements match or beat llama.cpp's "
+                "--n-cpu-moe, whose speed this estimate uses; the PCIe link and "
+                "how often a token needs an expert that is not resident decide "
+                "the rest."
+            )
+        elif placement is not None and placement.kind == "expert_offload":
             if not ram_known:
                 confidence = "low"
             notes.append(
@@ -464,7 +479,14 @@ def estimate_speed_uncertainty(
             notes.append("The size of this GGUF file is estimated.")
 
     if uses_multi_gpu:
-        if identical_gpus and _is_dense_gguf(model, variant):
+        if tensor_parallel:
+            confidence = "low"
+            notes.append(
+                "Tensor parallelism reads every card's share at once, so it can "
+                "decode faster than this estimate, which keeps a layer split's "
+                "speed; over PCIe each layer's all-reduce takes part of the gain."
+            )
+        elif identical_gpus and _is_dense_gguf(model, variant):
             confidence = _lower_speed_confidence(confidence, "medium")
             notes.append(
                 "Published layer splits across identical cards stay close to this estimate."

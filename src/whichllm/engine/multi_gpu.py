@@ -19,6 +19,10 @@ from dataclasses import dataclass
 from whichllm.constants import _GiB
 from whichllm.hardware.types import GPUInfo
 
+# Tensor-parallel group sizes, largest first. vLLM and SGLang need the size to
+# divide the attention heads, which powers of two do for nearly every model.
+TENSOR_PARALLEL_SIZES = (8, 4, 2)
+
 # Per-device runtime buffer: driver context, graph buffers, and allocator slack
 # that every participating device needs before a single layer can live on it.
 PER_DEVICE_RUNTIME_BUFFER_BYTES = int(0.3 * _GiB)
@@ -131,3 +135,41 @@ def plan_device_split(
         pooled_bytes=pooled_bytes,
         reserve_fits=reserve_fits,
     )
+
+
+def split_evenly(
+    gpus: Sequence[GPUInfo],
+    available: Sequence[int],
+    *,
+    weight_bytes: int,
+    kv_bytes: int,
+    nonsplittable_bytes: int,
+    utilization: float,
+) -> tuple[DevicePlacement, ...]:
+    """Equal shares of a tensor-parallel group, and whether each card holds one.
+
+    vLLM and SGLang give every card of the group the same share of each layer
+    and of the KV cache. Each card also keeps its own activation buffers and
+    framework overhead, so the runtime-only part is on every device, and a
+    share fits within the card's budget times ``utilization``.
+    """
+    size = len(gpus)
+    weight_share = max(0, weight_bytes) // size
+    kv_share = max(0, kv_bytes) // size
+    required = weight_share + kv_share + nonsplittable_bytes
+    placements: list[DevicePlacement] = []
+    for gpu, gpu_available in zip(gpus, available, strict=True):
+        budget = max(0, gpu_available - PER_DEVICE_RUNTIME_BUFFER_BYTES)
+        placements.append(
+            DevicePlacement(
+                name=gpu.name,
+                available_bytes=gpu_available,
+                budget_bytes=budget,
+                weight_bytes=weight_share,
+                kv_bytes=kv_share,
+                nonsplittable_bytes=nonsplittable_bytes,
+                required_bytes=required,
+                fits=required <= int(budget * utilization),
+            )
+        )
+    return tuple(placements)

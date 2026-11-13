@@ -5,7 +5,7 @@ from __future__ import annotations
 from whichllm.engine.context import context_cell
 from whichllm.engine.pack_ranking import pack_tiers
 from whichllm.engine.quantization import effective_quant_type
-from whichllm.engine.recipe import build_recipe
+from whichllm.engine.recipe import build_recipe, build_server_recipe
 from whichllm.engines.cards import card_by_id
 from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.types import HardwareInfo
@@ -201,6 +201,16 @@ def display_markdown(
             ]
         else:
             lines += ["", f"Run #1 with {name}:", "", "```bash", recipe.command, "```"]
+    server = (
+        build_server_recipe(results[0])
+        if recipe is None and context_length is not None and not results[0].pack_launch
+        else None
+    )
+    if server is not None:
+        card = card_by_id(server.engine)
+        name = card.name if card else server.engine
+        lines += ["", f"Run #1 with {name}:", "", "```bash", server.command, "```"]
+        lines += ["", *server.notes] if server.notes else []
     for rank, result in pack_rows:
         docs = result.pack_docs_speed
         lines += [

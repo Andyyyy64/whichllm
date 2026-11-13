@@ -1,0 +1,53 @@
+{
+  "id": "sglang",
+  "name": "SGLang",
+  "kind": "runner",
+  "url": "https://github.com/sgl-project/sglang",
+  "evidence": "documented",
+  "upstream": {
+    "github": "sgl-project/sglang",
+    "version": "0.5.23",
+    "released_at": "2026-11-02",
+    "status": "active"
+  },
+  "checked_at": "2026-11-13",
+  "sources": [
+    "https://github.com/sgl-project/sglang/releases/tag/v0.5.23",
+    "https://github.com/sgl-project/sglang/blob/v0.5.23/docs/docs/get-started/install.mdx",
+    "https://github.com/sgl-project/sglang/blob/v0.5.23/docs/docs/advanced_features/quantization.mdx",
+    "https://github.com/sgl-project/sglang/blob/v0.5.23/docs/docs/advanced_features/server_arguments.mdx",
+    "https://github.com/sgl-project/sglang/blob/v0.5.23/docs/docs/advanced_features/paged_experts.mdx",
+    "https://github.com/sgl-project/sglang/blob/v0.5.23/python/sglang/cli/serve.py",
+    "https://github.com/sgl-project/sglang/blob/v0.5.23/python/sglang/srt/entrypoints/openai/protocol.py"
+  ],
+  "platforms": [
+    {
+      "os": ["linux"],
+      "accel": "cuda",
+      "min_compute_capability": "7.5",
+      "note": "CUDA 13 only; 0.5.19 was the last release with CUDA 12. FlashInfer, the default attention backend, needs sm75 or newer"
+    }
+  ],
+  "safetensors": ["BF16", "FP16", "FP8", "INT8", "AWQ", "GPTQ", "NVFP4", "MXFP4", "BNB_4BIT"],
+  "memory": ["gpu", "tensor_parallel", "paged_experts"],
+  "serve": "sglang serve {repo}",
+  "tensor_parallel": "--tp-size {size}",
+  "paged_experts": {
+    "flags": "--enable-paged-experts --paged-experts-num-resident {resident} --mem-fraction-static {fraction}",
+    "formats": ["BF16", "FP16", "FP8", "AWQ", "GPTQ", "NVFP4", "MXFP4"],
+    "format_flags": {
+      "MXFP4": "--moe-runner-backend marlin",
+      "NVFP4": "--moe-runner-backend marlin"
+    },
+    "shared_experts_flags": "--disable-shared-experts-fusion"
+  },
+  "port": 30000,
+  "api": ["openai", "anthropic"],
+  "install": {
+    "docs": "https://github.com/sgl-project/sglang/blob/main/docs/docs/get-started/install.mdx",
+    "linux": "uv pip install --prerelease=allow sglang"
+  },
+  "detect_binaries": ["sglang"],
+  "probe": {"path": "/v1/models", "contains": "\"owned_by\":\"sglang\""},
+  "note": "No native Windows build; it runs under WSL. Its docs also cover AMD Instinct GPUs through ROCm, left out here. Paged Experts runs on one GPU and keeps every expert in pinned RAM, which WSL caps at about half the RAM. It rejects per-tensor FP8 experts at startup. INT8 pages only with SGLang's own w8a8_int8 or block quantization and bitsandbytes not at all, so whichllm leaves both out of it."
+}

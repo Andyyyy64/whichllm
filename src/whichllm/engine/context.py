@@ -25,7 +25,14 @@ def model_context_limit(model: ModelInfo) -> int | None:
 def _placed_the_same(result: CompatibilityResult, check: CompatibilityResult) -> bool:
     kind = result.placement.kind if result.placement else None
     other = check.placement.kind if check.placement else None
-    return check.can_run and check.fit_type == result.fit_type and other == kind
+    return (
+        check.can_run
+        and check.fit_type == result.fit_type
+        and other == kind
+        and check.tensor_parallel_size == result.tensor_parallel_size
+        and (check.paged_experts_resident is None)
+        == (result.paged_experts_resident is None)
+    )
 
 
 def max_context_tokens(

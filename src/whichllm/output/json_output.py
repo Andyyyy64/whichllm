@@ -9,7 +9,7 @@ from dataclasses import asdict
 from whichllm.engine.context import model_context_limit
 from whichllm.engine.multi_gpu import DevicePlacement
 from whichllm.engine.quantization import effective_quant_type, estimate_weight_bytes
-from whichllm.engine.recipe import build_recipe
+from whichllm.engine.recipe import build_recipe, build_server_recipe
 from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.types import HardwareInfo
 from whichllm.models.types import GGUFVariant, ModelInfo
@@ -60,7 +60,23 @@ def _recipe_json(
             "command": result.pack_launch,
         }
     recipe = build_recipe(result, context_length)
-    return asdict(recipe) if recipe else None
+    if recipe is not None:
+        return asdict(recipe)
+    server = build_server_recipe(result)
+    if server is None:
+        return None
+    # vLLM and SGLang serve the repository's own weights; the GGUF recipes do
+    # not apply.
+    return {
+        "gguf_repo": None,
+        "quant": server.weights,
+        "llama_cpp": None,
+        "lm_studio": None,
+        "ollama": None,
+        "notes": list(server.notes),
+        "engine": server.engine,
+        "command": server.command,
+    }
 
 
 def hardware_json(hardware: HardwareInfo) -> dict:
@@ -163,6 +179,8 @@ def display_json(
                 "vram_available_bytes": r.vram_available_bytes,
                 "uses_multi_gpu": r.uses_multi_gpu,
                 "multi_gpu_effective_vram_bytes": r.multi_gpu_effective_vram_bytes,
+                "tensor_parallel_size": r.tensor_parallel_size,
+                "paged_experts_resident": r.paged_experts_resident,
                 "estimated_tok_per_sec": r.estimated_tok_per_sec,
                 "speed_confidence": r.speed_confidence,
                 "speed_range_tok_per_sec": (

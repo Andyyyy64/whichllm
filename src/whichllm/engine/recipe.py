@@ -11,7 +11,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from whichllm.engine.paged_experts import (
+    STATIC_MEMORY_FRACTION,
+    has_shared_experts,
+)
+from whichllm.engine.quantization import effective_quant_type
 from whichllm.engine.types import CompatibilityResult
+from whichllm.engines.cards import card_by_id
 
 # Above any real layer count: llama.cpp clamps -ngl to the model's layers.
 _ALL_LAYERS = 99
@@ -111,6 +117,96 @@ def build_recipe(result: CompatibilityResult, context_length: int) -> Recipe | N
         notes=tuple(notes),
         engine=engine,
         command=commands.get(engine, llama_cpp),
+    )
+
+
+@dataclass(frozen=True)
+class ServerRecipe:
+    """How a GPU server (vLLM, SGLang) serves a repository of Hugging Face
+    weights, and the commands of the other servers that read it."""
+
+    engine: str
+    repo: str
+    weights: str  # the format, as effective_quant_type names it
+    command: str
+    others: tuple[tuple[str, str], ...] = field(default=())  # (engine, command)
+    tensor_parallel_size: int | None = None
+    paged_experts_resident: int | None = None
+    notes: tuple[str, ...] = field(default=())
+
+
+def _serve(engine: str, result: CompatibilityResult) -> str | None:
+    """The engine's serve command for the row, or None when it cannot
+    hold the row the way the fit check placed it."""
+    card = card_by_id(engine)
+    if card is None or not card.safetensors or not card.serve:
+        return None
+    parts = [card.serve.format(repo=result.model.id)]
+    if result.tensor_parallel_size:
+        if card.tensor_parallel is None:
+            return None
+        parts.append(card.tensor_parallel.format(size=result.tensor_parallel_size))
+    if result.paged_experts_resident:
+        paged = card.paged_experts
+        weights = effective_quant_type(result.model, None)
+        if paged is None or weights not in paged.formats:
+            return None
+        parts.append(
+            paged.flags.format(
+                resident=result.paged_experts_resident,
+                fraction=STATIC_MEMORY_FRACTION,
+            )
+        )
+        parts.extend(flags for name, flags in paged.format_flags if name == weights)
+        if paged.shared_experts_flags and has_shared_experts(result.model):
+            parts.append(paged.shared_experts_flags)
+    return " ".join(parts)
+
+
+def _server_notes(result: CompatibilityResult) -> tuple[str, ...]:
+    if result.tensor_parallel_size:
+        return (
+            f"Splits the weights evenly over {result.tensor_parallel_size} GPUs "
+            "with tensor parallelism.",
+        )
+    if result.paged_experts_resident:
+        shape = result.model.shape
+        experts = shape.num_experts if shape else None
+        return (
+            f"Keeps {result.paged_experts_resident} of {experts} experts per MoE "
+            "layer on the GPU and pages the rest in from RAM, where every expert "
+            "stays pinned. If the KV cache runs out of room at startup, lower "
+            "--paged-experts-num-resident.",
+        )
+    return ()
+
+
+def build_server_recipe(result: CompatibilityResult) -> ServerRecipe | None:
+    """The serve command for a row of Hugging Face weights, or None for a GGUF
+    row or one no GPU server here runs."""
+    if result.gguf_variant is not None or result.artifact_variant is not None:
+        return None
+    if result.engine is None:
+        return None
+    command = _serve(result.engine, result)
+    if command is None:
+        return None
+    others = tuple(
+        (engine, other)
+        for engine in result.engines
+        if engine != result.engine
+        for other in [_serve(engine, result)]
+        if other is not None
+    )
+    return ServerRecipe(
+        engine=result.engine,
+        repo=result.model.id,
+        weights=effective_quant_type(result.model, None),
+        command=command,
+        others=others,
+        tensor_parallel_size=result.tensor_parallel_size,
+        paged_experts_resident=result.paged_experts_resident,
+        notes=_server_notes(result),
     )
 
 

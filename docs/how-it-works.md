@@ -305,7 +305,23 @@ For each `ModelInfo`, `engine/ranker.py` builds candidate variants:
 
 Apple Silicon and CPU-only rankings are restricted to GGUF candidates for
 runtime stability. Linux with NVIDIA can also rank non-GGUF AWQ/GPTQ/FP16/BF16
-repos.
+repos. vLLM and SGLang serve those weights and keep them in VRAM, so such a
+row counts in three cases.
+
+- The weights fit on one GPU.
+- They fit split evenly over 2, 4 or 8 GPUs with tensor parallelism. Every
+  card holds the same share and keeps its own buffers, so the smallest card
+  in the group bounds the split. The speed estimate stays at a layer split's
+  and leaves out what reading the shares at once gains.
+- An MoE in a format SGLang pages fits with its Paged Experts on one GPU. K
+  of each layer's experts stay on the GPU, K taking what SGLang's static
+  budget (0.88 of the GPU's memory) leaves after the rest of the weights,
+  the KV cache and the CUDA context. Every expert stays in pinned RAM, which
+  WSL caps at about half the RAM. The speed is llama.cpp's for the same
+  split, which SGLang's measurements match or beat at one request.
+
+Their RAM offload streams the weights on every token, far slower than
+llama.cpp's split of the model's GGUF, which covers every other case.
 
 ## Ranking
 

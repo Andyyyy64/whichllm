@@ -60,6 +60,12 @@ class CompatibilityResult:
     # Decode speed of the layer split relative to the best single card.
     multi_gpu_speed_factor: float = 1.0
     multi_gpu_identical: bool = False
+    # Hugging Face weights split evenly over this many GPUs with vLLM's or
+    # SGLang's tensor parallelism, when one card does not hold them.
+    tensor_parallel_size: int | None = None
+    # Routed experts per MoE layer SGLang's Paged Experts keeps on the GPU,
+    # for Hugging Face weights that pass one card's VRAM.
+    paged_experts_resident: int | None = None
     artifact_model: ModelInfo | None = None
     artifact_variant: GGUFVariant | None = None
     local_path: str | None = None

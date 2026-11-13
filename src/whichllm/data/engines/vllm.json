@@ -1,0 +1,52 @@
+{
+  "id": "vllm",
+  "name": "vLLM",
+  "kind": "runner",
+  "url": "https://github.com/vllm-project/vllm",
+  "evidence": "documented",
+  "upstream": {
+    "github": "vllm-project/vllm",
+    "version": "0.33.0",
+    "released_at": "2026-11-02",
+    "status": "active"
+  },
+  "checked_at": "2026-11-13",
+  "sources": [
+    "https://pypi.org/project/vllm/0.33.0/",
+    "https://github.com/vllm-project/vllm/releases/tag/v0.33.0rc3",
+    "https://github.com/vllm-project/vllm/blob/v0.33.0/docs/getting_started/installation/gpu.md",
+    "https://github.com/vllm-project/vllm/blob/v0.33.0/docs/getting_started/installation/gpu.cuda.inc.md",
+    "https://github.com/vllm-project/vllm/blob/v0.33.0/docs/getting_started/installation/gpu.rocm.inc.md",
+    "https://github.com/vllm-project/vllm/blob/v0.33.0/docs/features/quantization/README.md",
+    "https://github.com/vllm-project/vllm/blob/v0.33.0/docs/serving/parallelism_scaling.md",
+    "https://github.com/vllm-project/vllm/blob/v0.33.0/vllm/engine/arg_utils.py",
+    "https://github.com/vllm-project/vllm/blob/v0.33.0/vllm/config/model.py",
+    "https://github.com/vllm-project/vllm/blob/v0.33.0/vllm/entrypoints/serve/engine/protocol.py"
+  ],
+  "platforms": [
+    {
+      "os": ["linux"],
+      "accel": "cuda",
+      "min_compute_capability": "7.5",
+      "note": "Release wheels are CUDA 13.0 only from 0.33.0, so the driver must support CUDA 13"
+    },
+    {
+      "os": ["linux"],
+      "accel": "rocm",
+      "note": "ROCm 6.3 or newer on MI200, MI300, MI350, Radeon RX 7900 and RX 9000, Ryzen AI MAX and AI 300"
+    }
+  ],
+  "safetensors": ["BF16", "FP16", "FP8", "INT8", "AWQ", "GPTQ", "NVFP4", "MXFP4", "BNB_4BIT"],
+  "memory": ["gpu", "tensor_parallel"],
+  "serve": "vllm serve {repo} --max-model-len auto",
+  "tensor_parallel": "--tensor-parallel-size {size}",
+  "port": 8000,
+  "api": ["openai", "anthropic"],
+  "install": {
+    "docs": "https://docs.vllm.ai/en/latest/getting_started/installation/gpu.html",
+    "linux": "uv pip install vllm --torch-backend=auto"
+  },
+  "detect_binaries": ["vllm"],
+  "probe": {"path": "/v1/models", "contains": "\"owned_by\":\"vllm\""},
+  "note": "No native Windows build; it runs under WSL. --max-model-len auto sets the longest context that fits in the GPU's memory. --cpu-offload-gb streams weights from RAM on every token and is left out of the estimate. Its docs suggest pipeline parallelism over tensor parallelism without NVLink, for throughput; whichllm suggests tensor parallelism, which answers one request sooner."
+}
