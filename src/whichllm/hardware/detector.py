@@ -15,7 +15,7 @@ from whichllm.hardware.memory import (
     detect_ram_bytes,
 )
 from whichllm.hardware.nvidia import detect_nvidia_gpus
-from whichllm.hardware.ram_bandwidth import detect_ram_bandwidth
+from whichllm.hardware.ram_bandwidth import _is_wsl, detect_ram_bandwidth
 from whichllm.hardware.types import HardwareInfo
 from whichllm.hardware.windows import detect_windows_gpus
 
@@ -64,4 +64,5 @@ def detect_hardware() -> HardwareInfo:
         ram_bandwidth_detail=ram_bandwidth.detail,
         disk_free_bytes=disk_free,
         os=os_name,
+        wsl=_is_wsl(),
     )

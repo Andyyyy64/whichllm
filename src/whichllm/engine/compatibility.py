@@ -9,9 +9,12 @@ from whichllm.constants import MIN_COMPUTE_CAPABILITY_OLLAMA
 from whichllm.constants import VULKAN_ONLY_GPUS
 from whichllm.engine.multi_gpu import (
     PER_DEVICE_RUNTIME_BUFFER_BYTES,
+    TENSOR_PARALLEL_SIZES,
     PlacementPlan,
     plan_device_split,
+    split_evenly,
 )
+from whichllm.engine.paged_experts import pinned_ram_bytes, resident_experts
 from whichllm.engine.placement import (
     Placement,
     cpu_placement,
@@ -126,6 +129,8 @@ class _MultiGpuFit:
     gpus: list[GPUInfo]
     available: list[int]
     utilization: float
+    # Set when vLLM or SGLang split the weights evenly over the GPUs.
+    tensor_parallel_size: int | None = None
 
     def gpu_resident_plan(
         self,
@@ -137,6 +142,8 @@ class _MultiGpuFit:
         """Devices the GPU-resident part of a placement is split across."""
         if self.plan is None or not self.plan.devices:
             return None
+        if self.tensor_parallel_size:
+            return self.plan
         return plan_device_split(
             self.gpus,
             self.available,
@@ -248,6 +255,83 @@ def _multi_gpu_fit_budget(
     )
 
 
+def _tensor_parallel_fit(
+    gpus: list[GPUInfo],
+    available: list[int],
+    warnings: list[str],
+    memory: MemoryBreakdown,
+) -> _MultiGpuFit:
+    """Hugging Face weights split evenly over 2, 4 or 8 GPUs.
+
+    vLLM and SGLang run every layer on all the GPUs of a tensor-parallel group
+    and give each the same share of it, so the smallest card in the group
+    bounds the split. The largest group that fits is used: each card then reads
+    the least per token. Without one, the weights run on the largest card
+    alone, as in a single-GPU fit.
+    """
+    usable_gpus, usable_available, _ = _usable_devices(gpus, available)
+    best = max(zip(gpus, available, strict=True), key=lambda pair: pair[1])[0]
+    pool = sorted(
+        (
+            (gpu, gpu_available)
+            for gpu, gpu_available in zip(usable_gpus, usable_available, strict=True)
+            if gpu.vendor == best.vendor and not gpu.shared_memory
+        ),
+        key=lambda pair: pair[1],
+        reverse=True,
+    )
+    nonsplittable = memory.activation + memory.overhead
+    for size in TENSOR_PARALLEL_SIZES:
+        if size > len(pool):
+            continue
+        group_gpus = [gpu for gpu, _ in pool[:size]]
+        group_available = [gpu_available for _, gpu_available in pool[:size]]
+        utilization = (
+            _MULTI_GPU_HOMOGENEOUS_UTILIZATION
+            if _is_homogeneous_gpu_set(group_gpus, group_available)
+            else _MULTI_GPU_HETEROGENEOUS_UTILIZATION
+        )
+        devices = split_evenly(
+            group_gpus,
+            group_available,
+            weight_bytes=memory.weights,
+            kv_bytes=memory.kv_cache,
+            nonsplittable_bytes=nonsplittable,
+            utilization=utilization,
+        )
+        if not all(device.fits for device in devices):
+            continue
+        # What the group holds in the terms of the fit check's total, once
+        # every card has paid its own buffers.
+        smallest = min(device.budget_bytes for device in devices)
+        capacity = max(
+            memory.total,
+            size * (int(smallest * utilization) - nonsplittable) + nonsplittable,
+        )
+        warnings.append(
+            f"Tensor parallelism over {size} GPUs: each holds 1/{size} of the "
+            f"weights and KV cache, {devices[0].required_bytes / _GiB:.1f} GB "
+            "with its own buffers"
+        )
+        return _MultiGpuFit(
+            fit_vram_available=capacity,
+            uses_multi_gpu=True,
+            effective_vram=capacity,
+            plan=PlacementPlan(
+                devices=devices, pooled_bytes=capacity, reserve_fits=True
+            ),
+            gpus=group_gpus,
+            available=group_available,
+            utilization=utilization,
+            tensor_parallel_size=size,
+        )
+    warnings.append(
+        "No even tensor-parallel split over 2, 4 or 8 of these GPUs holds the "
+        "weights; vLLM and SGLang would run them on the largest card alone"
+    )
+    return _single_device_fit(gpus, available, 1.0)
+
+
 def _attach_device_split(
     placement: Placement | None,
     multi_gpu: _MultiGpuFit,
@@ -296,6 +380,14 @@ def _expert_offload_note(placement: Placement) -> str:
     )
 
 
+def _paged_experts_note(model: ModelInfo, resident: int) -> str:
+    experts = model.shape.num_experts if model.shape else None
+    return (
+        f"SGLang keeps {resident} of {experts} experts per MoE layer on the GPU "
+        "and pages the rest in from pinned RAM (--enable-paged-experts)"
+    )
+
+
 def check_compatibility(
     model: ModelInfo,
     variant: GGUFVariant | None,
@@ -339,6 +431,18 @@ def check_compatibility(
             available=gpu_available_values,
             utilization=1.0,
         )
+    elif variant is None and len(candidate_gpus) > 1:
+        # Hugging Face weights run in vLLM or SGLang, which split them over
+        # several GPUs with tensor parallelism instead of a layer split.
+        multi_gpu = _tensor_parallel_fit(
+            candidate_gpus, gpu_available_values, warnings, memory
+        )
+        if multi_gpu.uses_multi_gpu:
+            # Even shares, read at a layer split's speed: tensor parallelism
+            # reads them at once, which the estimate leaves out.
+            multi_gpu_speed_factor = _multi_gpu_speed_factor(
+                multi_gpu.gpus, [1] * len(multi_gpu.gpus)
+            )
     else:
         multi_gpu = _multi_gpu_fit_budget(
             candidate_gpus,
@@ -404,6 +508,7 @@ def check_compatibility(
         best_gpu and (best_gpu.shared_memory or best_gpu.vendor == "apple")
     )
     placement: Placement | None = None
+    paged_experts_resident: int | None = None
     if fit_vram_available >= vram_required:
         fit_type = "full_gpu"
         can_run = True
@@ -420,7 +525,19 @@ def check_compatibility(
             fit_type = "partial_offload"
             can_run = True
             offload_ratio = placement.cpu_weight_bytes / vram_required
-            warnings.append(_expert_offload_note(placement))
+            if variant is None and not uses_multi_gpu:
+                # Hugging Face weights: SGLang pages the experts in from RAM.
+                paged_experts_resident = resident_experts(
+                    model,
+                    memory,
+                    fit_vram_available,
+                    pinned_ram_bytes(hardware, usable_ram),
+                )
+            warnings.append(
+                _paged_experts_note(model, paged_experts_resident)
+                if paged_experts_resident
+                else _expert_offload_note(placement)
+            )
         elif (
             fit_vram_available > 0
             and (fit_vram_available + offload_ram_available) >= vram_required
@@ -490,6 +607,8 @@ def check_compatibility(
         multi_gpu_speed_factor=multi_gpu_speed_factor,
         multi_gpu_identical=uses_multi_gpu
         and _is_homogeneous_gpu_set(multi_gpu.gpus, multi_gpu.available),
+        tensor_parallel_size=multi_gpu.tensor_parallel_size,
+        paged_experts_resident=paged_experts_resident,
         warnings=warnings,
         fit_type=fit_type,
         placement=placement,

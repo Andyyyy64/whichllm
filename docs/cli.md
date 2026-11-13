@@ -272,8 +272,13 @@ placement, preferring one that is already running, then one that is
 installed, then llama.cpp. A row of a repository's own Hugging Face weights
 (AWQ, FP8, NVFP4 and so on) runs with vLLM, or SGLang when only it is
 installed, and the run line serves the repo with `vllm serve <repo>
---max-model-len auto`, which fits the context to the GPU. A row split over
-several GPUs gets no engine yet. It finds installed engines with file lookups only,
+--max-model-len auto`, which fits the context to the GPU. Weights too big
+for one card split evenly over 2, 4 or 8 GPUs with tensor parallelism
+(`--tensor-parallel-size N`, SGLang's `--tp-size N`). An MoE past one card's
+VRAM, in a format SGLang pages, runs with its Paged Experts on one GPU, and
+the run line adds `--enable-paged-experts --paged-experts-num-resident K
+--mem-fraction-static 0.88`, K being how many of each layer's experts stay
+on the GPU. It finds installed engines with file lookups only,
 so a ranking never runs a binary or asks a port. `--json` rows carry the
 chosen `engine`, every engine that can run the row in `engines`, and
 `engine_installed` (`null` with `--gpu`).
@@ -591,8 +596,11 @@ diffusion language models such as DiffusionGemma, which llama.cpp, LM Studio
 and Ollama do not run as chat models.
 
 Non-GGUF checkpoints are only considered on Linux with an NVIDIA GPU, and
-only where the weights fit in GPU memory, since vLLM and SGLang serve them from
-there. NVFP4
+only where the weights fit in GPU memory, on one card or split evenly over
+several, since vLLM and SGLang serve them from there. An MoE past one card's
+VRAM also counts when SGLang can page its experts in from RAM, which takes
+BF16, FP16, FP8, AWQ, GPTQ, NVFP4 or MXFP4 experts and room to pin every
+expert in RAM (about half the RAM under WSL). NVFP4
 and FP8 checkpoints also need compute capability 8.0 or newer (Ampere), since
 vLLM serves them through its Marlin kernels there. An NVFP4 pick on a GPU
 older than Blackwell carries a note that it runs through weight-only FP4

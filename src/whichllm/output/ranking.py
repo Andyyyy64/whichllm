@@ -544,6 +544,8 @@ def _print_server_recipe(result: CompatibilityResult) -> None:
         console.print(
             Text(f"  {other.name if other else engine}: {command}", style="dim")
         )
+    for note in recipe.notes:
+        console.print(Text(f"  {note}", style="dim"))
     # Neither has a Windows build, so under WSL nothing installed on the
     # Windows side can be missed.
     if result.engine_installed is False and card:
