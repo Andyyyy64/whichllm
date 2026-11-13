@@ -13,8 +13,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   whichllm ranks on Linux with an NVIDIA GPU and under WSL, now names one of
   them with its command, `vllm serve <repo> --max-model-len auto` or
   `sglang serve <repo>`. vLLM comes first unless only SGLang is installed.
-  Such a row had no run line before. A row split over several GPUs gets no
-  engine yet.
+  Such a row had no run line before.
+
+- A row of Hugging Face weights too big for one GPU now splits evenly over
+  2, 4 or 8 GPUs with tensor parallelism, and the run line adds
+  `--tensor-parallel-size N` for vLLM or `--tp-size N` for SGLang. Every card
+  holds the same share and keeps its own buffers, so the smallest card in
+  the group bounds the split. The speed estimate stays at a layer split's.
+  (#110)
+
+- An MoE in Hugging Face weights past one GPU's VRAM can now run with
+  SGLang's Paged Experts, which keeps K of each layer's experts on the GPU
+  and pages the rest in from RAM. The row shows as GPU+RAM and its run line
+  adds `--enable-paged-experts --paged-experts-num-resident K
+  --mem-fraction-static 0.88`. It takes BF16, FP16, FP8, AWQ, GPTQ, NVFP4 or
+  MXFP4 experts and room to pin every expert in RAM, which WSL caps at about
+  half the RAM. The speed is llama.cpp's for the same split, which SGLang's
+  measurements match or beat at one request.
 
 ### Fixed
 
@@ -23,8 +38,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   though no engine whichllm names runs those weights that way. vLLM and
   SGLang keep them in VRAM, and their RAM offload streams the weights on
   every token, 2.9 to 16.6 tok/s on a 16 GB card in SGLang's own
-  measurements. Such a row now shows only where the weights fit on the GPU,
-  and the model's GGUF still covers the split.
+  measurements. Such a row now shows only where vLLM or SGLang hold it, on
+  the GPUs or with Paged Experts, and the model's GGUF covers the rest.
 
 - whichllm on Windows no longer takes itself for WSL when it runs from a
   folder on a WSL share, `\\wsl.localhost\...`. There Windows resolves

@@ -73,7 +73,7 @@ def _recipe_json(
         "llama_cpp": None,
         "lm_studio": None,
         "ollama": None,
-        "notes": [],
+        "notes": list(server.notes),
         "engine": server.engine,
         "command": server.command,
     }
@@ -179,6 +179,8 @@ def display_json(
                 "vram_available_bytes": r.vram_available_bytes,
                 "uses_multi_gpu": r.uses_multi_gpu,
                 "multi_gpu_effective_vram_bytes": r.multi_gpu_effective_vram_bytes,
+                "tensor_parallel_size": r.tensor_parallel_size,
+                "paged_experts_resident": r.paged_experts_resident,
                 "estimated_tok_per_sec": r.estimated_tok_per_sec,
                 "speed_confidence": r.speed_confidence,
                 "speed_range_tok_per_sec": (

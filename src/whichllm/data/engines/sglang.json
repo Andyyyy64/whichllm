@@ -29,8 +29,18 @@
     }
   ],
   "safetensors": ["BF16", "FP16", "FP8", "INT8", "AWQ", "GPTQ", "NVFP4", "MXFP4", "BNB_4BIT"],
-  "memory": ["gpu"],
+  "memory": ["gpu", "tensor_parallel", "paged_experts"],
   "serve": "sglang serve {repo}",
+  "tensor_parallel": "--tp-size {size}",
+  "paged_experts": {
+    "flags": "--enable-paged-experts --paged-experts-num-resident {resident} --mem-fraction-static {fraction}",
+    "formats": ["BF16", "FP16", "FP8", "AWQ", "GPTQ", "NVFP4", "MXFP4"],
+    "format_flags": {
+      "MXFP4": "--moe-runner-backend marlin",
+      "NVFP4": "--moe-runner-backend marlin"
+    },
+    "shared_experts_flags": "--disable-shared-experts-fusion"
+  },
   "port": 30000,
   "api": ["openai", "anthropic"],
   "install": {
@@ -39,5 +49,5 @@
   },
   "detect_binaries": ["sglang"],
   "probe": {"path": "/v1/models", "contains": "\"owned_by\":\"sglang\""},
-  "note": "No native Windows build; it runs under WSL. Its docs also cover AMD Instinct GPUs through ROCm, left out here. Paged Experts (0.5.23, opt-in) keeps some of an MoE model's experts in pinned RAM on a single GPU; whichllm does not estimate it yet."
+  "note": "No native Windows build; it runs under WSL. Its docs also cover AMD Instinct GPUs through ROCm, left out here. Paged Experts runs on one GPU and keeps every expert in pinned RAM, which WSL caps at about half the RAM. It rejects per-tensor FP8 experts at startup. INT8 pages only with SGLang's own w8a8_int8 or block quantization and bitsandbytes not at all, so whichllm leaves both out of it."
 }

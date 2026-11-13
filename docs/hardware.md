@@ -361,8 +361,10 @@ bandwidth is unknown, a flat 0.7x factor applies. Multi-GPU speed stays
 low-confidence, because real performance also depends on the split mode,
 PCIe/NVLink, and the backend.
 
-This is a practical fit approximation. It does not model every tensor-parallel
-or pipeline-parallel runtime configuration.
+This is a practical fit approximation of llama.cpp's layer split. Rows of
+Hugging Face weights, which vLLM and SGLang serve, split evenly over 2, 4 or 8
+cards with tensor parallelism instead (see [How it works](how-it-works.md)).
+Pipeline parallelism is not modeled.
 
 The estimated per-GPU memory use can still differ from a real run: LM Studio and
 llama.cpp choose their own layer split. To compare a real run, record the model

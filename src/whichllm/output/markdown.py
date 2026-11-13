@@ -210,6 +210,7 @@ def display_markdown(
         card = card_by_id(server.engine)
         name = card.name if card else server.engine
         lines += ["", f"Run #1 with {name}:", "", "```bash", server.command, "```"]
+        lines += ["", *server.notes] if server.notes else []
     for rank, result in pack_rows:
         docs = result.pack_docs_speed
         lines += [

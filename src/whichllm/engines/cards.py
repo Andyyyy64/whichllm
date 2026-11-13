@@ -31,7 +31,20 @@ TRACKS = frozenset({"release", "minor"})
 OSES = frozenset({"linux", "windows", "darwin"})
 ACCELS = frozenset({"cuda", "rocm", "metal", "sycl", "vulkan", "cpu"})
 # "lazy_lookup": reads a model's lookup tables a row at a time from disk.
-MEMORY = frozenset({"gpu", "layer_offload", "expert_offload", "cpu", "lazy_lookup"})
+# "tensor_parallel": splits Hugging Face weights evenly over several GPUs.
+# "paged_experts": keeps some of each MoE layer's experts on one GPU and pages
+# the rest in from RAM.
+MEMORY = frozenset(
+    {
+        "gpu",
+        "layer_offload",
+        "expert_offload",
+        "cpu",
+        "lazy_lookup",
+        "tensor_parallel",
+        "paged_experts",
+    }
+)
 # Formats of Hugging Face weights (safetensors) an engine can read, named as
 # whichllm.engine.quantization names them from the repository.
 SAFETENSORS_FORMATS = frozenset(
@@ -44,7 +57,8 @@ _CARD_KEYS = frozenset(
         "id", "name", "kind", "url", "evidence", "upstream", "checked_at",
         "sources", "platforms", "gguf", "memory", "serve", "port", "api",
         "install", "detect_binaries", "detect_paths", "probe", "version_args",
-        "help_marker", "models", "wsl", "safetensors", "note",
+        "help_marker", "models", "wsl", "safetensors", "tensor_parallel",
+        "paged_experts", "note",
     }
 )  # fmt: skip
 _UPSTREAM_KEYS = frozenset({"github", "version", "released_at", "status", "track"})
@@ -53,6 +67,7 @@ _PLATFORM_KEYS = frozenset(
 )
 _GGUF_KEYS = frozenset({"extra", "missing"})
 _PROBE_KEYS = frozenset({"path", "contains"})
+_PAGED_KEYS = frozenset({"flags", "formats", "format_flags", "shared_experts_flags"})
 _MODEL_KEYS = frozenset({"id", "name", "base", "platforms", "packs", "note"})
 _PACK_KEYS = frozenset(
     {
@@ -152,6 +167,21 @@ class FixedModel:
 
 
 @dataclass(frozen=True)
+class PagedExperts:
+    """How an engine keeps K of each MoE layer's experts on one GPU and pages
+    the rest in from pinned RAM (SGLang's Paged Experts)."""
+
+    # Takes {resident}, the experts per layer kept on the GPU, and may take
+    # {fraction}, the static memory fraction K was worked out for.
+    flags: str
+    formats: tuple[str, ...]  # formats of Hugging Face weights it pages
+    # (format, flags) a format needs on top, such as another MoE runner.
+    format_flags: tuple[tuple[str, str], ...] = ()
+    # Flags for a model with shared experts, which paging cannot fuse.
+    shared_experts_flags: str | None = None
+
+
+@dataclass(frozen=True)
 class EngineCard:
     id: str
     name: str
@@ -187,6 +217,9 @@ class EngineCard:
     # Formats of Hugging Face weights it serves (SAFETENSORS_FORMATS); empty
     # for an engine that reads only GGUF.
     safetensors: tuple[str, ...] = ()
+    # Flags that split the weights over {size} GPUs with tensor parallelism.
+    tensor_parallel: str | None = None
+    paged_experts: PagedExperts | None = None
     track: str = "release"  # see TRACKS
     note: str | None = None
 
@@ -289,6 +322,37 @@ def _probe(raw, path: Path) -> tuple[str | None, str | None]:
     if not probe_path.startswith("/"):
         raise _fail(path, "'probe' path starts with '/'")
     return probe_path, _text(raw, "contains", path)
+
+
+def _paged_experts(
+    raw, safetensors: tuple[str, ...], path: Path
+) -> PagedExperts | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise _fail(path, "'paged_experts' must be an object")
+    _known_keys(raw, _PAGED_KEYS, "'paged_experts'", path)
+    flags = _text(raw, "flags", path)
+    if "{resident}" not in flags:
+        raise _fail(path, "'paged_experts' flags take {resident}")
+    formats = _strings(raw, "formats", path)
+    if not formats or not set(formats) <= set(safetensors):
+        raise _fail(path, "'paged_experts' formats are some of the card's safetensors")
+    format_flags = raw.get("format_flags", {})
+    if not isinstance(format_flags, dict) or not all(
+        isinstance(value, str) and value for value in format_flags.values()
+    ):
+        raise _fail(path, "'paged_experts' format_flags maps a format to its flags")
+    if not set(format_flags) <= set(formats):
+        raise _fail(
+            path, "'paged_experts' format_flags names a format it does not page"
+        )
+    return PagedExperts(
+        flags=flags,
+        formats=formats,
+        format_flags=tuple(sorted(format_flags.items())),
+        shared_experts_flags=_text(raw, "shared_experts_flags", path, optional=True),
+    )
 
 
 def _gb(raw: dict, key: str, path: Path, where: str) -> float | None:
@@ -452,6 +516,18 @@ def parse_card(data: dict, path: Path) -> EngineCard:
             f"'safetensors' {safetensors} must be a subset of "
             f"{sorted(SAFETENSORS_FORMATS)}",
         )
+    tensor_parallel = _text(data, "tensor_parallel", path, optional=True)
+    if tensor_parallel is not None and "{size}" not in tensor_parallel:
+        raise _fail(path, "'tensor_parallel' takes {size}, the number of GPUs")
+    paged_experts = _paged_experts(data.get("paged_experts"), safetensors, path)
+    for strategy, given in (
+        ("tensor_parallel", tensor_parallel),
+        ("paged_experts", paged_experts),
+    ):
+        if (strategy in memory) != (given is not None):
+            raise _fail(
+                path, f"'memory' lists {strategy} exactly when the card gives it"
+            )
     card = EngineCard(
         id=_text(data, "id", path),
         name=_text(data, "name", path),
@@ -480,6 +556,8 @@ def parse_card(data: dict, path: Path) -> EngineCard:
         models=models,
         runs_in_wsl=wsl,
         safetensors=safetensors,
+        tensor_parallel=tensor_parallel,
+        paged_experts=paged_experts,
         track=_choice(upstream, "track", TRACKS, path)
         if "track" in upstream
         else "release",
@@ -528,6 +606,7 @@ __all__ = [
     "FixedModel",
     "GgufSupport",
     "Pack",
+    "PagedExperts",
     "Platform",
     "Requires",
     "SAFETENSORS_FORMATS",

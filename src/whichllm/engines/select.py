@@ -62,20 +62,31 @@ def engines_for(
     The memory estimate leaves a large lookup table on disk, so a model with
     one needs an engine documented to read it from there. A row without a
     GGUF is the repository's own Hugging Face weights, which a GPU server
-    reads in the format the repository names.
+    reads in the format the repository names, and holds on one GPU, split
+    over several with tensor parallelism, or with Paged Experts.
     """
     quant = _gguf_quant(result)
     weights = None if quant else effective_quant_type(result.model, None)
-    # vLLM and SGLang split a model over several GPUs with tensor or pipeline
-    # parallelism, which the estimate does not model yet.
-    if weights is not None and result.uses_multi_gpu:
-        return []
     kind = result.placement.kind if result.placement else result.fit_type
     needed = {_MEMORY_FOR_PLACEMENT.get(kind, "gpu")}
+    paged = weights is not None and result.paged_experts_resident is not None
+    if weights is not None:
+        # A GPU server holds Hugging Face weights on one GPU, split evenly
+        # over several, or with Paged Experts; nothing else.
+        if result.tensor_parallel_size:
+            needed = {"tensor_parallel"}
+        elif paged:
+            needed = {"paged_experts"}
+        elif needed != {"gpu"} or result.uses_multi_gpu:
+            return []
     if lazy_lookup_params(result.artifact_model or result.model):
         needed.add("lazy_lookup")
 
     def reads(card: EngineCard) -> bool:
+        if paged:
+            return card.paged_experts is not None and (
+                weights in card.paged_experts.formats
+            )
         if weights is not None:
             return weights in card.safetensors
         return reads_quant(card, quant, cards)

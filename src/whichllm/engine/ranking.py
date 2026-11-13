@@ -20,6 +20,7 @@ from whichllm.engine.ranking_filters import (
 from whichllm.engine.ranking_score import _compute_quality_score, _family_selection_key
 from whichllm.engine.ranking_variants import _iter_candidate_variants
 from whichllm.engine.types import CompatibilityResult
+from whichllm.engines.cards import load_cards
 from whichllm.hardware.types import HardwareInfo
 from whichllm.models.benchmark import (
     BenchmarkEvidence,
@@ -140,6 +141,16 @@ def _lookup_evidence(
     return evidence
 
 
+def _paged_formats() -> frozenset[str]:
+    """Formats of Hugging Face weights an engine pages the experts of."""
+    return frozenset(
+        weights
+        for card in load_cards()
+        if card.paged_experts
+        for weights in card.paged_experts.formats
+    )
+
+
 def rank_models(
     models: list[ModelInfo],
     hardware: HardwareInfo,
@@ -254,12 +265,20 @@ def rank_models(
             compat = check_compatibility(model, variant, hardware, context_length)
             if not compat.can_run:
                 continue
-            # vLLM and SGLang serve Hugging Face weights from VRAM. Their
-            # --cpu-offload-gb streams the rest from RAM on every token, 2.9 to
-            # 16.6 tok/s on a 16 GB card in SGLang's own measurements (#42557),
-            # so these rows fit on the GPU or not at all. The model's GGUF
-            # covers the GPU and RAM split.
-            if variant is None and compat.fit_type != "full_gpu":
+            # vLLM and SGLang serve Hugging Face weights from VRAM, on one GPU
+            # or split evenly over several. Their --cpu-offload-gb streams the
+            # rest from RAM on every token, 2.9 to 16.6 tok/s on a 16 GB card
+            # in SGLang's own measurements (#42557), so past VRAM only SGLang's
+            # Paged Experts runs these rows, for an MoE in a format it pages.
+            # The model's GGUF covers every other GPU and RAM split.
+            if (
+                variant is None
+                and compat.fit_type != "full_gpu"
+                and not (
+                    compat.paged_experts_resident
+                    and effective_quant_type(model, None) in _paged_formats()
+                )
+            ):
                 continue
             if format_note:
                 compat.warnings.append(format_note)
@@ -306,6 +325,8 @@ def rank_models(
                 uses_multi_gpu=compat.uses_multi_gpu,
                 identical_gpus=compat.multi_gpu_identical,
                 cpu_name=hardware.cpu_name,
+                tensor_parallel=compat.tensor_parallel_size is not None,
+                paged_experts=compat.paged_experts_resident is not None,
             )
             compat.quality_score = _compute_quality_score(
                 model,

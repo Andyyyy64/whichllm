@@ -50,4 +50,6 @@ class HardwareInfo:
     ram_bandwidth_measured_gbps: float | None = None
     disk_free_bytes: int = 0
     os: str = "linux"  # "linux" | "darwin" | "windows"
+    # Linux under WSL2, where CUDA pins at most about half of the RAM.
+    wsl: bool = False
     budget_notes: list[str] = field(default_factory=list)
