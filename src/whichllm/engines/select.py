@@ -16,7 +16,8 @@ from whichllm.hardware.types import HardwareInfo
 # Engines whichllm can write a recipe for. Jan and Lemonade load models by their
 # own names rather than a Hugging Face repo and quant, and KoboldCpp needs a
 # local file, so they are listed as able to run a row but never chosen for it.
-RECIPE_ENGINES = ("llama.cpp", "ik_llama.cpp", "ollama", "lm-studio")
+# vLLM and SGLang serve a repository of Hugging Face weights.
+RECIPE_ENGINES = ("llama.cpp", "ik_llama.cpp", "ollama", "lm-studio", "vllm", "sglang")
 
 _MEMORY_FOR_PLACEMENT = {
     "gpu": "gpu",
@@ -59,21 +60,32 @@ def engines_for(
     """Engines that run here, read the row's quant and hold its placement.
 
     The memory estimate leaves a large lookup table on disk, so a model with
-    one needs an engine documented to read it from there.
+    one needs an engine documented to read it from there. A row without a
+    GGUF is the repository's own Hugging Face weights, which a GPU server
+    reads in the format the repository names.
     """
     quant = _gguf_quant(result)
-    if quant is None:
+    weights = None if quant else effective_quant_type(result.model, None)
+    # vLLM and SGLang split a model over several GPUs with tensor or pipeline
+    # parallelism, which the estimate does not model yet.
+    if weights is not None and result.uses_multi_gpu:
         return []
     kind = result.placement.kind if result.placement else result.fit_type
     needed = {_MEMORY_FOR_PLACEMENT.get(kind, "gpu")}
     if lazy_lookup_params(result.artifact_model or result.model):
         needed.add("lazy_lookup")
+
+    def reads(card: EngineCard) -> bool:
+        if weights is not None:
+            return weights in card.safetensors
+        return reads_quant(card, quant, cards)
+
     return [
         card
         for card in cards
         if card.kind == "runner"
         and needed <= set(card.memory)
-        and reads_quant(card, quant, cards)
+        and reads(card)
         and availability(card, hardware).runs
     ]
 
@@ -82,7 +94,7 @@ def pick_engine(
     candidates: list[EngineCard], installed: dict[str, Installed]
 ) -> EngineCard | None:
     """The engine a recipe uses: one already running, else installed, else the
-    best evidence, with llama.cpp first among equals."""
+    best evidence, with llama.cpp first among equals and vLLM before SGLang."""
     usable = [card for card in candidates if card.id in RECIPE_ENGINES]
     if not usable:
         return None
@@ -94,6 +106,7 @@ def pick_engine(
             found is None,
             EVIDENCE.index(card.evidence),
             card.id != "llama.cpp",
+            card.id != "vllm",
             card.id,
         )
 

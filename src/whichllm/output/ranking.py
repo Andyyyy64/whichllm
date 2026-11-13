@@ -14,7 +14,7 @@ from rich.text import Text
 from whichllm.engine.context import context_cell
 from whichllm.engine.pack_ranking import pack_tiers
 from whichllm.engine.quantization import effective_quant_type
-from whichllm.engine.recipe import build_recipe
+from whichllm.engine.recipe import build_recipe, build_server_recipe
 from whichllm.engine.types import CompatibilityResult
 from whichllm.engines.cards import card_by_id, install_hint
 from whichllm.hardware import ram_bandwidth
@@ -527,9 +527,35 @@ def _host_os() -> str:
     return name if name in ("linux", "windows", "darwin") else "linux"
 
 
+def _print_server_recipe(result: CompatibilityResult) -> None:
+    """The run line of a row of Hugging Face weights: vLLM's or SGLang's."""
+    recipe = build_server_recipe(result)
+    if recipe is None:
+        return
+    console = _console.console
+    card = card_by_id(recipe.engine)
+    name = card.name if card else recipe.engine
+    installed = " (installed)" if result.engine_installed else ""
+    console.print()
+    console.print(f"  [bold]Run #1 with {escape(name)}{installed}:[/]")
+    console.print(Text(f"    {recipe.command}", style="bold cyan"))
+    for engine, command in recipe.others:
+        other = card_by_id(engine)
+        console.print(
+            Text(f"  {other.name if other else engine}: {command}", style="dim")
+        )
+    # Neither has a Windows build, so under WSL nothing installed on the
+    # Windows side can be missed.
+    if result.engine_installed is False and card:
+        hint = install_hint(card, _host_os())
+        if hint:
+            console.print(Text(f"  {name} is not installed here; {hint}", style="dim"))
+
+
 def _print_recipe(result: CompatibilityResult, context_length: int) -> None:
     recipe = build_recipe(result, context_length)
     if recipe is None:
+        _print_server_recipe(result)
         return
     console = _console.console
     card = card_by_id(recipe.engine)

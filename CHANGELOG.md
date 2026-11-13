@@ -6,7 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+
+- vLLM and SGLang have engine cards. A row of a repository's own Hugging
+  Face weights (AWQ, GPTQ, FP8, NVFP4, MXFP4, INT8, BF16 and so on), which
+  whichllm ranks on Linux with an NVIDIA GPU and under WSL, now names one of
+  them with its command, `vllm serve <repo> --max-model-len auto` or
+  `sglang serve <repo>`. vLLM comes first unless only SGLang is installed.
+  Such a row had no run line before. A row split over several GPUs gets no
+  engine yet.
+
 ### Fixed
+
+- A row of Hugging Face weights no longer counts as fitting with part of it
+  in RAM. Its fit and speed were llama.cpp's, with experts or layers in RAM,
+  though no engine whichllm names runs those weights that way. vLLM and
+  SGLang keep them in VRAM, and their RAM offload streams the weights on
+  every token, 2.9 to 16.6 tok/s on a 16 GB card in SGLang's own
+  measurements. Such a row now shows only where the weights fit on the GPU,
+  and the model's GGUF still covers the split.
 
 - whichllm on Windows no longer takes itself for WSL when it runs from a
   folder on a WSL share, `\\wsl.localhost\...`. There Windows resolves

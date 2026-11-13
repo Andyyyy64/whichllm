@@ -32,6 +32,11 @@ OSES = frozenset({"linux", "windows", "darwin"})
 ACCELS = frozenset({"cuda", "rocm", "metal", "sycl", "vulkan", "cpu"})
 # "lazy_lookup": reads a model's lookup tables a row at a time from disk.
 MEMORY = frozenset({"gpu", "layer_offload", "expert_offload", "cpu", "lazy_lookup"})
+# Formats of Hugging Face weights (safetensors) an engine can read, named as
+# whichllm.engine.quantization names them from the repository.
+SAFETENSORS_FORMATS = frozenset(
+    {"BF16", "FP16", "FP8", "INT8", "AWQ", "GPTQ", "NVFP4", "MXFP4", "BNB_4BIT"}
+)
 
 # Unknown keys are refused, so a typo cannot drop a value without a word.
 _CARD_KEYS = frozenset(
@@ -39,7 +44,7 @@ _CARD_KEYS = frozenset(
         "id", "name", "kind", "url", "evidence", "upstream", "checked_at",
         "sources", "platforms", "gguf", "memory", "serve", "port", "api",
         "install", "detect_binaries", "detect_paths", "probe", "version_args",
-        "help_marker", "models", "wsl", "note",
+        "help_marker", "models", "wsl", "safetensors", "note",
     }
 )  # fmt: skip
 _UPSTREAM_KEYS = frozenset({"github", "version", "released_at", "status", "track"})
@@ -179,6 +184,9 @@ class EngineCard:
     # The models a fixed_model engine runs; runners leave this empty.
     models: tuple[FixedModel, ...] = ()
     runs_in_wsl: bool = True  # False when the docs say it does not run under WSL
+    # Formats of Hugging Face weights it serves (SAFETENSORS_FORMATS); empty
+    # for an engine that reads only GGUF.
+    safetensors: tuple[str, ...] = ()
     track: str = "release"  # see TRACKS
     note: str | None = None
 
@@ -437,6 +445,13 @@ def parse_card(data: dict, path: Path) -> EngineCard:
         raise _fail(path, "'wsl' is true or false")
     if probe_path is not None and port is None:
         raise _fail(path, "'probe' needs the card's 'port'")
+    safetensors = _strings(data, "safetensors", path)
+    if not set(safetensors) <= SAFETENSORS_FORMATS:
+        raise _fail(
+            path,
+            f"'safetensors' {safetensors} must be a subset of "
+            f"{sorted(SAFETENSORS_FORMATS)}",
+        )
     card = EngineCard(
         id=_text(data, "id", path),
         name=_text(data, "name", path),
@@ -464,6 +479,7 @@ def parse_card(data: dict, path: Path) -> EngineCard:
         help_marker=_text(data, "help_marker", path, optional=True),
         models=models,
         runs_in_wsl=wsl,
+        safetensors=safetensors,
         track=_choice(upstream, "track", TRACKS, path)
         if "track" in upstream
         else "release",
@@ -514,6 +530,7 @@ __all__ = [
     "Pack",
     "Platform",
     "Requires",
+    "SAFETENSORS_FORMATS",
     "card_by_id",
     "install_hint",
     "load_cards",

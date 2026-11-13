@@ -11,7 +11,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from whichllm.engine.quantization import effective_quant_type
 from whichllm.engine.types import CompatibilityResult
+from whichllm.engines.cards import card_by_id
 
 # Above any real layer count: llama.cpp clamps -ngl to the model's layers.
 _ALL_LAYERS = 99
@@ -111,6 +113,52 @@ def build_recipe(result: CompatibilityResult, context_length: int) -> Recipe | N
         notes=tuple(notes),
         engine=engine,
         command=commands.get(engine, llama_cpp),
+    )
+
+
+@dataclass(frozen=True)
+class ServerRecipe:
+    """How a GPU server (vLLM, SGLang) serves a repository of Hugging Face
+    weights, and the commands of the other servers that read it."""
+
+    engine: str
+    repo: str
+    weights: str  # the format, as effective_quant_type names it
+    command: str
+    others: tuple[tuple[str, str], ...] = field(default=())  # (engine, command)
+
+
+def _serve(engine: str, repo: str) -> str | None:
+    card = card_by_id(engine)
+    if card is None or not card.safetensors or not card.serve:
+        return None
+    return card.serve.format(repo=repo)
+
+
+def build_server_recipe(result: CompatibilityResult) -> ServerRecipe | None:
+    """The serve command for a row of Hugging Face weights, or None for a GGUF
+    row or one no GPU server here runs."""
+    if result.gguf_variant is not None or result.artifact_variant is not None:
+        return None
+    if result.engine is None:
+        return None
+    repo = result.model.id
+    command = _serve(result.engine, repo)
+    if command is None:
+        return None
+    others = tuple(
+        (engine, other)
+        for engine in result.engines
+        if engine != result.engine
+        for other in [_serve(engine, repo)]
+        if other is not None
+    )
+    return ServerRecipe(
+        engine=result.engine,
+        repo=repo,
+        weights=effective_quant_type(result.model, None),
+        command=command,
+        others=others,
     )
 
 
