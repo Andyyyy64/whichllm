@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.6.8] - 2026-11-13
+
 ### Added
 
 - vLLM and SGLang have engine cards. A row of a repository's own Hugging
