@@ -305,7 +305,10 @@ For each `ModelInfo`, `engine/ranker.py` builds candidate variants:
 
 Apple Silicon and CPU-only rankings are restricted to GGUF candidates for
 runtime stability. Linux with NVIDIA can also rank non-GGUF AWQ/GPTQ/FP16/BF16
-repos.
+repos. vLLM and SGLang serve those weights, and both keep them in VRAM, so such
+a row only counts where the weights fit on the GPU. Their RAM offload streams
+the weights on every token, far slower than llama.cpp's split of the model's
+GGUF, which covers that case.
 
 ## Ranking
 

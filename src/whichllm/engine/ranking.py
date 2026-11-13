@@ -254,6 +254,13 @@ def rank_models(
             compat = check_compatibility(model, variant, hardware, context_length)
             if not compat.can_run:
                 continue
+            # vLLM and SGLang serve Hugging Face weights from VRAM. Their
+            # --cpu-offload-gb streams the rest from RAM on every token, 2.9 to
+            # 16.6 tok/s on a 16 GB card in SGLang's own measurements (#42557),
+            # so these rows fit on the GPU or not at all. The model's GGUF
+            # covers the GPU and RAM split.
+            if variant is None and compat.fit_type != "full_gpu":
+                continue
             if format_note:
                 compat.warnings.append(format_note)
             if fit_filter == "full_gpu" and compat.fit_type != "full_gpu":
