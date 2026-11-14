@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+
+- An engine card for llama-modchip, a llama.cpp fork built for large MoE models
+  on the CPU. Its own quant types stay outside mainline: LUT-VQ3-64 is `VQ3_0`
+  at 3.00 bpw and decodes only on x86-64 AVX-512 VBMI, and Fractal-64 reuses
+  type 42 with a 30-byte block, so mainline llama.cpp sizes it at 18 bytes and
+  refuses the file. It ships CPU builds for Linux and Windows and a Metal build
+  on a Mac; the Windows CUDA build is opt-in and still experimental.
+  `whichllm engines` now names it beside the other runners, and a ranked row
+  lists it among the engines that can run that row.
+
 ## [0.6.8] - 2026-11-13
 
 ### Added

@@ -73,6 +73,9 @@ def _rtx() -> HardwareInfo:
         ("ik_llama.cpp", "NVFP4", True),
         ("ik_llama.cpp", "TQ2_0", False),
         ("llama.cpp", "NVFP4", True),
+        ("llama.cpp", "VQ3_0", False),
+        ("llama-modchip", "VQ3_0", True),
+        ("llama-modchip", "Q4_K_M", True),
     ],
 )
 def test_who_reads_which_quant(engine, quant, reads):
@@ -90,6 +93,7 @@ def test_a_plain_gguf_runs_on_every_engine_here():
         "koboldcpp",
         "jan",
         "lemonade",
+        "llama-modchip",
     }
 
 
