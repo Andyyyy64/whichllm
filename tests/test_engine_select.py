@@ -93,6 +93,39 @@ def test_a_plain_gguf_runs_on_every_engine_here():
     }
 
 
+def _radeon() -> HardwareInfo:
+    gpu = GPUInfo(name="AMD Radeon RX 7900 XTX", vendor="amd", vram_bytes=24 * _GiB)
+    return HardwareInfo(gpus=[gpu], has_avx2=True, ram_bytes=64 * _GiB, os="linux")
+
+
+def _gtx_1080() -> HardwareInfo:
+    gpu = GPUInfo(
+        name="NVIDIA GeForce GTX 1080",
+        vendor="nvidia",
+        vram_bytes=8 * _GiB,
+        compute_capability=(6, 1),
+    )
+    return HardwareInfo(gpus=[gpu], has_avx2=True, ram_bytes=64 * _GiB, os="linux")
+
+
+@pytest.mark.parametrize("machine", [_radeon, _gtx_1080])
+@pytest.mark.parametrize("kind", ["gpu", "layer_offload", "expert_offload"])
+def test_an_engine_on_its_cpu_build_here_holds_no_row_on_the_gpu(machine, kind):
+    # ik_llama.cpp has no ROCm build and needs CUDA compute capability 7.5,
+    # so on these GPUs it runs, but only on the CPU.
+    ids = {card.id for card in engines_for(_row(kind=kind), machine(), CARDS)}
+
+    assert "ik_llama.cpp" not in ids
+    assert "llama.cpp" in ids
+
+
+@pytest.mark.parametrize("machine", [_radeon, _gtx_1080])
+def test_an_engine_on_its_cpu_build_here_still_holds_a_row_in_ram(machine):
+    ids = {card.id for card in engines_for(_row(kind="cpu"), machine(), CARDS)}
+
+    assert {"ik_llama.cpp", "llama.cpp"} <= ids
+
+
 def test_expert_offload_leaves_out_engines_that_cannot_hold_it():
     ids = {card.id for card in engines_for(_row(kind="expert_offload"), _rtx(), CARDS)}
 

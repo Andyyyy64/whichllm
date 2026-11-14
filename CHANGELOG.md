@@ -19,6 +19,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   100. A score held at either end no longer helps put AA's per-benchmark
   results on the general scale. (#309)
 
+### Fixed
+
+- A row placed on the GPU no longer lists an engine that runs only on the
+  CPU on that machine. ik_llama.cpp has no ROCm or SYCL build and needs
+  CUDA compute capability 7.5, so on an AMD or Intel GPU, or an NVIDIA one
+  older than Turing, it was listed for every GGUF row, and when installed
+  the run line could name it for a row it would run on the CPU. It still
+  counts for a row held in RAM.
+
 ## [0.6.8] - 2026-11-13
 
 ### Added
