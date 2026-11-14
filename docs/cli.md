@@ -269,7 +269,9 @@ Windows side are not looked for.
 The ranking uses the same cards. Under the table, the run line names an
 engine that can run the top pick here, reads its quant and holds its
 placement, preferring one that is already running, then one that is
-installed, then llama.cpp. A row of a repository's own Hugging Face weights
+installed, then llama.cpp. An engine that runs here only on its CPU build,
+such as ik_llama.cpp on an AMD or Intel GPU, counts only for a row held in
+RAM. A row of a repository's own Hugging Face weights
 (AWQ, FP8, NVFP4 and so on) runs with vLLM, or SGLang when only it is
 installed, and the run line serves the repo with `vllm serve <repo>
 --max-model-len auto`, which fits the context to the GPU. Weights too big
