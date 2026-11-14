@@ -126,8 +126,8 @@ async def fetch_benchmark_data(model_ids: Iterable[str] = ()) -> BenchmarkData:
         _source(
             "Artificial Analysis Intelligence Index",
             "general",
-            f"v{AA_INDEX_VERSION} "
-            + ("live, over the " if aa_live else "")
+            f"v{AA_INDEX_VERSION} scale, "
+            + ("live over the " if aa_live else "")
             + f"{AA_SNAPSHOT_READ_AT} snapshot",
             aa_result,
             estimated=len(benchmark_sources.AA_PEER_IDS),
@@ -181,11 +181,21 @@ async def fetch_benchmark_data(model_ids: Iterable[str] = ()) -> BenchmarkData:
         )
     )
 
+    # A value at either end of the 0-100 scale was cut off there, so it would
+    # bend the fit that puts AA's per-benchmark results on the general scale.
+    clamped = {
+        model_id
+        for scores, estimated_ids in general_sources
+        for model_id, value in scores.items()
+        if value in (0.0, 100.0) and model_id not in estimated_ids
+    }
     anchor = {
         model_id: current[model_id]
         for scores, estimated_ids in general_sources
         for model_id in scores
-        if model_id not in estimated_ids and model_id in current
+        if model_id not in estimated_ids
+        and model_id in current
+        and model_id not in clamped
     }
     new_general, tasks = _task_scores(
         aa_evals_result,
