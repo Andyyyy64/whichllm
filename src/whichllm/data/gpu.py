@@ -117,6 +117,8 @@ GPU_BANDWIDTH: dict[str, float] = {
     # AGX Xavier 256-bit LPDDR4x, Xavier NX 128-bit LPDDR4x.
     "Jetson AGX Xavier": 136.5,
     "Jetson Xavier NX": 59.7,
+    # NVIDIA Jetson AGX Thor (T5000 module, 128 GB LPDDR5X). Data-sheet peak.
+    "Jetson AGX Thor": 273.0,
     "A100 80GB": 2039.0,
     "A100 40GB": 1555.0,
     "A100": 1555.0,
@@ -275,6 +277,8 @@ NVIDIA_COMPUTE_CAPABILITY: dict[str, tuple[int, int]] = {
     # in between ("Jetson AGX Orin").
     "Orin": (8, 7),  # Ampere
     "Xavier": (7, 2),  # Volta
+    # Blackwell, as nvidia-smi's compute_cap reports it on a Jetson AGX Thor.
+    "Thor": (11, 0),
     "A100": (8, 0),
     "RTX A3000 Laptop": (8, 6),
     "A6000": (8, 6),

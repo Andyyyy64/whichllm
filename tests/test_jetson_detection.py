@@ -57,6 +57,10 @@ AGX_XAVIER_COMPATIBLE = (
 XAVIER_NX_COMPATIBLE = (
     "nvidia,p3449-0000+p3668-0001\0nvidia,p3509-0000+p3668-0001\0nvidia,tegra194\0"
 )
+# A Jetson AGX Thor Developer Kit (L4T R38.4.0, 122.8 GB MemTotal).
+AGX_THOR_COMPATIBLE = (
+    "nvidia,p4071-0000+p3834-0008\0nvidia,p3834-0008\0nvidia,tegra264\0"
+)
 
 
 @pytest.fixture(autouse=True)
@@ -227,6 +231,7 @@ def test_trailing_newline_still_resolves(tmp_path):
         ("Orin (nvgpu)", True),
         ("Tegra X1", True),
         ("NVIDIA Tegra X1", True),  # vendor-prefixed, as NVML/lspci report it
+        ("NVIDIA Thor", True),  # no "(nvgpu)": Thor is not on the nvgpu driver
         ("NVIDIA GeForce RTX 4090", False),
         ("NVIDIA H100 PCIe", False),
         ("", False),
@@ -249,6 +254,7 @@ def test_is_tegra_gpu_name(name, expected):
         ("Jetson Orin Nano 4GB", 34.0),
         ("Jetson AGX Xavier", 136.5),
         ("Jetson Xavier NX", 59.7),
+        ("Jetson AGX Thor", 273.0),
     ],
 )
 def test_curated_bandwidth(name, bandwidth):
@@ -264,6 +270,8 @@ def test_curated_bandwidth(name, bandwidth):
         ("Jetson AGX Orin", (8, 7)),
         ("Jetson AGX Xavier", (7, 2)),
         ("Jetson Xavier NX", (7, 2)),
+        ("Jetson AGX Thor", (11, 0)),
+        ("NVIDIA Thor", (11, 0)),
     ],
 )
 def test_compute_capability(name, cc):
@@ -349,6 +357,74 @@ def test_unrecognised_jetson_module_keeps_generic_name(monkeypatch, tmp_path):
     assert gpus[0].name == "Orin (nvgpu)"
     assert gpus[0].shared_memory is True
     assert gpus[0].vram_bytes == 8 * 1024**3
+    assert gpus[0].memory_bandwidth_gbps is None
+
+
+def test_agx_thor_identified(tmp_path):
+    _write_dt(tmp_path, AGX_THOR_COMPATIBLE)
+    module = jetson.detect_jetson_module()
+    assert module is not None
+    assert module.name == "Jetson AGX Thor"
+    assert module.part_number == "p3834-0008"
+    assert module.soc == "tegra264"
+
+
+def test_nvml_memory_not_supported_still_detects_agx_thor(monkeypatch, tmp_path):
+    # Thor's GPU is named "NVIDIA Thor", without the "(nvgpu)" suffix of Orin
+    # and Xavier, so it matched nothing, the NVML memory error was re-raised and
+    # the board was reported as CPU-only.
+    _write_dt(tmp_path, AGX_THOR_COMPATIBLE)
+    fake = _fake_pynvml(memory_supported=False)
+    fake.nvmlDeviceGetName = lambda h: "NVIDIA Thor"
+    fake.nvmlSystemGetCudaDriverVersion_v2 = lambda: 13000
+    _fake_pynvml_import(monkeypatch, fake)
+    monkeypatch.setattr(
+        "whichllm.hardware.memory.detect_ram_bytes", lambda: 122 * 1024**3
+    )
+
+    gpus = nvidia.detect_nvidia_gpus()
+
+    assert len(gpus) == 1
+    gpu = gpus[0]
+    assert gpu.name == "Jetson AGX Thor"
+    assert gpu.shared_memory is True
+    assert gpu.vram_bytes == 122 * 1024**3
+    assert gpu.compute_capability == (11, 0)
+    assert gpu.memory_bandwidth_gbps == 273.0
+    assert gpu.cuda_version == "13.0"
+
+
+def test_smi_na_memory_is_kept_on_agx_thor(monkeypatch, tmp_path):
+    _write_dt(tmp_path, AGX_THOR_COMPATIBLE)
+    monkeypatch.setattr(
+        nvidia, "_run_smi_query", lambda fields: "NVIDIA Thor, [N/A], [N/A]\n"
+    )
+
+    gpus = nvidia._detect_nvidia_gpus_via_smi()
+
+    assert len(gpus) == 1
+    assert gpus[0].name == "Jetson AGX Thor"
+    assert gpus[0].shared_memory is True
+    assert gpus[0].memory_bandwidth_gbps == 273.0
+
+
+def test_unrecognised_thor_module_keeps_generic_name(monkeypatch, tmp_path):
+    # Another P3834 SKU is still a unified-memory GPU, with no bandwidth guessed.
+    _write_dt(tmp_path, "nvidia,p3834-0005\0nvidia,tegra264\0")
+    monkeypatch.setattr(
+        nvidia, "_run_smi_query", lambda fields: "NVIDIA Thor, [N/A], [N/A]\n"
+    )
+    monkeypatch.setattr(
+        "whichllm.hardware.memory.detect_ram_bytes", lambda: 64 * 1024**3
+    )
+
+    gpus = nvidia._detect_nvidia_gpus_via_smi()
+
+    assert len(gpus) == 1
+    assert gpus[0].name == "NVIDIA Thor"
+    assert gpus[0].shared_memory is True
+    assert gpus[0].vram_bytes == 64 * 1024**3
+    assert gpus[0].compute_capability == (11, 0)
     assert gpus[0].memory_bandwidth_gbps is None
 
 
