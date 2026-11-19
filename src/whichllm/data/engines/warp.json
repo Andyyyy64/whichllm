@@ -6,11 +6,11 @@
   "evidence": "documented",
   "upstream": {
     "github": "sqliteai/warp",
-    "version": "0.8.1",
-    "released_at": "2026-09-18",
+    "version": "0.8.2",
+    "released_at": "2026-11-12",
     "status": "slowing"
   },
-  "checked_at": "2026-11-04",
+  "checked_at": "2026-11-19",
   "sources": [
     "https://github.com/sqliteai/warp/blob/main/README.md",
     "https://github.com/sqliteai/warp/blob/main/docs/BACKENDS.md",

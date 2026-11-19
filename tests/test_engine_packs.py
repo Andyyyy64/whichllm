@@ -62,11 +62,8 @@ def test_strata_and_maya_carry_their_models():
     strata = {m.base for m in BY_ID["strata"].models}
     maya = {m.base for m in BY_ID["project-maya"].models}
 
-    assert strata == {
-        "Qwen/Qwen3.8-Flash-Next",
-        "Qwen/Qwen3.6-35B-A3B",
-        "deepseek-ai/DeepSeek-V4.1-Flash-1017",
-    }
+    # Strata stopped running DeepSeek V4.1 Flash after 0.2.13.
+    assert strata == {"Qwen/Qwen3.8-Flash-Next", "Qwen/Qwen3.6-35B-A3B"}
     assert maya == {
         "zai-org/GLM-5.3-Flash",
         "zai-org/GLM-5.3",
@@ -167,8 +164,8 @@ def test_a_need_is_compared_as_written():
         "needs 60 GB of RAM, this machine has 59 GB"
     )
     assert pack_fit(iq3_s, _machine(ram_gb=62.7)).tier == "memory"
-    # 24 + 96 GB is 120, and Strata's smallest DeepSeek pack is 121 GB.
-    deepseek = _pack("strata", "deepseek-v4.1-flash-1017", "ist-das-1.75bpw")
+    # 24 + 96 GB is 120, and Maya-XS of DeepSeek V4.1 needs 128 GB together.
+    deepseek = _pack("project-maya", "deepseek-v4.1-flash-1017", "deepseek-maya-xs")
     assert pack_fit(deepseek, _machine(vram_gb=23.99, ram_gb=93.8)).tier == "ssd"
     assert pack_fit(deepseek, _machine(vram_gb=31.8, ram_gb=93.8)).tier == "memory"
 
@@ -240,16 +237,17 @@ def test_a_ram_budget_caps_the_ram_a_pack_can_use():
 
 
 def test_options_follow_each_models_platforms():
-    options = pack_options(load_cards(), _machine(cc=(7, 5), vram_gb=16))
+    # Strata runs on Intel Arc, but its Qwen3.6-35B-A3B packs only on CUDA and ROCm.
+    options = pack_options(load_cards(), _machine(vendor="intel", os="linux"))
     by_key = {(o.card.id, o.model.id, o.pack.id): o for o in options}
 
-    qwen = by_key[("strata", "qwen3.8-flash-next", "q2_0")]
-    deepseek = by_key[("strata", "deepseek-v4.1-flash-1017", "ist-das-2.00bpw")]
+    qwen38 = by_key[("strata", "qwen3.8-flash-next", "q2_0")]
+    qwen36 = by_key[("strata", "qwen3.6-35b-a3b", "ud-q4_k_xl")]
 
-    assert qwen.fit.tier == "memory"
-    assert qwen.platform.accel == "cuda"
-    assert deepseek.fit.tier is None
-    assert deepseek.fit.reason == ("needs CUDA compute capability 8.6, this GPU is 7.5")
+    assert qwen38.fit.tier == "memory"
+    assert qwen38.platform.accel == "sycl"
+    assert qwen36.fit.tier is None
+    assert qwen36.fit.reason == "no build for this hardware"
 
 
 def test_maya_has_a_mac_build_for_glm_flash_and_minimax_only():

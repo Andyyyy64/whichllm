@@ -6,16 +6,15 @@
   "evidence": "documented",
   "upstream": {
     "github": "Niko1221/Strata",
-    "version": "0.2.13",
-    "released_at": "2026-11-09",
+    "version": "0.2.16",
+    "released_at": "2026-11-18",
     "status": "active"
   },
-  "checked_at": "2026-11-11",
+  "checked_at": "2026-11-19",
   "sources": [
     "https://github.com/Niko1221/Strata/blob/main/docs/MODELS.md",
     "https://github.com/Niko1221/Strata/blob/main/docs/INSTALL.md",
     "https://github.com/Niko1221/Strata/blob/main/docs/DETAILS.md",
-    "https://github.com/Niko1221/Strata/blob/main/docs/DEEPSEEK41.md",
     "https://github.com/Niko1221/Strata/blob/main/docs/OLDER_GPUS.md",
     "https://github.com/Niko1221/Strata/blob/main/docs/AMD_HIP.md",
     "https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF",
@@ -50,9 +49,9 @@
   "api": ["openai", "anthropic"],
   "install": {
     "docs": "https://github.com/Niko1221/Strata/blob/main/docs/INSTALL.md",
-    "linux": "curl -fsSL https://github.com/Niko1221/Strata/releases/latest/download/install.sh -o install.sh && sh install.sh",
-    "darwin": "curl -fsSL https://github.com/Niko1221/Strata/releases/latest/download/install.sh -o install.sh && sh install.sh",
-    "windows": "irm https://github.com/Niko1221/Strata/releases/latest/download/install.ps1 | iex"
+    "linux": "curl -fsSL --connect-timeout 15 --max-time 120 https://github.com/Niko1221/Strata/releases/latest/download/install.sh -o install.sh && sh install.sh",
+    "darwin": "curl -fsSL --connect-timeout 15 --max-time 120 https://github.com/Niko1221/Strata/releases/latest/download/install.sh -o install.sh && sh install.sh",
+    "windows": "irm -TimeoutSec 120 https://github.com/Niko1221/Strata/releases/latest/download/install.ps1 | iex"
   },
   "detect_binaries": ["strata"],
   "detect_paths": {
@@ -219,45 +218,6 @@
           "quant": "Q8_0",
           "launch": "strata launch --family qwen36 --model Q8_0",
           "requires": {"disk_gb": 38.7, "vram_gb": 12, "ram_gb": 52}
-        }
-      ]
-    },
-    {
-      "id": "deepseek-v4.1-flash-1017",
-      "name": "DeepSeek-V4.1-Flash-1017",
-      "base": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
-      "platforms": [
-        {"os": ["linux", "windows"], "accel": "cuda", "min_compute_capability": "8.6", "note": "RTX 30, 40 and 50 with 12 GB or more"},
-        {"os": ["linux"], "accel": "rocm", "note": "Radeon AI PRO R9700"},
-        {"os": ["windows"], "accel": "rocm", "note": "Ryzen AI Max (Strix Halo)"},
-        {"os": ["darwin"], "accel": "metal", "note": "64 GB or more"}
-      ],
-      "note": "Its own engine, fetched by strata launch. An 8K context. The 111 GB n-gram table and an 8 GB drafter are in each download.",
-      "packs": [
-        {
-          "id": "ist-das-1.75bpw",
-          "name": "ISTA-DAS 1.75 bpw",
-          "repo": "ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-GGUF",
-          "quant": "IQ1_M",
-          "launch": "strata launch --family deepseek41 --model ist-das-1.75bpw",
-          "requires": {"disk_gb": 239, "vram_gb": 12, "memory_gb": 121, "ssd": {"ram_gb": 46, "vram_gb": 12}, "nvme": true}
-        },
-        {
-          "id": "ist-das-2.00bpw",
-          "name": "ISTA-DAS 2.00 bpw",
-          "repo": "ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-GGUF",
-          "quant": "IQ2_XXS",
-          "launch": "strata launch --family deepseek41 --model ist-das-2.00bpw",
-          "docs_speed": {"tok_per_sec": 5, "hardware": "RTX 5070 12 GB, Ryzen 5 7600, 64 GB RAM"},
-          "requires": {"disk_gb": 257, "vram_gb": 12, "memory_gb": 138, "ssd": {"ram_gb": 46, "vram_gb": 12}, "nvme": true}
-        },
-        {
-          "id": "ist-das-2.25bpw",
-          "name": "ISTA-DAS 2.25 bpw",
-          "repo": "ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-GGUF",
-          "quant": "IQ2_XS",
-          "launch": "strata launch --family deepseek41 --model ist-das-2.25bpw",
-          "requires": {"disk_gb": 274, "vram_gb": 12, "memory_gb": 155, "ssd": {"ram_gb": 46, "vram_gb": 12}, "nvme": true}
         }
       ]
     }

@@ -73,8 +73,10 @@ def _rtx() -> HardwareInfo:
         ("ik_llama.cpp", "NVFP4", True),
         ("ik_llama.cpp", "TQ2_0", False),
         ("llama.cpp", "NVFP4", True),
-        ("llama.cpp", "VQ3_0", False),
-        ("llama-modchip", "VQ3_0", True),
+        ("llama.cpp", "VQ3_64", False),
+        ("llama.cpp", "FRACTAL_64", False),
+        ("llama-modchip", "VQ3_64", True),
+        ("llama-modchip", "FRACTAL_64", True),
         ("llama-modchip", "Q4_K_M", True),
     ],
 )

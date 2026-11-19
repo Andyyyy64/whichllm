@@ -8,7 +8,7 @@
     "github": "ikawrakow/ik_llama.cpp",
     "status": "active"
   },
-  "checked_at": "2026-11-11",
+  "checked_at": "2026-11-19",
   "sources": [
     "https://github.com/ikawrakow/ik_llama.cpp",
     "https://github.com/ikawrakow/ik_llama.cpp/blob/main/ggml/include/ggml.h",
@@ -53,12 +53,13 @@
       "IQ2_KT",
       "IQ3_KT",
       "IQ4_KT",
-      "NVFP4_KS"
+      "NVFP4_KS",
+      "F8_E4M3_KS",
+      "F8_E4M3_B128"
     ],
     "missing": [
       "TQ1_0",
-      "TQ2_0",
-      "F8_E4M3"
+      "TQ2_0"
     ]
   },
   "memory": [
