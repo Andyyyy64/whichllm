@@ -24,7 +24,7 @@ exported by the kernel, needs no root, and no NVIDIA tooling:
     nvidia,p3767-0000               # module
     nvidia,tegra234                 # SoC generation
 
-Only Orin and Xavier part numbers are claimed. Anything else returns ``None``
+Only Orin, Xavier and AGX Thor part numbers are claimed. Anything else returns ``None``
 and detection behaves as it did before, rather than guessing a product from an
 SoC generation — ``tegra210`` alone, for instance, covers both Jetson Nano and
 TX1.
@@ -60,8 +60,9 @@ _TEGRA_SOC_RE = re.compile(r"tegra\d+", re.IGNORECASE)
 # The Tegra driver appends "(nvgpu)" to the integrated GPU's name ("Orin
 # (nvgpu)", "Xavier (nvgpu)"); older stacks report a "Tegra ..." name, which may
 # carry the vendor prefix ("NVIDIA Tegra X1"), so this is a word search rather
-# than an anchored one.
-_TEGRA_GPU_NAME_RE = re.compile(r"\(nvgpu\)|\btegra\b", re.IGNORECASE)
+# than an anchored one. Thor (tegra264) runs the same driver stack as desktop
+# GPUs rather than nvgpu, and NVML and nvidia-smi name its GPU "NVIDIA Thor".
+_TEGRA_GPU_NAME_RE = re.compile(r"\(nvgpu\)|\btegra\b|\bthor\b", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -103,6 +104,10 @@ _MODULE_SKUS: dict[str, str] = {
     "p2888-0001": "Jetson AGX Xavier",
     "p2888-0003": "Jetson AGX Xavier",
     "p2888-0005": "Jetson AGX Xavier",
+    # Jetson T5000, the module of the AGX Thor Developer Kit (128 GB LPDDR5X at
+    # 273 GB/s). Listed per SKU so another P3834 module is not given its
+    # bandwidth unchecked.
+    "p3834-0008": "Jetson AGX Thor",
 }
 
 # Device nodes the Tegra GPU driver (nvgpu) creates. JetPack 4 and 5 have
