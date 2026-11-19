@@ -6,22 +6,22 @@
   "evidence": "documented",
   "upstream": {
     "github": "vllm-project/vllm",
-    "version": "0.33.0",
-    "released_at": "2026-11-02",
+    "version": "0.34.0",
+    "released_at": "2026-11-16",
     "status": "active"
   },
-  "checked_at": "2026-11-13",
+  "checked_at": "2026-11-19",
   "sources": [
-    "https://pypi.org/project/vllm/0.33.0/",
-    "https://github.com/vllm-project/vllm/releases/tag/v0.33.0rc3",
-    "https://github.com/vllm-project/vllm/blob/v0.33.0/docs/getting_started/installation/gpu.md",
-    "https://github.com/vllm-project/vllm/blob/v0.33.0/docs/getting_started/installation/gpu.cuda.inc.md",
-    "https://github.com/vllm-project/vllm/blob/v0.33.0/docs/getting_started/installation/gpu.rocm.inc.md",
-    "https://github.com/vllm-project/vllm/blob/v0.33.0/docs/features/quantization/README.md",
-    "https://github.com/vllm-project/vllm/blob/v0.33.0/docs/serving/parallelism_scaling.md",
-    "https://github.com/vllm-project/vllm/blob/v0.33.0/vllm/engine/arg_utils.py",
-    "https://github.com/vllm-project/vllm/blob/v0.33.0/vllm/config/model.py",
-    "https://github.com/vllm-project/vllm/blob/v0.33.0/vllm/entrypoints/serve/engine/protocol.py"
+    "https://pypi.org/project/vllm/0.34.0/",
+    "https://github.com/vllm-project/vllm/releases/tag/v0.34.0",
+    "https://github.com/vllm-project/vllm/blob/v0.34.0/docs/getting_started/installation/gpu.md",
+    "https://github.com/vllm-project/vllm/blob/v0.34.0/docs/getting_started/installation/gpu.cuda.inc.md",
+    "https://github.com/vllm-project/vllm/blob/v0.34.0/docs/getting_started/installation/gpu.rocm.inc.md",
+    "https://github.com/vllm-project/vllm/blob/v0.34.0/docs/features/quantization/README.md",
+    "https://github.com/vllm-project/vllm/blob/v0.34.0/docs/serving/parallelism_scaling.md",
+    "https://github.com/vllm-project/vllm/blob/v0.34.0/vllm/engine/arg_utils.py",
+    "https://github.com/vllm-project/vllm/blob/v0.34.0/vllm/config/model.py",
+    "https://github.com/vllm-project/vllm/blob/v0.34.0/vllm/entrypoints/serve/engine/protocol.py"
   ],
   "platforms": [
     {
@@ -33,7 +33,7 @@
     {
       "os": ["linux"],
       "accel": "rocm",
-      "note": "ROCm 6.3 or newer on MI200, MI300, MI350, Radeon RX 7900 and RX 9000, Ryzen AI MAX and AI 300"
+      "note": "ROCm 6.3 or newer on MI200, MI300, MI350, Radeon RX 7900 and RX 9000, Ryzen AI MAX and AI 300. Release wheels and images are ROCm 10.0 only from 0.34.0"
     }
   ],
   "safetensors": ["BF16", "FP16", "FP8", "INT8", "AWQ", "GPTQ", "NVFP4", "MXFP4", "BNB_4BIT"],

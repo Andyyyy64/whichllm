@@ -6,26 +6,28 @@
   "evidence": "documented",
   "upstream": {
     "github": "lemonade-sdk/lemonade",
-    "version": "2026.45.3",
-    "released_at": "2026-11-04",
+    "version": "2026.47.1",
+    "released_at": "2026-11-18",
     "status": "active"
   },
-  "checked_at": "2026-11-11",
+  "checked_at": "2026-11-19",
   "sources": [
     "https://github.com/lemonade-sdk/lemonade",
     "https://github.com/lemonade-sdk/lemonade/blob/main/docs/dev/backends-reference.md",
-    "https://github.com/lemonade-sdk/lemonade/blob/main/docs/guide/cli.md"
+    "https://github.com/lemonade-sdk/lemonade/blob/main/docs/guide/cli.md",
+    "https://github.com/lemonade-sdk/lemonade/blob/main/docs/guide/configuration/llamacpp.md"
   ],
   "platforms": [
     {
       "os": ["linux", "windows"],
       "accel": "cuda",
-      "min_compute_capability": "7.5"
+      "min_compute_capability": "7.5",
+      "note": "Needs NVIDIA driver 525.60.13 or newer on Linux, 528.33 on Windows; with an older driver it uses Vulkan"
     },
     {
       "os": ["linux", "windows"],
       "accel": "rocm",
-      "note": "gfx103X to gfx120X"
+      "note": "gfx103X to gfx120X, and Instinct gfx908, gfx90a, gfx942 and gfx950 (gfx950 on Linux only)"
     },
     {"os": ["linux", "windows"], "accel": "vulkan"},
     {"os": ["darwin"], "accel": "metal"}

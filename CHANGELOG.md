@@ -9,11 +9,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ### Added
 
 - An engine card for llama-modchip, a llama.cpp fork built for large MoE models
-  on the CPU. Its own quant types stay outside mainline: LUT-VQ3-64 is `VQ3_0`
-  at 3.00 bpw and decodes only on x86-64 AVX-512 VBMI, and Fractal-64 reuses
-  type 42 with a 30-byte block, so mainline llama.cpp sizes it at 18 bytes and
-  refuses the file. It ships CPU builds for Linux and Windows and a Metal build
-  on a Mac; the Windows CUDA build is opt-in and still experimental.
+  on the CPU. Its own quant types, `FRACTAL_64` and `VQ3_64`, have type IDs
+  mainline llama.cpp does not register, and standard GGUFs load too. It ships
+  CPU builds for Linux and Windows and a Metal build on a Mac, and Windows has
+  an opt-in CUDA build.
   `whichllm engines` now names it beside the other runners, and a ranked row
   lists it among the engines that can run that row.
 
@@ -30,6 +29,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   100. A score held at either end no longer helps put AA's per-benchmark
   results on the general scale. (#309)
 
+- Engine cards re-read for llama.cpp 1.0.0, vLLM 0.34.0, Lemonade 2026.47.1,
+  llama-modchip 3.0, Strata 0.2.16, TurboFieldfare 0.10.0, WARP 0.8.2 and
+  ik_llama.cpp.
+  - Strata no longer runs DeepSeek V4.1 Flash, so its three DeepSeek packs are
+    gone, and its install lines carry timeouts.
+  - llama-modchip 3.0 gives its own quant types their own IDs, `FRACTAL_64`
+    and `VQ3_64`, and VQ3_64 no longer needs AVX-512.
+  - ik_llama.cpp loads mainline FP8 (`F8_E4M3`) GGUFs and adds
+    `F8_E4M3_KS` and `F8_E4M3_B128`.
+  - vLLM's release wheels are ROCm 10.0 only, and Lemonade's CUDA build needs
+    driver 525.60.13 on Linux or 528.33 on Windows.
+
 ### Fixed
 
 - A row placed on the GPU no longer lists an engine that runs only on the
@@ -38,7 +49,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   older than Turing, it was listed for every GGUF row, and when installed
   the run line could name it for a row it would run on the CPU. It still
   counts for a row held in RAM. The same goes for llama-modchip, whose
-  Linux builds run only on the CPU.
+  Linux install builds only for the CPU.
 
 ## [0.6.8] - 2026-11-13
 
