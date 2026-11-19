@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.6.9] - 2026-11-19
+
 ### Added
 
 - An engine card for llama-modchip, a llama.cpp fork built for large MoE models
@@ -50,6 +52,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   the run line could name it for a row it would run on the CPU. It still
   counts for a row held in RAM. The same goes for llama-modchip, whose
   Linux install builds only for the CPU.
+
+- A Jetson AGX Thor is detected as a GPU instead of CPU-only. Its driver names
+  the GPU `NVIDIA Thor`, without the `(nvgpu)` suffix of Orin and Xavier, so
+  the board matched no unified-memory marker. The T5000 module (`p3834-0008`)
+  now reads as Jetson AGX Thor with 273 GB/s and compute capability 11.0, and
+  another Thor module is still detected as a shared-memory GPU. (#316)
 
 ## [0.6.8] - 2026-11-13
 
