@@ -37,7 +37,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   CUDA compute capability 7.5, so on an AMD or Intel GPU, or an NVIDIA one
   older than Turing, it was listed for every GGUF row, and when installed
   the run line could name it for a row it would run on the CPU. It still
-  counts for a row held in RAM.
+  counts for a row held in RAM. The same goes for llama-modchip, whose
+  Linux builds run only on the CPU.
 
 ## [0.6.8] - 2026-11-13
 

@@ -93,7 +93,6 @@ def test_a_plain_gguf_runs_on_every_engine_here():
         "koboldcpp",
         "jan",
         "lemonade",
-        "llama-modchip",
     }
 
 
@@ -112,22 +111,30 @@ def _gtx_1080() -> HardwareInfo:
     return HardwareInfo(gpus=[gpu], has_avx2=True, ram_bytes=64 * _GiB, os="linux")
 
 
-@pytest.mark.parametrize("machine", [_radeon, _gtx_1080])
+# ik_llama.cpp has no ROCm build and needs CUDA compute capability 7.5, and
+# llama-modchip builds only for the CPU on Linux, so on these machines each
+# runs, but only on the CPU.
+_CPU_ONLY_HERE = [
+    (_radeon, "ik_llama.cpp"),
+    (_gtx_1080, "ik_llama.cpp"),
+    (_rtx, "llama-modchip"),
+]
+
+
+@pytest.mark.parametrize(("machine", "engine"), _CPU_ONLY_HERE)
 @pytest.mark.parametrize("kind", ["gpu", "layer_offload", "expert_offload"])
-def test_an_engine_on_its_cpu_build_here_holds_no_row_on_the_gpu(machine, kind):
-    # ik_llama.cpp has no ROCm build and needs CUDA compute capability 7.5,
-    # so on these GPUs it runs, but only on the CPU.
+def test_an_engine_on_its_cpu_build_here_holds_no_row_on_the_gpu(machine, engine, kind):
     ids = {card.id for card in engines_for(_row(kind=kind), machine(), CARDS)}
 
-    assert "ik_llama.cpp" not in ids
+    assert engine not in ids
     assert "llama.cpp" in ids
 
 
-@pytest.mark.parametrize("machine", [_radeon, _gtx_1080])
-def test_an_engine_on_its_cpu_build_here_still_holds_a_row_in_ram(machine):
+@pytest.mark.parametrize(("machine", "engine"), _CPU_ONLY_HERE)
+def test_an_engine_on_its_cpu_build_here_still_holds_a_row_in_ram(machine, engine):
     ids = {card.id for card in engines_for(_row(kind="cpu"), machine(), CARDS)}
 
-    assert {"ik_llama.cpp", "llama.cpp"} <= ids
+    assert {engine, "llama.cpp"} <= ids
 
 
 def test_expert_offload_leaves_out_engines_that_cannot_hold_it():
