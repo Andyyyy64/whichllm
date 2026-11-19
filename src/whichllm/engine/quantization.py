@@ -96,7 +96,9 @@ def resident_weight_bytes(model: ModelInfo, variant: GGUFVariant | None) -> int:
     from whichllm.engine.lookup import lazy_lookup_bytes
 
     weights = estimate_weight_bytes(model, variant)
-    return weights - lazy_lookup_bytes(model, weights)
+    return weights - lazy_lookup_bytes(
+        model, weights, variant.filename if variant else ""
+    )
 
 
 @lru_cache(maxsize=1)
