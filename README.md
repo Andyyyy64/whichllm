@@ -8,6 +8,10 @@
 
 <p align="center">
   <a href="https://trendshift.io/repositories/30336" target="_blank"><img src="https://trendshift.io/api/badge/repositories/30336" alt="Andyyyy64%2Fwhichllm | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+  <a href="https://hackergit.org/r/Andyyyy64/whichllm"><img src="https://hackergit.org/badge/Andyyyy64/whichllm.svg?style=rank&rank=day&scope=show" alt="Hacker News rank via HackerGit" width="250" height="55"></a>
+  <br>
+  <sub>Certified AI slop™, as reviewed by Hacker News.<br>
+  (Joking. With a lot of help from contributors, we're working hard to un-slop it.)</sub>
 </p>
 
 **The smartest model your PC can actually run, including ones you didn't know it could.**

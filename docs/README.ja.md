@@ -6,6 +6,13 @@
 [![Tests](https://github.com/Andyyyy64/whichllm/actions/workflows/test.yml/badge.svg)](https://github.com/Andyyyy64/whichllm/actions/workflows/test.yml)
 [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-EA4AAA?logo=githubsponsors)](https://github.com/sponsors/Andyyyy64)
 
+<p align="center">
+  <a href="https://hackergit.org/r/Andyyyy64/whichllm"><img src="https://hackergit.org/badge/Andyyyy64/whichllm.svg?style=rank&rank=day&scope=show" alt="Hacker News rank via HackerGit" width="250" height="55"></a>
+  <br>
+  <sub>Hacker News 公認の AI slop です。<br>
+  （冗談です。コントリビューターのみなさんの力を借りて、slop を抜け出そうと頑張っています。）</sub>
+</p>
+
 **手元のPCで実際に動く、いちばん賢いモデルを探します。動くとは思っていなかったモデルも候補に入ります。**
 
 whichllm は GPU、RAM、メモリ帯域を調べて、どのオープンモデルが載るか、それぞれ何 tok/s で生成できるかを見積もります。そのうえでベンチマークの結果で順位を付けます。1位のモデルについては、見積もりと同じ配置で動かすためのコマンドも表示します。
