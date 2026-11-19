@@ -10,6 +10,8 @@ VRAM nor RAM, and adds nothing to what a token reads from memory.
 
 from __future__ import annotations
 
+import re
+
 from whichllm.models.types import ModelInfo
 
 # llama.cpp's --lazy-mode auto leaves tensors over 4 GiB on disk.
@@ -17,8 +19,15 @@ _LAZY_MIN_BYTES = 4 * 1024**3
 # GGUF uploads keep these tables at IQ4_NL or better (ISTA-DASLab's packs hold
 # the n-gram table at 4.5 bits whatever the rest of the file uses).
 _MIN_BYTES_PER_PARAM = 4.5 / 8
-# The rest of a checkpoint is never this small next to its table.
+# The rest of a checkpoint is never this small next to its table, so a file
+# the table would fill past this share does not hold it: the table ships as a
+# file of its own, or the file is the table alone.
 _MAX_FILE_SHARE = 0.9
+# A file named as one without the table (agentionai's Gyro "-noPLE" builds,
+# run with --ple and a table file of their own).
+_NO_TABLE_RE = re.compile(
+    r"(?:^|[-_./])no(?:ple|ngram|engram)(?:[-_./]|$)", re.IGNORECASE
+)
 
 
 def lookup_params(model: ModelInfo) -> int:
@@ -38,13 +47,20 @@ def lazy_lookup_params(model: ModelInfo) -> int:
     return params
 
 
-def lazy_lookup_bytes(model: ModelInfo, file_bytes: int) -> int:
-    """Bytes of ``file_bytes`` that are lookup tables left on disk."""
+def lazy_lookup_bytes(model: ModelInfo, file_bytes: int, filename: str = "") -> int:
+    """Bytes of ``file_bytes`` that are lookup tables left on disk.
+
+    A file named as one without the table, or one the table would nearly
+    fill, holds none of it and stays resident whole.
+    """
     params = lazy_lookup_params(model)
-    if not params or file_bytes <= 0:
+    if not params or file_bytes <= 0 or _NO_TABLE_RE.search(filename):
         return 0
     per_param = max(file_bytes / model.parameter_count, _MIN_BYTES_PER_PARAM)
-    return min(int(params * per_param), int(file_bytes * _MAX_FILE_SHARE))
+    table = int(params * per_param)
+    if table > file_bytes * _MAX_FILE_SHARE:
+        return 0
+    return table
 
 
 def resident_params(model: ModelInfo) -> int:
