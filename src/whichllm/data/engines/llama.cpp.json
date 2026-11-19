@@ -6,11 +6,11 @@
   "evidence": "verified",
   "upstream": {
     "github": "ggml-org/llama.cpp",
-    "version": "b12247",
-    "released_at": "2026-11-10",
+    "version": "1.0.0",
+    "released_at": "2026-11-13",
     "status": "active"
   },
-  "checked_at": "2026-11-11",
+  "checked_at": "2026-11-19",
   "sources": [
     "https://github.com/ggml-org/llama.cpp/releases",
     "https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md",

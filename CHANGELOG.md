@@ -6,6 +6,59 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.6.9] - 2026-11-19
+
+### Added
+
+- An engine card for llama-modchip, a llama.cpp fork built for large MoE models
+  on the CPU. Its own quant types, `FRACTAL_64` and `VQ3_64`, have type IDs
+  mainline llama.cpp does not register, and standard GGUFs load too. It ships
+  CPU builds for Linux and Windows and a Metal build on a Mac, and Windows has
+  an opt-in CUDA build.
+  `whichllm engines` now names it beside the other runners, and a ranked row
+  lists it among the engines that can run that row.
+
+### Changed
+
+- Artificial Analysis Intelligence Index scores are read live again. AA moved
+  to index v5, on another scale, and since then every fetch fell back to the
+  2026-10-27 snapshot, so no new release got a live index score. v5 values are
+  now converted onto the v4.3.2 scale by a line through five releases read on
+  both versions, and 31 more open-weights releases on the v5 leaderboard map
+  to their Hugging Face repos. Qwen3.8-Flash-Next goes from 75.4 to 91.9 and
+  ranks first on a 16, 24 or 32 GB GPU with 64 GB of RAM, ahead of
+  Qwen3.8-27B. Kimi K3.1 Pro converts past the top of the scale and is held at
+  100. A score held at either end no longer helps put AA's per-benchmark
+  results on the general scale. (#309)
+
+- Engine cards re-read for llama.cpp 1.0.0, vLLM 0.34.0, Lemonade 2026.47.1,
+  llama-modchip 3.0, Strata 0.2.16, TurboFieldfare 0.10.0, WARP 0.8.2 and
+  ik_llama.cpp.
+  - Strata no longer runs DeepSeek V4.1 Flash, so its three DeepSeek packs are
+    gone, and its install lines carry timeouts.
+  - llama-modchip 3.0 gives its own quant types their own IDs, `FRACTAL_64`
+    and `VQ3_64`, and VQ3_64 no longer needs AVX-512.
+  - ik_llama.cpp loads mainline FP8 (`F8_E4M3`) GGUFs and adds
+    `F8_E4M3_KS` and `F8_E4M3_B128`.
+  - vLLM's release wheels are ROCm 10.0 only, and Lemonade's CUDA build needs
+    driver 525.60.13 on Linux or 528.33 on Windows.
+
+### Fixed
+
+- A row placed on the GPU no longer lists an engine that runs only on the
+  CPU on that machine. ik_llama.cpp has no ROCm or SYCL build and needs
+  CUDA compute capability 7.5, so on an AMD or Intel GPU, or an NVIDIA one
+  older than Turing, it was listed for every GGUF row, and when installed
+  the run line could name it for a row it would run on the CPU. It still
+  counts for a row held in RAM. The same goes for llama-modchip, whose
+  Linux install builds only for the CPU.
+
+- A Jetson AGX Thor is detected as a GPU instead of CPU-only. Its driver names
+  the GPU `NVIDIA Thor`, without the `(nvgpu)` suffix of Orin and Xavier, so
+  the board matched no unified-memory marker. The T5000 module (`p3834-0008`)
+  now reads as Jetson AGX Thor with 273 GB/s and compute capability 11.0, and
+  another Thor module is still detected as a shared-memory GPU. (#316)
+
 ## [0.6.8] - 2026-11-13
 
 ### Added

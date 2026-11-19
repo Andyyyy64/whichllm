@@ -1,0 +1,65 @@
+{
+  "id": "llama-modchip",
+  "name": "llama-modchip",
+  "kind": "runner",
+  "url": "https://github.com/synchopate/llama-modchip",
+  "evidence": "documented",
+  "upstream": {
+    "github": "synchopate/llama-modchip",
+    "version": "3.0",
+    "released_at": "2026-11-16",
+    "status": "active"
+  },
+  "checked_at": "2026-11-19",
+  "sources": [
+    "https://github.com/synchopate/llama-modchip",
+    "https://github.com/synchopate/llama-modchip/blob/main/install.sh",
+    "https://github.com/synchopate/llama-modchip/blob/main/FAQ.md",
+    "https://github.com/synchopate/llama-modchip/blob/main/docs/HARDWARE_OPTIMIZATIONS.md",
+    "https://github.com/synchopate/llama-modchip/blob/main/docs/WINDOWS_PORT.md",
+    "https://github.com/synchopate/llama-modchip/blob/main/windows/build_patched_engine.ps1",
+    "https://github.com/synchopate/llama-modchip/blob/main/apple-silicon/README.md",
+    "https://github.com/synchopate/llama-modchip/blob/main/gateway/sse_gateway.py",
+    "https://github.com/synchopate/llama-modchip/blob/main/scripts/build_zen5_llama.sh",
+    "https://github.com/synchopate/llama-modchip/blob/main/patches/llama-modchip-v3.0.patch",
+    "https://github.com/synchopate/llama-modchip/releases/tag/v3.0"
+  ],
+  "platforms": [
+    {
+      "os": ["linux"],
+      "accel": "cpu",
+      "note": "Prebuilt x86_64 binaries for AVX2 and for AVX-512 with VBMI and VNNI, or built from source, which also covers ARM64 such as Graviton3"
+    },
+    {
+      "os": ["windows"],
+      "accel": "cpu",
+      "note": "MinGW-w64 UCRT64 build of the patched engine, from windows/build_patched_engine.ps1"
+    },
+    {
+      "os": ["darwin"],
+      "accel": "metal",
+      "note": "Apple silicon; apple-silicon/setup.sh builds the patched engine with Metal, which runs FRACTAL_64 on the GPU"
+    },
+    {
+      "os": ["windows"],
+      "accel": "cuda",
+      "note": "MSVC and CUDA build from the -Cuda switch of windows/build_patched_engine.ps1. install.sh builds no GPU engine, and the CUDA and Vulkan binaries windows/AVVIA_MODCHIP.bat downloads for standard GGUFs are mainline llama.cpp's"
+    }
+  ],
+  "gguf": {
+    "extra": ["VQ3_64", "FRACTAL_64"]
+  },
+  "memory": ["gpu", "layer_offload", "expert_offload", "cpu"],
+  "serve": "llama-server-nemotron -m {file}",
+  "port": 8789,
+  "api": ["openai", "anthropic"],
+  "install": {
+    "docs": "https://github.com/synchopate/llama-modchip#quickstart",
+    "linux": "git clone https://github.com/synchopate/llama-modchip && cd llama-modchip && ./install.sh --prebuilt",
+    "darwin": "git clone https://github.com/synchopate/llama-modchip && cd llama-modchip && ./apple-silicon/setup.sh",
+    "windows": "git clone https://github.com/synchopate/llama-modchip && cd llama-modchip && powershell -ExecutionPolicy Bypass -File windows\\build_patched_engine.ps1"
+  },
+  "detect_binaries": ["llama-server-nemotron", "llama-server-modchip-linux-x86_64"],
+  "version_args": ["--version"],
+  "note": "A llama.cpp fork for MoE models on the CPU. Since 3.0 its own quant types have IDs mainline llama.cpp does not register, FRACTAL_64 (type 44, 3.75 bpw, CPU and Metal) and VQ3_64 (type 45, 3.00 bpw, fastest on x86-64 AVX-512 VBMI, with AVX2, NEON and scalar paths). Standard GGUFs still load, and its MaxQ releases use only standard types. A Linux source build with GGML_CUDA or GGML_VULKAN adds a GPU backend that leaves types 44 and 45 to the CPU, while install.sh and the prebuilt binaries are CPU only. The installer keeps the server in the clone's workspace/bin, not on PATH, and starts it on port 8789; the JSON API is llama-server's, and the bundled SSE gateway on 8787 adds the Anthropic messages endpoint."
+}

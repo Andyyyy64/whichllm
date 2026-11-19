@@ -178,6 +178,39 @@ def test_fetch_builds_task_scores_and_fills_new_models(monkeypatch):
     assert data.tasks["coding"]["org/M3"] == pytest.approx(general["org/M3"], abs=1.0)
 
 
+def test_a_score_at_the_clamp_stays_out_of_the_anchor(monkeypatch):
+    general, _ = _population()
+    # A release cut off at 100 whose benchmarks put it at 120.
+    general["org/Capped"] = 100.0
+    scale = {"gpqa-diamond": 100, "ifbench": 150, "scicode": 200}
+    aa_results = {
+        model_id[4:]: {e: score / d for e, d in scale.items()}
+        for model_id, score in {**general, "org/Capped": 120.0}.items()
+    }
+    aa_results["fresh 9b"] = {e: 70.0 / d for e, d in scale.items()}
+
+    async def empty(client):
+        return {}
+
+    async def aa_index(client):
+        return dict(general)
+
+    async def fetch_evals(client, wanted):
+        return aa_results
+
+    for name in ("fetch_leaderboard_with_fallback", "fetch_arena_scores"):
+        monkeypatch.setattr(benchmark_sources, name, empty)
+    monkeypatch.setattr(benchmark_sources, "fetch_aa_index_scores", aa_index)
+    monkeypatch.setattr(benchmark_sources, "fetch_vision_scores", lambda c: empty(c))
+    monkeypatch.setattr(benchmark_sources, "get_livebench_data", lambda: {})
+    monkeypatch.setattr(aa_evals, "fetch_aa_eval_scores", fetch_evals)
+
+    data = asyncio.run(fetch_benchmark_data([*general, "org/Fresh-9B"]))
+
+    assert data.general["org/Capped"] == 100.0
+    assert data.general["org/Fresh-9B"] == pytest.approx(70.0, abs=0.1)
+
+
 def test_vision_index_no_longer_raises_the_general_score(monkeypatch):
     async def empty(client):
         return {}

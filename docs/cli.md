@@ -243,9 +243,9 @@ engine's own repository and docs, with the sources and the date they were
 checked. The evidence column says how much stands behind it. `verified` means
 whichllm's own `bench` runs match the estimates, `community` means public
 benchmarks exist, and `documented` means only the engine's docs. The cards
-cover llama.cpp, ik_llama.cpp, Ollama, LM Studio, KoboldCpp, Jan and Lemonade,
-the GPU servers vLLM and SGLang, and the fixed-model engines Strata, Project Maya, Abyss, colibri, DwarfStar
-(ds4), WARP and TurboFieldfare.
+cover llama.cpp, ik_llama.cpp, Ollama, LM Studio, KoboldCpp, Jan, Lemonade and
+llama-modchip, the GPU servers vLLM and SGLang, and the fixed-model engines
+Strata, Project Maya, Abyss, colibri, DwarfStar (ds4), WARP and TurboFieldfare.
 
 A fixed-model engine's card also lists the models it runs and its packs for
 each, with the download and what the pack needs in GPU memory, RAM, or RAM
@@ -269,7 +269,9 @@ Windows side are not looked for.
 The ranking uses the same cards. Under the table, the run line names an
 engine that can run the top pick here, reads its quant and holds its
 placement, preferring one that is already running, then one that is
-installed, then llama.cpp. A row of a repository's own Hugging Face weights
+installed, then llama.cpp. An engine that runs here only on its CPU build,
+such as ik_llama.cpp on an AMD or Intel GPU, counts only for a row held in
+RAM. A row of a repository's own Hugging Face weights
 (AWQ, FP8, NVFP4 and so on) runs with vLLM, or SGLang when only it is
 installed, and the run line serves the repo with `vllm serve <repo>
 --max-model-len auto`, which fits the context to the GPU. Weights too big

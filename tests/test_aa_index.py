@@ -21,6 +21,7 @@ from whichllm.models.benchmark_sources.aa_index import (
     AA_INDEX_VERSION,
     AA_LEADERBOARD_URL,
     AA_NAME_TO_HF_IDS,
+    AA_V5_PAIRS,
     _AA_CANON_TO_HF_IDS,
     _AA_INDEX_MIN,
     _canonical_name,
@@ -28,6 +29,8 @@ from whichllm.models.benchmark_sources.aa_index import (
     _extract_aa_pairs_from_html,
     _extract_aa_pairs,
     _normalize_aa_index,
+    _V5_INTERCEPT,
+    _V5_SLOPE,
     fetch_aa_index_scores,
     get_aa_curated_fallback,
 )
@@ -133,12 +136,48 @@ def test_fetch_raises_when_no_records_found():
         _run_fetch(_rsc_page([]))
 
 
-@pytest.mark.parametrize("version", ["5.0", None])
+@pytest.mark.parametrize("version", ["6.0", None])
 def test_fetch_uses_snapshot_for_other_or_unknown_index_version(version):
-    # v5.0 values are on another scale (MiMo-V2.6-Pro reads ~29.9 there), so
-    # they must not go through the v4.3.2 bounds.
+    # Only v4.3.2 and v5.x have a known scale; anything else must not go
+    # through the v4.3.2 bounds.
     page = _rsc_page([{"name": "Qwen3 14B (Reasoning)", "index": 29.9}], version)
     assert _run_fetch(page) == get_aa_curated_fallback()
+
+
+def test_v5_pairs_stay_near_the_fit():
+    # Re-reading the pairs is a data change; this catches a pair that no
+    # longer fits one line.
+    for pair in AA_V5_PAIRS:
+        converted = _V5_SLOPE * pair["v5"] + _V5_INTERCEPT
+        assert abs(converted - pair["v4_3_2"]) <= 2.0, pair["slug"]
+
+
+@pytest.mark.parametrize("version", ["5.0", "5.0.1"])
+def test_fetch_converts_v5_values_onto_the_calibrated_scale(version):
+    # Qwen3.8 27B reads 20.1 on v5 and 33.7 on v4.3.2.
+    page = _rsc_page([{"name": "Qwen3.8 27B (Xhigh)", "index": 20.1}], version)
+    score = _run_fetch(page)["Qwen/Qwen3.8-27B"]
+    assert score == _normalize_aa_index(_V5_SLOPE * 20.1 + _V5_INTERCEPT)
+    assert abs(score - _normalize_aa_index(33.7)) < 1.0
+
+
+@pytest.mark.parametrize(
+    ("name", "hf_id"),
+    [
+        ("GLM-5.3 (Max)", "zai-org/GLM-5.3"),
+        ("GLM-5.3-Flash", "zai-org/GLM-5.3-Flash"),
+        ("Inkling (Xhigh)", "thinkingmachines/Inkling"),
+        ("Inkling Small", "thinkingmachines/Inkling-Small"),
+        ("MiMo-V2.6-Pro", "XiaomiMiMo/MiMo-V2.6-Pro-RL"),
+        ("Muse Glimmer", "RadixArk/Muse-Glimmer-NVFP4"),
+        ("Qwen3.8-Flash-Next", "Qwen/Qwen3.8-Flash-Next"),
+    ],
+)
+def test_open_v5_rows_map_to_their_weights(name, hf_id):
+    page = _rsc_page([{"name": name, "index": 20.0}], "5.0.1")
+    assert _run_fetch(page)[hf_id] == _normalize_aa_index(
+        _V5_SLOPE * 20.0 + _V5_INTERCEPT
+    )
 
 
 @pytest.mark.parametrize("score", [0.0, -19.4, 10.1])
@@ -320,10 +359,10 @@ def test_deprecated_rows_fall_back_to_current_scale(model_id, raw):
 
 
 def test_other_index_version_uses_snapshot_end_to_end(monkeypatch):
-    # A v5.0 leaderboard goes through the real fetcher and the aggregation
+    # A v6.0 leaderboard goes through the real fetcher and the aggregation
     # path; the model must end up with its v4.3.2 snapshot score, not 29.9
     # normalized through the v4.3.2 bounds.
-    page = _rsc_page([{"name": "Qwen3 14B (Reasoning)", "index": 29.9}], "5.0")
+    page = _rsc_page([{"name": "Qwen3 14B (Reasoning)", "index": 29.9}], "6.0")
 
     async def leaderboard(client, url):
         return httpx.Response(200, text=page, request=httpx.Request("GET", url))

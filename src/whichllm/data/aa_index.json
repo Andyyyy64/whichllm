@@ -3,6 +3,46 @@
  "index_version": "4.3.2",
  "read_at": "2026-10-27",
  "note": "AA Intelligence Index, open-weights models only, raw index values. kind live: read from the slug's model page, the highest variant of the release; estimated: AA marks the value as estimated. kind peer: a hand estimate for a model AA does not track, set to reproduce its earlier normalized score; used only for models no source measured.",
+ "v5": {
+  "note": "Releases read on both index versions, highest variant of each. fetch_aa_index_scores() fits v4.3.2 = slope * v5 + intercept on these pairs and converts live v5.x values onto the v4.3.2 scale the bounds and snapshot use. Re-reading the pairs only changes this data.",
+  "pairs": [
+   {
+    "slug": "mimo-v2-6-pro",
+    "v4_3_2": 46.3,
+    "v4_3_2_read_at": "2026-10-27",
+    "v5": 29.9,
+    "v5_read_at": "2026-11-12"
+   },
+   {
+    "slug": "deepseek-v4-pro",
+    "v4_3_2": 36.0,
+    "v4_3_2_read_at": "2026-10-27",
+    "v5": 23.1,
+    "v5_read_at": "2026-11-12"
+   },
+   {
+    "slug": "qwen3-8-27b",
+    "v4_3_2": 33.7,
+    "v4_3_2_read_at": "2026-10-27",
+    "v5": 20.1,
+    "v5_read_at": "2026-11-12"
+   },
+   {
+    "slug": "gemma-4-31b",
+    "v4_3_2": 14.7,
+    "v4_3_2_read_at": "2026-10-27",
+    "v5": 4.4,
+    "v5_read_at": "2026-11-12"
+   },
+   {
+    "slug": "gpt-oss-120b",
+    "v4_3_2": 11.6,
+    "v4_3_2_read_at": "2026-10-27",
+    "v5": 3.8,
+    "v5_read_at": "2026-11-12"
+   }
+  ]
+ },
  "models": {
   "CohereForAI/c4ai-command-a-03-2025": {
    "raw": 7.0,
