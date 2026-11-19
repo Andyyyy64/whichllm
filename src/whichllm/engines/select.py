@@ -64,6 +64,10 @@ def engines_for(
     GGUF is the repository's own Hugging Face weights, which a GPU server
     reads in the format the repository names, and holds on one GPU, split
     over several with tensor parallelism, or with Paged Experts.
+
+    An engine that runs here only on its CPU build (ik_llama.cpp on an AMD
+    GPU, which it has no build for) holds a row only when the row stays in
+    RAM.
     """
     quant = _gguf_quant(result)
     weights = None if quant else effective_quant_type(result.model, None)
@@ -81,6 +85,7 @@ def engines_for(
             return []
     if lazy_lookup_params(result.artifact_model or result.model):
         needed.add("lazy_lookup")
+    on_gpu = "cpu" not in needed
 
     def reads(card: EngineCard) -> bool:
         if paged:
@@ -91,13 +96,17 @@ def engines_for(
             return weights in card.safetensors
         return reads_quant(card, quant, cards)
 
+    def holds(card: EngineCard) -> bool:
+        here = availability(card, hardware).platform
+        return here is not None and (not on_gpu or here.accel != "cpu")
+
     return [
         card
         for card in cards
         if card.kind == "runner"
         and needed <= set(card.memory)
         and reads(card)
-        and availability(card, hardware).runs
+        and holds(card)
     ]
 
 
