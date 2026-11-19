@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed
+
+- A GGUF that leaves Qwen3.8-Flash-Next's n-gram table out is no longer
+  estimated as if the table were in it. whichllm took the table's 28.8 GB
+  out of every file, up to 90% of it, so agentionai's 29.7 GB Gyro-S
+  `-noPLE` file needed 3.0 GB of VRAM, and the 28.8 GB file that holds the
+  table alone ranked as a model at 888 tok/s on a 16 GB GPU. A file named
+  `noPLE`, or one the table would nearly fill, now counts in full, and a
+  file of the table alone (`-PLE-`, a split part in an `ngram/` folder) is
+  no longer a quant of the model.
+
 ## [0.6.9] - 2026-11-19
 
 ### Added

@@ -191,3 +191,65 @@ def test_an_engram_file_is_not_a_build_of_the_model():
     variants = _extract_gguf_variants(data, 763_000_000_000)
 
     assert [v.quant_type for v in variants] == ["IQ2_XXS"]
+
+
+def _gyro(*variants: GGUFVariant, params: int = 125_743_653_760) -> ModelInfo:
+    """agentionai's Gyro repo, which ships the n-gram table as a file of its own."""
+    return ModelInfo(
+        id="agentionai/Qwen3.8-Flash-Next-Gyro-GGUF",
+        family_id="qwen/qwen3.8-flash-next",
+        name="Qwen3.8-Flash-Next-Gyro-GGUF",
+        parameter_count=params,
+        parameter_count_active=2_359_296_000,
+        is_moe=True,
+        shape=_shape("Qwen/Qwen3.8-Flash-Next"),
+        gguf_variants=list(variants),
+    )
+
+
+@pytest.mark.parametrize(
+    ("filename", "size"),
+    [
+        ("Qwen3.8-Flash-Next-Gyro-S-TQ1_0-noPLE.gguf", 29_686_877_504),
+        ("Qwen3.8-Flash-Next-Gyro-M-TQ2_0-noPLE.gguf", 37_565_513_024),
+        ("Qwen3.8-Flash-Next-Gyro-L-TQ3_0-noPLE.gguf", 53_923_298_624),
+    ],
+)
+def test_a_file_without_the_table_stays_resident_whole(filename, size):
+    variant = GGUFVariant(filename, filename.split("-")[-2], size)
+
+    # The table is not in a -noPLE file. Taking its 28.8 GB out anyway left
+    # Gyro-S at 3.0 GB of VRAM and Gyro-M at 8.8 GB.
+    assert estimate_memory_breakdown(_gyro(variant), variant).weights == size
+
+
+def test_a_file_the_table_would_fill_holds_none_of_it():
+    # Gyro-Coder's 21.4 GB file cannot hold the 28.8 GB table, whatever it is
+    # called. The table used to come out up to 90% of the file, so the rest
+    # ranked at hundreds of tok/s on a 16 GB GPU.
+    coder = GGUFVariant(
+        "Qwen3.8-Flash-Next-Gyro-Coder-TQ2_0.gguf", "TQ2_0", 21_400_000_000
+    )
+    model = _gyro(coder, params=65_314_218_880)
+
+    assert estimate_memory_breakdown(model, coder).weights == coder.file_size_bytes
+
+
+def test_a_table_file_is_not_a_build_of_the_model():
+    sizes = {
+        "Qwen3.8-Flash-Next-Gyro-S-TQ1_0-noPLE.gguf": 29_686_877_504,
+        "Qwen3.8-Flash-Next-Gyro-S-TQ1_0.gguf": 58_487_015_808,
+        "Qwen3.8-Flash-Next-PLE-IQ4_NL-GyroS.gguf": 28_811_085_184,
+        "Qwen3.8-Flash-Next-ngram/Qwen3.8-Flash-Next-UD-IQ2_XS-00003-of-00003.gguf": (
+            28_800_000_000
+        ),
+        "mmproj-F16.gguf": 904_004_128,
+        "mtp-Qwen3.8-Flash-Next-draft.gguf": 2_697_439_648,
+    }
+    data = {"siblings": [{"rfilename": n, "size": s} for n, s in sizes.items()]}
+
+    variants = _extract_gguf_variants(data, 125_743_653_760)
+
+    # The table alone, at IQ4_NL or as the last part of a split file, is not
+    # a quant of the model; the -noPLE build is.
+    assert [v.quant_type for v in variants] == ["TQ1_0"]
