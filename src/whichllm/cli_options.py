@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 
 import typer
@@ -27,13 +28,17 @@ def _validate_gpu_flags(
     if cpu_only and (vram is not None or bandwidth is not None):
         console.print("[red]Error:[/] --cpu-only cannot be used with GPU overrides.")
         raise typer.Exit(code=1)
-    if vram is not None and vram <= 0:
+    # NaN compares false against <= 0 and inf passes it, so a plain range
+    # check lets both through to the memory estimates.
+    if vram is not None and not (math.isfinite(vram) and vram > 0):
         console.print("[red]Error:[/] --vram must be greater than 0.")
         raise typer.Exit(code=1)
-    if bandwidth is not None and bandwidth <= 0:
+    if bandwidth is not None and not (math.isfinite(bandwidth) and bandwidth > 0):
         console.print("[red]Error:[/] --bandwidth must be greater than 0.")
         raise typer.Exit(code=1)
-    if ram_bandwidth is not None and ram_bandwidth <= 0:
+    if ram_bandwidth is not None and not (
+        math.isfinite(ram_bandwidth) and ram_bandwidth > 0
+    ):
         console.print("[red]Error:[/] --ram-bandwidth must be greater than 0.")
         raise typer.Exit(code=1)
     if gpu_index is not None and gpu_index < 0:
@@ -96,10 +101,10 @@ def _validate_ranking_flags(
     if top < 1:
         console.print("[red]Error:[/] --top must be 1 or greater.")
         raise typer.Exit(code=1)
-    if min_speed is not None and min_speed < 0:
+    if min_speed is not None and not (math.isfinite(min_speed) and min_speed >= 0):
         console.print("[red]Error:[/] --min-speed must be 0 or greater.")
         raise typer.Exit(code=1)
-    if min_params is not None and min_params < 0:
+    if min_params is not None and not (math.isfinite(min_params) and min_params >= 0):
         console.print("[red]Error:[/] --min-params must be 0 or greater.")
         raise typer.Exit(code=1)
 

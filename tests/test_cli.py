@@ -698,6 +698,39 @@ def test_main_negative_min_params_rejected():
     assert "--min-params must be 0 or greater" in result.stdout
 
 
+@pytest.mark.parametrize(
+    ("flag", "message"),
+    [
+        ("--vram", "--vram must be greater than 0"),
+        ("--bandwidth", "--bandwidth must be greater than 0"),
+        ("--ram-bandwidth", "--ram-bandwidth must be greater than 0"),
+    ],
+)
+@pytest.mark.parametrize("value", ["nan", "inf"])
+def test_non_finite_gpu_overrides_are_rejected(flag, value, message):
+    # NaN compares false against <= 0 and inf passes it, so both used to reach
+    # the memory estimates.
+    result = CliRunner().invoke(app, [flag, value])
+
+    assert result.exit_code == 1
+    assert message in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("flag", "message"),
+    [
+        ("--min-speed", "--min-speed must be 0 or greater"),
+        ("--min-params", "--min-params must be 0 or greater"),
+    ],
+)
+@pytest.mark.parametrize("value", ["nan", "inf"])
+def test_non_finite_ranking_thresholds_are_rejected(flag, value, message):
+    result = CliRunner().invoke(app, [flag, value])
+
+    assert result.exit_code == 1
+    assert message in result.stdout
+
+
 def test_validate_ranking_flags_accepts_valid_values():
     # A valid combination must not raise (no recommendations are dropped).
     _validate_ranking_flags(top=10, min_speed=0.0, min_params=None)
