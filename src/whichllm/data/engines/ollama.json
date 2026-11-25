@@ -6,11 +6,11 @@
   "evidence": "community",
   "upstream": {
     "github": "ollama/ollama",
-    "version": "0.40.16",
-    "released_at": "2026-11-09",
+    "version": "0.40.18",
+    "released_at": "2026-11-24",
     "status": "active"
   },
-  "checked_at": "2026-11-11",
+  "checked_at": "2026-11-25",
   "sources": [
     "https://github.com/ollama/ollama/releases/tag/v0.30.0",
     "https://github.com/ollama/ollama/releases/tag/v0.40.0",
