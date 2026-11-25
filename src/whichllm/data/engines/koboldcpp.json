@@ -6,14 +6,14 @@
   "evidence": "documented",
   "upstream": {
     "github": "LostRuins/koboldcpp",
-    "version": "1.124.2",
-    "released_at": "2026-10-31",
+    "version": "1.125.1",
+    "released_at": "2026-11-22",
     "status": "active"
   },
-  "checked_at": "2026-11-04",
+  "checked_at": "2026-11-25",
   "sources": [
     "https://github.com/LostRuins/koboldcpp",
-    "https://github.com/LostRuins/koboldcpp/releases/tag/v1.124.2",
+    "https://github.com/LostRuins/koboldcpp/releases/tag/v1.125.1",
     "https://github.com/LostRuins/koboldcpp/blob/concedo/koboldcpp.py"
   ],
   "platforms": [
