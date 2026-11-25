@@ -12,7 +12,7 @@ import json
 import logging
 import os
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 
 import httpx
@@ -70,12 +70,19 @@ def _read_state() -> dict:
     return state if isinstance(state, dict) else {}
 
 
-def _read_cached(url: str) -> dict | None:
+# A decoded payload can still be unusable: dicts_to_models reads keys that
+# structure_problems does not require, and it raises KeyError, TypeError or
+# AttributeError on them. Treat every such payload as invalid instead of
+# letting it escape (and never cache it).
+_INVALID_INDEX_ERRORS = (ValueError, KeyError, TypeError, AttributeError)
+
+
+def _read_cached(url: str) -> IndexCatalog | None:
     if _read_state().get("url") != url:
         return None
     try:
-        return decode_index(INDEX_CACHE_FILE.read_bytes())
-    except (OSError, ValueError) as e:
+        return _catalog(decode_index(INDEX_CACHE_FILE.read_bytes()))
+    except (OSError, *_INVALID_INDEX_ERRORS) as e:
         logger.debug(f"Cached index unusable: {e}")
         return None
 
@@ -118,25 +125,28 @@ def load_index(refresh: bool = False) -> IndexCatalog | None:
     cached = _read_cached(url)
     fresh = time.time() - state.get("checked_at", 0) < REVALIDATE_SECONDS
     if cached is not None and fresh and not refresh:
-        return _catalog(cached)
+        return cached
 
     try:
         resp = _fetch(url, state.get("etag") if cached is not None else None)
     except httpx.HTTPError as e:
         logger.debug(f"Index fetch failed: {e}")
-        return _catalog(cached, offline=True) if cached is not None else None
+        return replace(cached, offline=True) if cached is not None else None
 
     if resp.status_code == 304 and cached is not None:
         _save(None, url, state.get("etag"))
-        return _catalog(cached)
+        return cached
     if resp.status_code == 200:
         try:
-            payload = decode_index(resp.content)
-        except ValueError as e:
+            # Build the catalog before caching: a payload that decodes but
+            # cannot be turned into models must not reach the cache, or every
+            # later run (even offline) fails on the same file.
+            catalog = _catalog(decode_index(resp.content))
+        except _INVALID_INDEX_ERRORS as e:
             logger.warning(f"Downloaded index is invalid ({e}); not using it")
         else:
             _save(resp.content, url, resp.headers.get("ETag"))
-            return _catalog(payload)
+            return catalog
     else:
         logger.debug(f"Index fetch returned HTTP {resp.status_code}")
-    return _catalog(cached, offline=True) if cached is not None else None
+    return replace(cached, offline=True) if cached is not None else None
