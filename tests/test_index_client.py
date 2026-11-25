@@ -154,6 +154,48 @@ def test_catalog_from_an_older_index_has_no_sources(server):
     assert index_client.load_index().sources == []
 
 
+def test_a_payload_that_cannot_become_models_is_not_cached(server):
+    # structure_problems does not require parameter_count, but dicts_to_models
+    # does. Caching before building the models poisoned every later run.
+    payload = _payload()
+    del payload["models"][0]["parameter_count"]
+    server["responses"] = [_ok(payload)]
+
+    assert index_client.load_index() is None
+    assert not index_client.INDEX_CACHE_FILE.exists()
+
+
+def test_a_payload_that_cannot_become_models_keeps_the_cached_index(server):
+    bad = _payload()
+    del bad["models"][0]["parameter_count"]
+    server["responses"] = [_ok(_payload()), _ok(bad, '"v2"')]
+    index_client.load_index()
+
+    catalog = index_client.load_index(refresh=True)
+
+    assert catalog.offline
+    assert [m.id for m in catalog.models] == ["org/A-8B"]
+
+    # The good copy survived: the next offline run still loads it.
+    server["responses"] = [httpx.ConnectError("down")]
+    _age_state(index_client.REVALIDATE_SECONDS + 1)
+    assert [m.id for m in index_client.load_index().models] == ["org/A-8B"]
+
+
+def test_a_poisoned_cache_file_is_ignored(server):
+    # A cache written by a version that saved before validating must not crash.
+    payload = _payload()
+    del payload["models"][0]["parameter_count"]
+    index_client.CACHE_DIR.mkdir(parents=True)
+    index_client.INDEX_CACHE_FILE.write_bytes(encode_index(payload))
+    index_client.INDEX_STATE_FILE.write_text(
+        json.dumps({"url": DEFAULT_INDEX_URL, "checked_at": time.time()})
+    )
+    server["responses"] = [httpx.ConnectError("down")]
+
+    assert index_client.load_index() is None
+
+
 def test_age_from_build_time():
     catalog = index_client.IndexCatalog(
         models=[], benchmark_scores={}, built_at="2026-01-01T00:00:00Z"
