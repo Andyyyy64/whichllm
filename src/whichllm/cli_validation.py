@@ -10,6 +10,7 @@ from whichllm.cli_options import (
     _resolve_evidence_mode,
     _resolve_fit_filter,
     _resolve_speed_filter,
+    _resolve_uncensored_mode,
     _validate_lmstudio_path_flags,
 )
 from whichllm.cli_hardware import (
@@ -38,6 +39,7 @@ __all__ = [
     "_resolve_evidence_mode",
     "_resolve_fit_filter",
     "_resolve_speed_filter",
+    "_resolve_uncensored_mode",
     "_validate_lmstudio_path_flags",
     "_parse_memory_amount",
     "_auto_vram_headroom",

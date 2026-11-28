@@ -115,6 +115,17 @@ def main(
         "--profile",
         help="Ranking profile: general | coding | vision | math | any",
     ),
+    uncensored: bool = typer.Option(
+        False,
+        "--uncensored",
+        help="Only uncensored / abliterated models, ranked without their penalty",
+    ),
+    include_uncensored: bool = typer.Option(
+        False,
+        "--include-uncensored",
+        help="Rank uncensored / abliterated models next to the originals, "
+        "without their penalty",
+    ),
     json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
     markdown_output: bool = typer.Option(
         False,
@@ -191,6 +202,8 @@ def main(
         details=details,
         min_params=min_params,
         profile=profile,
+        uncensored=uncensored,
+        include_uncensored=include_uncensored,
         json_output=json_output,
         markdown_output=markdown_output,
         cpu_only=cpu_only,

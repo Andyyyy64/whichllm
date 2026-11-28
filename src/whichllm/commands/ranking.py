@@ -15,6 +15,7 @@ from whichllm.cli_hardware import (
 from whichllm.engine.types import CompatibilityResult
 from whichllm.hardware.types import HardwareInfo
 from whichllm.models.types import ModelInfo
+from whichllm.models.uncensored import UNCENSORED_OFF
 
 
 def apply_default_budgets(hardware: HardwareInfo) -> HardwareInfo:
@@ -37,6 +38,7 @@ def rank_for_hardware(
     min_params: float | None = None,
     evidence_filter: str = "any",
     fit_filter: str = "any",
+    uncensored: str = UNCENSORED_OFF,
 ) -> list[CompatibilityResult]:
     """Rank models for ``hardware`` the way ``whichllm`` shows them.
 
@@ -62,6 +64,7 @@ def rank_for_hardware(
         require_direct_top=True,
         evidence_filter=evidence_filter,
         fit_filter=fit_filter,
+        uncensored=uncensored,
     )
     ranked = rank_models(models, hardware, min_params_b=size_floor, **kwargs)
     if not ranked and size_floor is not None and min_params is None:

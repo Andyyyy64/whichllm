@@ -359,6 +359,8 @@ def display_ranking(
         model_link.stylize(f"link https://huggingface.co/{_artifact_model_id(r)}")
         if r.local_path:
             model_link.append("\nInstalled", style="bold green")
+        if r.uncensored:
+            model_link.append("\nuncensored", style="magenta")
         if show_status:
             model_link.append(f"\n{params_str}", style="dim")
 

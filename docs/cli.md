@@ -26,6 +26,8 @@ Common options:
 | `--profile` | Ranking profile: `general`, `coding`, `vision`, `math`, `any` |
 | `--evidence` | Benchmark evidence filter: `strict`, `base`, `any` |
 | `--direct` | Alias for `--evidence strict` |
+| `--uncensored` | List only uncensored / abliterated / heretic models, without their score penalty (see [Uncensored models](#uncensored-models)) |
+| `--include-uncensored` | Rank uncensored models next to the originals, without their score penalty |
 | `--status` | Compatibility option. Runtime columns are now shown by default |
 | `--details` | Show download metadata instead of runtime columns |
 | `--min-params` | Minimum model knowledge capacity in billions of parameters |
@@ -113,6 +115,8 @@ whichllm --ram-budget available
 whichllm --lm-studio-path /mnt/models/lm-studio
 whichllm --details
 whichllm --evidence strict
+whichllm --uncensored
+whichllm --include-uncensored --gpu "RTX 4090"
 whichllm --json | jq '.models[0]'
 ```
 
@@ -569,6 +573,35 @@ whichllm snippet "llama 3 8b gguf" --quant Q5_K_M
 | `any` | All evidence levels, including line interpolation and self-reported values |
 
 `--direct` is kept as a shorter alias for `--evidence strict`.
+
+## Uncensored models
+
+Hugging Face has no field for "refusals removed", so whichllm recognises an
+uncensored upload by its name (`uncensored`, `abliterated`, `heretic`,
+`obliterated`, `unfiltered`, `Dolphin`, `Lexi`, `Josiefied`), by a matching tag,
+or by the repository a quantized upload converts. Rows that match show an
+`uncensored` line under the model name, and `--json` carries
+`"uncensored": true`.
+
+| Flag | Effect |
+| --- | --- |
+| (none) | Unchanged: uncensored models compete with a 10-point score penalty, because they ride on the base model's benchmark line without being benchmarked themselves |
+| `--include-uncensored` | No penalty: uncensored models rank next to the originals |
+| `--uncensored` | Only uncensored models, without the penalty |
+
+The two flags exclude each other. Roleplay and NSFW fine-tunes keep their
+penalty in every mode, since they are not general-purpose models.
+
+An abliterated model has no benchmark run of its own, so its score is the one
+of the model it derives from (shown as `estimated`), and abliteration usually
+costs some quality. Treat the rank as an upper bound.
+
+The prebuilt index lists the most downloaded and trending repositories, and an
+abliterated fine-tune is rarely one of them. With either flag whichllm
+therefore searches Hugging Face by name (`uncensored`, `abliterated`,
+`heretic`, `dolphin`) and adds what it finds to the catalog before ranking. If
+the search fails it ranks the catalog it has. `--live` and index builds run
+the same search.
 
 ## Profiles
 

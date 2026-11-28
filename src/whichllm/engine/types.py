@@ -69,3 +69,5 @@ class CompatibilityResult:
     artifact_model: ModelInfo | None = None
     artifact_variant: GGUFVariant | None = None
     local_path: str | None = None
+    # The model (or the repo it quantizes) is an uncensored / abliterated upload.
+    uncensored: bool = False

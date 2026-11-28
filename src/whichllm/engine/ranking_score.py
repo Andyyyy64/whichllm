@@ -102,8 +102,12 @@ def _compute_quality_score(
     benchmark_source: str = "none",
     placement: str | None = None,
     artifact_repo: str | None = None,
+    exempt_uncensored: bool = False,
 ) -> float:
     """Compute a quality score (0-100) for ranking.
+
+    ``exempt_uncensored`` drops the derivative penalty for uncensored models,
+    for when the user asked for them.
 
     ``artifact_repo`` is the repository the file comes from when ``model`` is
     its base model, as for a fixed-model engine's pack.
@@ -235,7 +239,9 @@ def _compute_quality_score(
 
     # Penalty for "uncensored / abliterated / heretic / RP" derivatives that
     # ride on a base model's score without independent benchmarking.
-    derivative_penalty = _derivative_name_penalty(model.id)
+    derivative_penalty = _derivative_name_penalty(
+        model.id, exempt_uncensored=exempt_uncensored
+    )
 
     return max(
         0.0,

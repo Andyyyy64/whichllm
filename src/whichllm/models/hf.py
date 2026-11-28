@@ -216,7 +216,12 @@ def _hf_file_url(repo_id: str, filename: str, revision: str = "main") -> str:
     return f"{endpoint}/{repo_id}/resolve/{revision}/{filename}"
 
 
-def _model_list_params(limit: int, sort: str, filter_value: str | None = None) -> dict:
+def _model_list_params(
+    limit: int,
+    sort: str,
+    filter_value: str | None = None,
+    search: str | None = None,
+) -> dict:
     params = {
         "pipeline_tag": "text-generation",
         "sort": sort,
@@ -225,6 +230,8 @@ def _model_list_params(limit: int, sort: str, filter_value: str | None = None) -
     }
     if filter_value:
         params["filter"] = filter_value
+    if search:
+        params["search"] = search
     return params
 
 
@@ -248,6 +255,57 @@ async def _fetch_model_list(
     resp = await get_with_retries(client, _hf_api_url("models"), params=params)
     resp.raise_for_status()
     return resp.json()
+
+
+# Name searches that surface uncensored uploads. Abliterated and "heretic"
+# fine-tunes are seldom among the most downloaded or trending repositories, so
+# the plain listings miss them.
+_UNCENSORED_SEARCH_TERMS = ("uncensored", "abliterated", "heretic", "dolphin")
+_UNCENSORED_SEARCH_LIMIT = 100
+
+
+async def _fetch_uncensored_into(
+    client: httpx.AsyncClient,
+    models: list[ModelInfo],
+    seen_ids: set[str],
+    report: ModelFetchReport,
+    limit: int = _UNCENSORED_SEARCH_LIMIT,
+) -> None:
+    """Add the most downloaded repositories matching each uncensored marker."""
+    for term in _UNCENSORED_SEARCH_TERMS:
+        for filter_value in (None, "gguf"):
+            try:
+                data_list = await _fetch_model_list(
+                    client,
+                    _model_list_params(
+                        limit,
+                        sort="downloads",
+                        filter_value=filter_value,
+                        search=term,
+                    ),
+                )
+            except (httpx.HTTPError, ValueError) as e:
+                logger.debug(f"Uncensored search skipped for {term}: {e}")
+                report.failed.append(f"uncensored:{term}:{filter_value or 'all'}")
+                continue
+            _append_new_models(data_list, models, seen_ids)
+
+
+async def fetch_uncensored_models(
+    limit: int = _UNCENSORED_SEARCH_LIMIT,
+    report: ModelFetchReport | None = None,
+) -> list[ModelInfo]:
+    """Search Hugging Face for uncensored, abliterated and heretic uploads."""
+    if report is None:
+        report = ModelFetchReport()
+    models: list[ModelInfo] = []
+    async with httpx.AsyncClient(
+        timeout=30.0,
+        follow_redirects=True,
+        headers=_hf_headers(),
+    ) as client:
+        await _fetch_uncensored_into(client, models, set(), report, limit)
+    return models
 
 
 async def _fetch_frontier_models(
@@ -371,6 +429,7 @@ async def fetch_models(
             _append_new_models(trending_data_list, models, seen_ids)
 
         await _fetch_frontier_models(client, models, seen_ids, report)
+        await _fetch_uncensored_into(client, models, seen_ids, report)
 
         if include_vision:
             for pipeline_tag in ("image-text-to-text",):

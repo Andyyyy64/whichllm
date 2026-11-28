@@ -16,6 +16,7 @@ from whichllm.cli_validation import (
     _resolve_evidence_mode,
     _resolve_fit_filter,
     _resolve_speed_filter,
+    _resolve_uncensored_mode,
     _validate_gpu_flags,
     _validate_output_flags,
     _validate_profile,
@@ -29,6 +30,7 @@ from whichllm.cli_validation import _validate_lmstudio_path_flags
 from whichllm.models.artifacts import (
     attach_resolved_artifacts,
 )
+from whichllm.models.uncensored import UNCENSORED_OFF, UNCENSORED_ONLY
 
 # Extra ranked rows whose families get their config.json read, so a model
 # just below the cut can move up once its exact KV size is known.
@@ -67,6 +69,28 @@ def _load_live_models(progress, task, refresh: bool, profile: str) -> list:
     except Exception as e:
         console.print(f"[red]Error fetching models:[/] {_format_fetch_error(e)}")
         sys.exit(1)
+
+
+def _with_uncensored_models(models: list) -> list:
+    """Add the uncensored uploads the catalog does not list.
+
+    The prebuilt index and the model cache hold the most downloaded and the
+    trending repositories, and an abliterated fine-tune is rarely one of
+    them. A short search by name fills the gap; a failed search leaves the
+    catalog as it was.
+    """
+    from whichllm.models.hf import fetch_uncensored_models
+
+    try:
+        extra = _run_async(fetch_uncensored_models())
+    except Exception as e:
+        console.print(
+            f"[yellow]Warning:[/] Could not search for uncensored models: "
+            f"{_format_fetch_error(e)}"
+        )
+        return models
+    known = {m.id for m in models}
+    return [*models, *(m for m in extra if m.id not in known)]
 
 
 def _load_live_benchmarks(
@@ -164,6 +188,8 @@ def main_command(
     lm_studio_path: list[Path] | None,
     live: bool = False,
     ram_bandwidth: float | None = None,
+    uncensored: bool = False,
+    include_uncensored: bool = False,
 ) -> None:
     """Detect hardware and recommend the best local LLMs."""
     if ctx.invoked_subcommand is not None:
@@ -179,6 +205,7 @@ def main_command(
     evidence_mode = _resolve_evidence_mode(evidence, direct)
     fit_filter = _resolve_fit_filter(fit, gpu_only)
     speed_filter = _resolve_speed_filter(speed, min_speed)
+    uncensored_filter = _resolve_uncensored_mode(include_uncensored, uncensored)
 
     from rich.progress import Progress, SpinnerColumn, TextColumn
 
@@ -229,6 +256,10 @@ def main_command(
                 progress, task, refresh, [m.id for m in models]
             )
 
+        if uncensored_filter != UNCENSORED_OFF:
+            progress.update(task, description="Looking for uncensored models...")
+            models = _with_uncensored_models(models)
+
         # Step 4: Group and rank
         progress.update(task, description="Ranking models...")
         families = group_models(models)
@@ -258,6 +289,7 @@ def main_command(
                 min_params=min_params,
                 evidence_filter=evidence_mode,
                 fit_filter=fit_filter,
+                uncensored=uncensored_filter,
             )
 
         # Exact KV sizes need each model's config.json. The index carries the
@@ -323,6 +355,10 @@ def main_command(
                 evidence_filter=evidence_mode,
                 fit_filter=fit_filter,
             )
+            if uncensored_filter == UNCENSORED_ONLY:
+                # Fixed-model engine packs run the publisher's own models, so
+                # an uncensored-only list has none to show.
+                pack_rows = []
             from whichllm.models.lmstudio import (
                 attach_local_matches,
                 discover_lmstudio_ggufs,

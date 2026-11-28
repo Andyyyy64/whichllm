@@ -158,6 +158,8 @@ whichllm --gpu "2x RTX 3090"      # or several
 whichllm --profile coding         # general, coding, vision, math, any
 whichllm --context-length 64k     # long context changes what fits
 whichllm --gpu-only               # only models that fit entirely in VRAM
+whichllm --uncensored             # only uncensored / abliterated models
+whichllm --include-uncensored     # rank them next to the originals, no penalty
 whichllm --speed usable           # hide anything under 8 tok/s
 whichllm --markdown               # pasteable table for issues and chats
 whichllm --json                   # rows include placement and the run recipe

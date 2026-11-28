@@ -160,6 +160,7 @@ def display_json(
             {
                 "rank": i,
                 "model_id": r.model.id,
+                "uncensored": r.uncensored,
                 "artifact_repo_id": r.artifact_model.id if r.artifact_model else None,
                 "artifact_filename": (
                     r.artifact_variant.filename if r.artifact_variant else None
