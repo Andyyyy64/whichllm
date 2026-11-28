@@ -30,6 +30,11 @@ from whichllm.models.benchmark import (
     lookup_benchmark_evidence,
 )
 from whichllm.models.roles import find_base_checkpoints
+from whichllm.models.uncensored import (
+    UNCENSORED_OFF,
+    UNCENSORED_ONLY,
+    model_is_uncensored,
+)
 from whichllm.models.types import ModelInfo
 
 # Quality points a code-tuned model gains under --profile coding when it has
@@ -165,8 +170,13 @@ def rank_models(
     min_params_b: float | None = None,
     evidence_filter: str = "any",
     fit_filter: str = "any",
+    uncensored: str = UNCENSORED_OFF,
 ) -> list[CompatibilityResult]:
     """Rank models by quality for the given hardware. Returns top N results.
+
+    ``uncensored`` is ``"off"`` (default; uncensored derivatives keep their
+    small score penalty), ``"include"`` (no penalty) or ``"only"`` (no penalty,
+    and nothing else is listed).
 
     ``task_scores`` are the active profile's scores (coding, math, vision).
     A model with task evidence is ranked on it instead of its general score.
@@ -209,6 +219,12 @@ def rank_models(
             continue
         if _is_auxiliary_model(model) or _understates_its_base(model, params_by_repo):
             continue
+        is_uncensored_model = model_is_uncensored(model)
+        if uncensored == UNCENSORED_ONLY and not is_uncensored_model:
+            continue
+        # The penalty exists because an uncensored derivative is rarely
+        # benchmarked itself; it stops once the user asks for those models.
+        exempt_uncensored = is_uncensored_model and uncensored != UNCENSORED_OFF
         if not _matches_profile(model, task_profile):
             continue
         if min_params_b is not None and _knowledge_capacity_b(model) < min_params_b:
@@ -339,7 +355,9 @@ def rank_models(
                 family_likes=family_max_likes.get(fid, 0),
                 benchmark_avg=bench_avg,
                 benchmark_source=bench_evidence.source,
+                exempt_uncensored=exempt_uncensored,
             )
+            compat.uncensored = is_uncensored_model
             if (
                 coding_profile
                 and basis == "general"

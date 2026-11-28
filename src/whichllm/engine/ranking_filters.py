@@ -11,6 +11,7 @@ from whichllm.constants import (
 )
 from whichllm.hardware.types import HardwareInfo
 from whichllm.models.types import ModelInfo
+from whichllm.models.uncensored import UNCENSORED_PENALTY_PATTERNS
 
 # Pre-compile lineage regex tables once at import time.
 _LINEAGE_REGEX: dict[str, list[tuple[re.Pattern[str], int]]] = {
@@ -93,17 +94,24 @@ _DUBIOUS_DERIVATIVE_PATTERNS = (
 )
 
 
-def _derivative_name_penalty(model_id: str) -> float:
+def _derivative_name_penalty(model_id: str, exempt_uncensored: bool = False) -> float:
     """Return a score penalty (in raw quality points) for fine-tune /
     "uncensored" / merge derivatives that ride on a real base model's
     benchmark line. The penalty is gentle (≤ 12pt) so a derivative can
     still win when its size class has no better option.
+
+    ``exempt_uncensored`` is set when the user asked for uncensored models
+    (``--uncensored`` / ``--include-uncensored``): the uncensoring markers no
+    longer cost points, while other derivative names (roleplay, nsfw, merges)
+    keep their penalty.
     """
     if not model_id:
         return 0.0
     lower = model_id.lower()
     name = lower.split("/", 1)[1] if "/" in lower else lower
     for pat in _DUBIOUS_DERIVATIVE_PATTERNS:
+        if exempt_uncensored and pat in UNCENSORED_PENALTY_PATTERNS:
+            continue
         if pat in name:
             return -10.0
     return 0.0

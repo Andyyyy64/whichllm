@@ -75,6 +75,8 @@ def _format_markdown_model(result: CompatibilityResult) -> str:
         model = result.model.id
     if result.local_path:
         model += " (Installed)"
+    if result.uncensored:
+        model += " (uncensored)"
     if result.pack_launch:
         model += f" with {_engine_name(result.engine)}, {result.pack_name}"
     return model

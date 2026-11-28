@@ -177,3 +177,16 @@ def _validate_lmstudio_path_flags(paths: list[Path] | None) -> None:
     except LMStudioPathError as error:
         console.print(f"[red]Error:[/] {error}")
         raise typer.Exit(code=1) from error
+
+
+def _resolve_uncensored_mode(include_uncensored: bool, uncensored_only: bool) -> str:
+    """Resolve --include-uncensored / --uncensored into a ranking mode."""
+    if include_uncensored and uncensored_only:
+        console.print(
+            "[red]Error:[/] --uncensored and --include-uncensored are mutually "
+            "exclusive (--uncensored already lists only uncensored models)."
+        )
+        raise typer.Exit(code=1)
+    from whichllm.models.uncensored import uncensored_mode
+
+    return uncensored_mode(include_uncensored, uncensored_only)

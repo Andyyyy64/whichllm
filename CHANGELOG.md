@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+
+- `--uncensored` and `--include-uncensored` for uncensored, abliterated and
+  heretic models. `--uncensored` lists only those models and
+  `--include-uncensored` ranks them next to the originals; both drop the
+  10-point derivative penalty that a plain `whichllm` still applies. Rows
+  show an `uncensored` line, and `--json` gains an `uncensored` field.
+  Detection reads the repository name, Hugging Face tags and the repository a
+  quantized upload converts. Both flags search Hugging Face by name for
+  uncensored uploads the index does not list, and `--live` and index builds
+  now run that search too.
+
 ### Fixed
 
 - A GGUF that leaves Qwen3.8-Flash-Next's n-gram table out is no longer
